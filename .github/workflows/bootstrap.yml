@@ -1,0 +1,279 @@
+name: Bootstrap Market Intelligence Core
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create project structure
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p \
+            config \
+            docs \
+            src/market_intelligence \
+            tests
+
+          cat > README.md <<'EOF'
+# Market Intelligence Core
+
+Research-first and validation-driven crypto market intelligence platform.
+
+## Scope
+
+- Price, Open Interest and Funding
+- Order Book and Trade Flow
+- Smart Money and Whale intelligence
+- FOMO / Meme intelligence
+- Market regime detection
+- Realistic-cost backtesting
+- Walk-Forward / Out-of-Sample validation
+- Monte Carlo analysis
+- Anti-overfitting controls
+- Paper / Shadow trading
+- Outcome memory
+- Signal decay analysis
+- Adaptive thresholds
+- Profitability gates
+- Kill switches
+- Auditable reports and dashboards
+
+## Design Principles
+
+1. Research before production.
+2. No look-ahead leakage.
+3. No signal is promoted only because of a profitable backtest.
+4. Realistic fees, slippage and execution constraints are mandatory.
+5. Out-of-sample validation is mandatory.
+6. Every important result must be reproducible and auditable.
+7. Resource usage should remain lightweight where possible.
+
+## Safety Boundary
+
+This project is independent from legacy Termux services.
+
+Protected services:
+
+- telegrambot
+- hltracker
+- dailyreport
+- botwatchdog
+
+They are read-only/inspect-only from this project and must never be modified automatically.
+
+## Project Status
+
+Foundation stage.
+EOF
+
+          cat > ROADMAP.md <<'EOF'
+# Roadmap
+
+## Phase 1 - Foundation
+- Repository structure
+- Configuration
+- Data contracts
+- Safety boundaries
+- Test foundation
+
+## Phase 2 - Market Intelligence
+- Price
+- Open Interest
+- Funding
+- Order Book
+- Trade Flow
+- Liquidity analysis
+
+## Phase 3 - Smart Money / FOMO
+- Whale tracking
+- Wallet behavior
+- Historical trader scoring
+- FOMO detection
+- Meme intelligence
+
+## Phase 4 - Validation
+- Realistic transaction costs
+- Slippage
+- Backtesting
+- Walk-Forward validation
+- Out-of-Sample testing
+- Monte Carlo
+- Anti-overfitting
+
+## Phase 5 - Shadow Operation
+- Paper trading
+- Signal outcome memory
+- Signal decay
+- Regime-specific edge
+- Adaptive thresholds
+- Profitability gate
+- Kill switch
+
+## Promotion Rule
+
+A signal must not become production-grade solely because of an in-sample backtest.
+EOF
+
+          cat > requirements.txt <<'EOF'
+# Intentionally dependency-light foundation.
+# Heavy dependencies will be introduced only when justified.
+EOF
+
+          cat > .gitignore <<'EOF'
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+*.db
+*.sqlite
+*.sqlite3
+data/raw/
+data/processed/
+data/cache/
+reports/generated/
+.pytest_cache/
+EOF
+
+          cat > config/project.yaml <<'EOF'
+project:
+  name: market-intelligence-core
+  version: 0.1.0
+  mode: research
+
+runtime:
+  max_workers: 2
+  bounded_memory: true
+  heavy_tests: false
+
+safety:
+  allow_service_control: false
+  allow_automatic_repairs: false
+  read_only_external_services: true
+
+  protected_services:
+    - telegrambot
+    - hltracker
+    - dailyreport
+    - botwatchdog
+
+validation:
+  realistic_costs: required
+  walk_forward: required
+  out_of_sample: required
+  monte_carlo: required
+  anti_overfitting: required
+  profitability_gate: required
+  kill_switch: enabled
+EOF
+
+          cat > docs/ARCHITECTURE.md <<'EOF'
+# Architecture
+
+Planned pipeline:
+
+Sources
+→ Collectors
+→ Raw Append-Only Data
+→ Normalization
+→ Feature Engineering
+→ Market Intelligence
+→ Regime Detection
+→ Signal Generation
+→ Validation
+→ Shadow Trading
+→ Outcome Memory
+→ Reports / Dashboard
+
+## Core Rules
+
+### Data integrity
+Raw observations should remain append-only.
+
+### Time integrity
+Features must only use information available at the decision timestamp.
+
+### Validation integrity
+Training, validation and out-of-sample periods must remain separated.
+
+### Execution realism
+Fees, spread, slippage, latency and liquidity constraints must be represented where relevant.
+
+### Safety
+The analyzer remains independent of protected legacy services.
+EOF
+
+          cat > docs/DATA_CONTRACTS.md <<'EOF'
+# Data Contracts
+
+Core records should preserve:
+
+- event_ts
+- ingest_ts
+- source
+- market
+- symbol
+- schema_version
+- quality_flags
+- raw_ref
+
+## Critical Rule
+
+No observation may enter validation if its provenance or timestamp cannot establish that the information was available at the decision time.
+
+This prevents accidental look-ahead leakage.
+EOF
+
+          cat > src/market_intelligence/__init__.py <<'EOF'
+__version__ = "0.1.0"
+EOF
+
+          cat > src/market_intelligence/config.py <<'EOF'
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class RuntimeConfig:
+    max_workers: int = 2
+    bounded_memory: bool = True
+    heavy_tests: bool = False
+
+
+@dataclass(frozen=True)
+class SafetyConfig:
+    allow_service_control: bool = False
+    allow_automatic_repairs: bool = False
+    read_only_external_services: bool = True
+EOF
+
+          cat > tests/test_smoke.py <<'EOF'
+from market_intelligence import __version__
+
+
+def test_version():
+    assert __version__ == "0.1.0"
+EOF
+
+      - name: Commit project scaffold
+        shell: bash
+        run: |
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+          git commit -m "Bootstrap Market Intelligence Core" || exit 0
+          git push
