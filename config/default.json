@@ -1,0 +1,7 @@
+{
+  "costs": {"fee_bps": 5.0, "slippage_bps": 3.0, "latency_bars": 1},
+  "risk": {"max_position": 0.25, "max_drawdown": 0.15, "kill_switch_drawdown": 0.20},
+  "validation": {"min_trades": 30, "min_profit_factor": 1.10, "min_expectancy": 0.0},
+  "signals": {"entry_threshold": 0.60, "adaptive_window": 100},
+  "regimes": {"trend_window": 20, "vol_window": 20}
+}
