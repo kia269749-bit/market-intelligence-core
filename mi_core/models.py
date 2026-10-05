@@ -17,6 +17,8 @@ class MarketBar:
     whale_sell: float = 0.0
     sentiment: float = 0.0
     derivatives: Optional[Mapping[str, float | int | None]] = None
+    microstructure: Optional[Mapping[str, float | int | None]] = None
+    exchange_snapshots: Optional[tuple[Mapping[str, float | int | None], ...]] = None
 
     def to_dict(self): return asdict(self)
 
