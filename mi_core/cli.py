@@ -85,9 +85,9 @@ def main():
         if x.interval<10: raise ValueError("interval must be at least 10 seconds")
         count=0
         while x.cycles==0 or count<x.cycles:
-            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit)
-            print_live_brain(snap)
             p60=summarize_project60(x.project60_file) if x.project60_file else None
+            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60)
+            print_live_brain(snap)
             print(render_persian(snap,p60))
             count+=1
             if x.cycles==0 or count<x.cycles: time.sleep(x.interval)
