@@ -1,0 +1,7 @@
+{
+  "exchanges": ["binance","coinbase","kraken","okx"],
+  "symbols": ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","AVAXUSDT","LINKUSDT","TRXUSDT"],
+  "poll_seconds": 20,
+  "research_only": true,
+  "live_orders": false
+}
