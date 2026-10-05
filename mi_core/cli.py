@@ -36,7 +36,12 @@ def real(symbol,interval,bars,out,report):
     result=train_test(fetched)
     return write_report(result,report,{"mode":"real-market-data","venue":"Binance public market-data API","symbol":symbol.upper(),"interval":interval,"bars":len(fetched),"first_ts":fetched[0].ts,"last_ts":fetched[-1].ts,"data_path":str(data_path),"research_only":True,"live_orders":False})
 
-def intelligence(inp,out=None):\n    bars=load_input(inp)\n    result=analyze_market(bars, volume_history=[b.volume for b in bars[-21:-1]])\n    return write_report(result,out or Path(inp).with_suffix(".intelligence.json"),{"mode":"integrated-research","bars":len(bars),"research_only":True,"live_orders":False})\n\ndef dashboard(report,out):
+def intelligence(inp,out=None):
+    bars=load_input(inp)
+    result=analyze_market(bars, volume_history=[b.volume for b in bars[-21:-1]])
+    return write_report(result,out or Path(inp).with_suffix(".intelligence.json"),{"mode":"integrated-research","bars":len(bars),"research_only":True,"live_orders":False})
+
+def dashboard(report,out):
     payload=json.loads(Path(report).read_text(encoding="utf-8")); print(build_html(payload,out))
 
 def live(exchanges,symbols,interval,cycles):
