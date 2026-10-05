@@ -43,3 +43,38 @@ def summarize(path):
             "has_orderbook":"orderbook" in fields or "order_book" in fields or "orderbook" in text,
             "has_tradeflow":"tradeflow" in fields or "trade_flow" in fields or "tradeflow" in text,
             "fields":fields}
+
+
+def _direction(raw):
+    text=json.dumps(raw,ensure_ascii=False).lower()
+    bull=any(x in text for x in ("bullish","buy_pressure","buying_pressure","net_buy"))
+    bear=any(x in text for x in ("bearish","sell_pressure","selling_pressure","net_sell"))
+    if bull and not bear: return "BULLISH"
+    if bear and not bull: return "BEARISH"
+    return "UNKNOWN"
+
+
+def _confidence(raw):
+    if isinstance(raw,dict):
+        for k,v in raw.items():
+            if str(k).lower() in ("confidence","signal_confidence"):
+                try:
+                    n=float(v); return max(0.0,min(1.0,n/100 if n>1 else n))
+                except (TypeError,ValueError): pass
+            c=_confidence(v)
+            if c: return c
+    elif isinstance(raw,list):
+        for v in raw:
+            c=_confidence(v)
+            if c: return c
+    return 0.0
+
+
+def live_evidence(path):
+    data=read_snapshot(path)
+    if not data.get("available"):
+        return {"available":False,"bias":"UNKNOWN","confidence":0.0}
+    return {"available":True,"bias":_direction(data.get("raw",{})),
+            "confidence":_confidence(data.get("raw",{})),
+            "assets":data.get("assets",{}),
+            "timestamp":data.get("timestamp")}
