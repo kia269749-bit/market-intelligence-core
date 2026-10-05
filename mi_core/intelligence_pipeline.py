@@ -50,7 +50,7 @@ def analyze_market(
     trader_metrics: Mapping[str, float] | None = None,
     macro: CrossAssetSnapshot | None = None,
     meme: Mapping[str, float] | None = None,
-    entry_threshold: float = 0.60,
+    entry_threshold: float = 0.60,\n    historical_evidence: Mapping | None = None,
 ) -> dict:
     """Build one auditable snapshot from the latest available bar."""
     if not bars:
