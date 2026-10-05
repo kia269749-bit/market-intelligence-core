@@ -1,38 +1,29 @@
-import random,math
+"""Research-only validation helpers for OOS and Monte Carlo robustness."""
+from __future__ import annotations
+from dataclasses import asdict
+from typing import Sequence
+from .monte_carlo import anti_overfitting_score, monte_carlo_bootstrap
 
-def metrics(result):
-    ps=[t.pnl for t in result["trades"]]; wins=[x for x in ps if x>0]; losses=[-x for x in ps if x<0]
-    pf=sum(wins)/sum(losses) if losses else (math.inf if wins else 0.0)
-    return {"trades":len(ps),"win_rate":len(wins)/len(ps) if ps else 0.0,"profit_factor":pf,"expectancy":sum(ps)/len(ps) if ps else 0.0,"return":result["return"],"max_drawdown":result["max_drawdown"]}
-
-def monte_carlo(pnls,runs=1000,seed=7):
-    if not pnls or runs<1: return {}
-    rng=random.Random(seed); curves=[]
-    for _ in range(runs):
-        eq=peak=1.0; dd=0.0
-        for p in rng.choices(pnls,k=len(pnls)):
-            eq*=1+p; peak=max(peak,eq); dd=max(dd,(peak-eq)/peak)
-        curves.append((eq,dd))
-    finals=sorted(x[0] for x in curves); dds=sorted(x[1] for x in curves)
-    return {"runs":runs,"p05_final":finals[int(.05*(runs-1))],"median_final":finals[int(.50*(runs-1))],"p95_drawdown":dds[int(.95*(runs-1))]}
-
-def profitability_gate(m,min_trades=30,min_pf=1.10,min_expectancy=0):
-    return m["trades"]>=min_trades and m["profit_factor"]>=min_pf and m["expectancy"]>min_expectancy
-
-def anti_overfit(train,test,min_retention=.50):
-    if not train or not test: return False
-    return test["profit_factor"]>=max(1.0,train["profit_factor"]*min_retention)
-
-def split_time(bars,train_ratio=.70):
-    if len(bars)<2: raise ValueError("at least two bars required")
-    n=max(1,min(len(bars)-1,int(len(bars)*train_ratio)))
-    return bars[:n],bars[n:]
-
-def walk_forward(bars,signal_factory,train_bars=100,test_bars=50):
-    if train_bars<1 or test_bars<1: raise ValueError("window sizes must be positive")
-    out=[]; i=0
-    while i+train_bars+test_bars<=len(bars):
-        train=bars[i:i+train_bars]; test=bars[i+train_bars:i+train_bars+test_bars]
-        tm=metrics(signal_factory(train)); em=metrics(signal_factory(test))
-        out.append({"train":tm,"test":em,"anti_overfit":anti_overfit(tm,em)}); i+=test_bars
-    return out
+def validate_oos_robustness(oos_report: dict, trade_returns: Sequence[float], *,
+    train_return: float = 0.0, simulations: int = 2000, seed: int = 42,
+    min_oos_positive_rate: float = 0.50, max_loss_probability: float = 0.50) -> dict:
+    mc = monte_carlo_bootstrap(trade_returns, simulations=simulations, seed=seed)
+    anti = anti_overfitting_score(
+        train_return=train_return,
+        oos_return=float(oos_report.get("oos_return_total", 0.0)),
+        oos_positive_rate=float(oos_report.get("oos_positive_rate", 0.0)),
+        oos_probability_of_loss=mc.probability_of_loss,
+        min_oos_positive_rate=min_oos_positive_rate,
+        max_loss_probability=max_loss_probability,
+    )
+    return {
+        "oos": oos_report,
+        "monte_carlo": asdict(mc),
+        "anti_overfitting": anti,
+        "robustness_pass": bool(
+            anti["oos_positive"] and anti["oos_positive_rate_pass"]
+            and anti["loss_probability_pass"] and mc.p05_return > -1.0
+        ),
+        "research_only": True,
+        "live_orders": False,
+    }
