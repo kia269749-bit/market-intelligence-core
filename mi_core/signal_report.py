@@ -49,11 +49,8 @@ def build_signal_report(
         layer_states[name] = state
 
     exchange_confirmed = bool(cross_exchange.get("confirmed"))
-    if exchange_confirmed and target:
-        confirmations += 1
-        layer_states["cross_exchange_confirmation"] = "CONFIRMS"
-    elif target and cross_exchange:
-        layer_states["cross_exchange_confirmation"] = "NOT_CONFIRMED"
+    if target:
+        layer_states["cross_exchange_confirmation"] = "CONFIRMS" if exchange_confirmed else "NOT_CONFIRMED"
 
     reasons = []
     warnings = list(signal_summary.get("warnings", ()))
@@ -70,7 +67,20 @@ def build_signal_report(
         if isinstance(event, Mapping) and event.get("is_fomo"):
             warnings.append("FOMO_EVENT")
 
+    if target and exchange_confirmed:
+        confirmations += 1
+
     conviction = float(signal_summary.get("conviction", 0.0))
+    risk_level = (
+        "HIGH" if crowding.get("cascade_risk") or crowding.get("level") == "EXTREME"
+        else "ELEVATED" if crowding.get("level") == "ELEVATED" or conflicts >= 2
+        else "LOW"
+    )
+    decision = (
+        "NO_SIGNAL" if direction == "FLAT"
+        else "MANUAL_REVIEW_REQUIRED" if signal_summary.get("status") in {"STRONG", "WATCH"}
+        else "FILTERED"
+    )
     confirmation_ratio = confirmations / max(1, confirmations + conflicts)
     report = {
         "symbol": symbol,
@@ -79,6 +89,8 @@ def build_signal_report(
         "conviction": round(conviction, 6),
         "conviction_pct": round(conviction * 100, 2),
         "confirmation_ratio": round(confirmation_ratio, 6),
+        "risk_level": risk_level,
+        "decision": decision,
         "confirmations": confirmations,
         "conflicts": conflicts,
         "layers": layer_states,
