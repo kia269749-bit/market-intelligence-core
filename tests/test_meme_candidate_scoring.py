@@ -21,6 +21,19 @@ class MemeCandidateScoringTests(unittest.TestCase):
         self.assertEqual(result.status, "STRONG_WATCH")
         self.assertGreater(result.quality_score, 0.70)
 
+    def test_ranking_puts_high_risk_last(self):
+        safe = score_meme_candidate(
+            "SAFE", liquidity_usd=2000000, volume_24h_usd=5000000,
+            holders=12000, top_holder_pct=10, buy_sell_ratio=1.7,
+            smart_money_score=0.9, fomo_score=0.8)
+        risky = score_meme_candidate(
+            "RISK", liquidity_usd=10000, volume_24h_usd=100000,
+            holders=20, top_holder_pct=60, buy_sell_ratio=0.5,
+            smart_money_score=0.2, fomo_score=0.2)
+        ranked = rank_meme_candidates([risky, safe])
+        self.assertEqual(ranked[0].token, "SAFE")
+        self.assertEqual(ranked[-1].status, "HIGH_RISK")
+
     def test_ranking_prefers_quality(self):
         a = score_meme_candidate(
             "A", liquidity_usd=2000000, volume_24h_usd=5000000,
