@@ -25,6 +25,7 @@ def test_pipeline_is_research_only():
     assert report["live_orders"] is False
     assert report["signal"]["symbol"] == "BTCUSDT"
     assert "signal_gate" in report
+    assert report["positioning"]["diagnostic_only"] is True
 
 
 def test_pipeline_exposes_flow_and_smart_money():
