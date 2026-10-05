@@ -73,7 +73,9 @@ def infer_direction(*, target_token_delta: float, quote_token_delta: float | Non
     total = buy + sell
     agreement = (buy if winner is TradeDirection.BUY else sell) / total if total else 0.0
     winner_count = sum(1 for e in evidence if e.direction is winner)
-    confidence = _clip01((0.45 + 0.20 * min(2, max(0, winner_count - 1))) * agreement)
+    # A single strong balance witness can be useful, but multiple independent
+    # witnesses receive more confidence. Conflicts still force UNKNOWN.
+    confidence = _clip01((0.65 + 0.15 * min(2, max(0, winner_count - 1))) * agreement)
     conflicts = tuple(f"{e.source} disagrees with majority direction" for e in evidence if e.direction is loser)
     reliable = confidence >= min_reliable_confidence and agreement >= 0.65
     if not reliable:
