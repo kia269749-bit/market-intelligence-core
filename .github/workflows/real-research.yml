@@ -1,0 +1,32 @@
+name: Real Market Research
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  real-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Download and analyze real BTCUSDT data
+        run: |
+          python -m mi_core.cli real             --symbol BTCUSDT             --interval 1h             --bars 5000             --out data/real/btcusdt_1h.jsonl             --report reports/real_btcusdt_1h.json
+      - name: Build dashboard
+        run: |
+          python -m mi_core.cli dashboard             --report reports/real_btcusdt_1h.json             --out reports/real_btcusdt_1h.html
+      - name: Publish research artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-real-btcusdt-1h
+          path: |
+            reports/real_btcusdt_1h.json
+            reports/real_btcusdt_1h.html
+            data/real/btcusdt_1h.jsonl
