@@ -1,5 +1,5 @@
 from dataclasses import dataclass, asdict
-from typing import Optional
+from typing import Mapping, Optional
 
 @dataclass(frozen=True)
 class MarketBar:
@@ -16,6 +16,7 @@ class MarketBar:
     whale_buy: float = 0.0
     whale_sell: float = 0.0
     sentiment: float = 0.0
+    derivatives: Optional[Mapping[str, float | int | None]] = None
 
     def to_dict(self): return asdict(self)
 
