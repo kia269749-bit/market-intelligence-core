@@ -16,15 +16,12 @@ def macro_regime_fit(signal_side: str, snapshot: CrossAssetSnapshot) -> float:
         return 0.65 if side == "SHORT" else 0.50
     return 0.60
 
-def apply_macro_context(
-    signal_side: str,
-    quality: float,
-    snapshot: CrossAssetSnapshot,
-) -> dict:
+def apply_macro_context(signal_side: str, quality: float, snapshot: CrossAssetSnapshot) -> dict:
     if not 0 <= quality <= 1:
         raise ValueError("quality must be between 0 and 1")
     fit = macro_regime_fit(signal_side, snapshot)
-    adjusted = max(0.0, min(1.0, quality * (0.75 + 0.25 * fit)))
+    factor = 0.85 + 0.20 * fit
+    adjusted = max(0.0, min(1.0, quality * factor))
     return {
         "original_quality": quality,
         "macro_regime_fit": fit,
