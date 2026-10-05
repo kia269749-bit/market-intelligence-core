@@ -9,11 +9,42 @@ from dataclasses import asdict
 from typing import Mapping, Sequence
 
 from .cross_asset import CrossAssetSnapshot, cross_asset_regime
+from .features import order_imbalance
 from .fomo_intelligence import analyze_fomo
 from .intelligence import score_bar
 from .macro_gate import macro_regime_fit
 from .meme_candidate_scoring import score_meme_candidate
 from .signal_gate import SignalQuality, signal_quality_gate
+
+
+def _flow_report(bar) -> dict:
+    """Expose auditable flow, whale, funding and sentiment components."""
+    flow_imbalance = order_imbalance(bar.buy_volume, bar.sell_volume)
+    whale_imbalance = order_imbalance(bar.whale_buy, bar.whale_sell)
+    funding_pressure = -(bar.funding or 0.0) * 10.0
+    sentiment = float(bar.sentiment)
+
+    components = {
+        "order_flow": round(flow_imbalance, 6),
+        "whale_flow": round(whale_imbalance, 6),
+        "funding_pressure": round(funding_pressure, 6),
+        "sentiment": round(sentiment, 6),
+    }
+    smart_money = max(-1.0, min(1.0, 0.55 * whale_imbalance + 0.45 * flow_imbalance))
+    composite = max(
+        -1.0,
+        min(1.0, 0.45 * flow_imbalance + 0.35 * whale_imbalance
+            + 0.10 * funding_pressure + 0.10 * sentiment),
+    )
+    bias = "BULLISH" if composite >= 0.20 else "BEARISH" if composite <= -0.20 else "NEUTRAL"
+
+    return {
+        "components": components,
+        "smart_money_score": round(smart_money, 6),
+        "composite_flow_score": round(composite, 6),
+        "bias": bias,
+        "diagnostic_only": True,
+    }
 
 
 def analyze_market(
@@ -36,6 +67,7 @@ def analyze_market(
     bar = bars[-1]
     recent = list(bars[-21:-1])
     signal = score_bar(bar, recent, entry_threshold=entry_threshold)
+    flow = _flow_report(bar)
 
     fomo = None
     if volume_history is not None:
@@ -85,6 +117,7 @@ def analyze_market(
         "timestamp": bar.ts,
         "symbol": bar.symbol,
         "price": bar.price,
+        "flow": flow,
         "signal": signal.to_dict(),
         "fomo": asdict(fomo) if fomo else None,
         "macro": macro_report,
