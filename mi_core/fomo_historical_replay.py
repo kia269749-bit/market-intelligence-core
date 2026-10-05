@@ -42,11 +42,12 @@ def replay_fomo_events(
     if horizon is not None and horizon < 1:
         raise ValueError("horizon must be positive")
 
-    ordered = sorted(bars, key=lambda x: x.timestamp)
-    if any(b.timestamp < 0 or b.price <= 0 for b in ordered):
+    raw_bars = list(bars)
+    if any(b.timestamp < 0 or b.price <= 0 for b in raw_bars):
         raise ValueError("bars must have non-negative timestamps and positive prices")
-    if any(a.timestamp >= b.timestamp for a, b in zip(ordered, ordered[1:])):
-        raise ValueError("bars must have strictly increasing timestamps")
+    if any(a.timestamp >= b.timestamp for a, b in zip(raw_bars, raw_bars[1:])):
+        raise ValueError("bars must be supplied in strictly increasing timestamp order")
+    ordered = raw_bars
 
     seen: set[str] = set()
     output: list[dict] = []
