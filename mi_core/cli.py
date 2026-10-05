@@ -10,6 +10,7 @@ from .multi_exchange import fetch_snapshot,print_snapshot,DEFAULT_SYMBOLS,EXCHAN
 from .intelligence_pipeline import analyze_market
 from .historical_validation import evaluate_historical_evidence
 from .signal_report import render_signal_report
+from .live_brain import run_once as run_live_brain, print_live as print_live_brain
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -71,12 +72,20 @@ def main():
     l=sp.add_parser("live"); l.add_argument("--exchanges",default=",".join(EXCHANGES)); l.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); l.add_argument("--interval",type=int,default=20); l.add_argument("--cycles",type=int,default=0)
     q=sp.add_parser("intelligence"); q.add_argument("--input",required=True); q.add_argument("--out"); q.add_argument("--pretty",action="store_true",help="print the concise manual-review signal report")
     h=sp.add_parser("dashboard"); h.add_argument("--report",required=True); h.add_argument("--out",default="reports/dashboard.html")
+    z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5)
     x=ap.parse_args()
     if x.cmd=="demo": demo(x.out)
     elif x.cmd=="analyze": analyze(x.input,x.out)
     elif x.cmd=="real": real(x.symbol,x.interval,x.bars,x.out,x.report)
     elif x.cmd=="live": live(x.exchanges,x.symbols,x.interval,x.cycles)
     elif x.cmd=="intelligence": intelligence(x.input,x.out,x.pretty)
+    elif x.cmd=="live-all":
+        if x.interval<10: raise ValueError("interval must be at least 10 seconds")
+        count=0
+        while x.cycles==0 or count<x.cycles:
+            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit)
+            print_live_brain(snap); count+=1
+            if x.cycles==0 or count<x.cycles: time.sleep(x.interval)
     else: dashboard(x.report,x.out)
 
 if __name__=="__main__": main()
