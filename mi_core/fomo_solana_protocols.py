@@ -3,8 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from .fomo_solana_decoder import DEX_PROGRAMS
-
+DEX_PROGRAMS = {
+    "Jupiter": {"JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB"},
+    "Raydium": {"675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8", "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", "CAMMCzo5YL8w4VFFKVHrK22GGUsp5VTaW7grrKgrWqK"},
+    "Meteora": {"LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo", "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG", "dbcij3LWUppWqq96dh6gWzBifmcGfLSB5D4DuSMaqN"},
+    "Orca": {"whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc"},
+    "Pump": {"6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P", "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"},
+}
 
 @dataclass(frozen=True)
 class ProtocolEvidence:
@@ -20,12 +25,9 @@ def _logs(tx: Mapping[str, Any]) -> list[str]:
 
 
 def classify_protocol(tx: Mapping[str, Any]) -> ProtocolEvidence | None:
-    """Classify known Solana DEX context without pretending to fully decode every route."""
     logs = _logs(tx)
     msg = ((tx.get("transaction") or {}).get("message") or {})
-    keys = set()
-    for row in msg.get("accountKeys") or []:
-        keys.add(str(row.get("pubkey") if isinstance(row, Mapping) else row))
+    keys = {str(row.get("pubkey") if isinstance(row, Mapping) else row) for row in msg.get("accountKeys") or []}
     loaded = (tx.get("meta") or {}).get("loadedAddresses") or {}
     if isinstance(loaded, Mapping):
         keys.update(map(str, loaded.get("writable") or []))
@@ -43,51 +45,23 @@ def classify_protocol(tx: Mapping[str, Any]) -> ProtocolEvidence | None:
     direction = "UNKNOWN"
     route_type = "DIRECT"
     confidence = 0.70
-
     text = " ".join(logs).lower()
+
     if dex == "Jupiter":
         route_type = "AGGREGATED_ROUTE"
         confidence = 0.72
-        if "instruction: route" in text or "route" in text:
+        if "instruction: route" in text or " route" in text:
             confidence = 0.76
     elif dex == "Pump":
         if "instruction: buy" in text or " buy" in text:
-            direction = "BUY"
-            confidence = 0.90
+            direction, confidence = "BUY", 0.90
         elif "instruction: sell" in text or " sell" in text:
-            direction = "SELL"
-            confidence = 0.90
+            direction, confidence = "SELL", 0.90
         else:
             confidence = 0.80
-    elif dex == "Orca":
-        confidence = 0.82
-    elif dex == "Meteora":
+    elif dex in {"Orca", "Meteora"}:
         confidence = 0.82
     elif dex == "Raydium":
         confidence = 0.80
 
     return ProtocolEvidence(dex, route_type, direction, confidence, "program_id+logs")
-
-
-def enrich_candidate(tx: Mapping[str, Any], candidate: Any) -> Any:
-    """Return candidate with protocol evidence attached when supported by the dataclass."""
-    evidence = classify_protocol(tx)
-    if evidence is None:
-        return candidate
-    side = candidate.side
-    if evidence.instruction_direction in {"BUY", "SELL"}:
-        side = evidence.instruction_direction
-    confidence = min(0.95, max(candidate.confidence, evidence.confidence))
-    return type(candidate)(
-        candidate.signature,
-        candidate.timestamp,
-        candidate.trader_id,
-        candidate.token_mint,
-        side,
-        candidate.token_amount,
-        candidate.quote_mint,
-        candidate.quote_amount,
-        candidate.price_quote_per_token,
-        evidence.dex,
-        confidence,
-    )
