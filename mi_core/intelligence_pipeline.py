@@ -16,6 +16,7 @@ from .macro_gate import macro_regime_fit
 from .positioning import analyze_positioning
 from .microstructure import cross_exchange_confirmation, microstructure_score
 from .confluence import confluence_score
+from .crowding import analyze_crowding
 from .meme_candidate_scoring import score_meme_candidate
 from .signal_gate import SignalQuality, signal_quality_gate, research_signal_summary
 
@@ -72,6 +73,7 @@ def analyze_market(
     signal = score_bar(bar, recent, entry_threshold=entry_threshold)
     flow = _flow_report(bar)
     positioning = analyze_positioning(getattr(bar, "derivatives", {}) or {})
+    crowding = analyze_crowding(getattr(bar, "derivatives", {}) or {})
     microstructure = microstructure_score(getattr(bar, "microstructure", {}) or {})
     exchange_confirmation = cross_exchange_confirmation(getattr(bar, "exchange_snapshots", ()) or ())
     confluence = confluence_score(
@@ -140,6 +142,7 @@ def analyze_market(
         "price": bar.price,
         "flow": flow,
         "positioning": positioning,
+        "crowding": crowding,
         "microstructure": microstructure,
         "cross_exchange": exchange_confirmation,
         "confluence": confluence,
