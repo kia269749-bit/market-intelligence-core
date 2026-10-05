@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class SignalQuality:
     score: float
@@ -10,6 +11,7 @@ class SignalQuality:
     data_quality: float
     regime_fit: float
     decay: float
+
 
 @dataclass(frozen=True)
 class SignalGateConfig:
@@ -20,6 +22,7 @@ class SignalGateConfig:
     min_regime_fit: float = 0.50
     min_decay: float = 0.50
 
+
 def adaptive_threshold(scores, base: float = 0.60, window: int = 100) -> float:
     values = list(scores)[-window:]
     if not values:
@@ -29,6 +32,7 @@ def adaptive_threshold(scores, base: float = 0.60, window: int = 100) -> float:
     mean = sum(values) / len(values)
     vol = (sum((x - mean) ** 2 for x in values) / len(values)) ** 0.5
     return max(0.45, min(0.85, base + 0.25 * vol))
+
 
 def signal_quality_gate(q: SignalQuality, cfg: SignalGateConfig | None = None) -> dict:
     cfg = cfg or SignalGateConfig()
@@ -46,6 +50,54 @@ def signal_quality_gate(q: SignalQuality, cfg: SignalGateConfig | None = None) -
     return {"eligible": all(checks.values()), "checks": checks,
             "reasons": tuple(k for k, passed in checks.items() if not passed),
             "diagnostic_only": True}
+
+
+def research_signal_summary(
+    *,
+    side: str,
+    signal_score: float,
+    confidence: float,
+    gate_eligible: bool,
+    effective_confluence: float,
+    agreement: float,
+) -> dict:
+    """Rank a signal for manual research/trading review, without execution."""
+    direction = side if side in {"LONG", "SHORT"} else "FLAT"
+    directional_confluence = (
+        effective_confluence if direction == "LONG"
+        else -effective_confluence if direction == "SHORT"
+        else 0.0
+    )
+    conviction = max(
+        0.0,
+        min(
+            1.0,
+            0.35 * signal_score
+            + 0.25 * confidence
+            + 0.25 * max(0.0, directional_confluence)
+            + 0.15 * agreement,
+        ),
+    )
+    if direction == "FLAT":
+        status = "NO_SIGNAL"
+    elif not gate_eligible:
+        status = "FILTERED"
+    elif conviction >= 0.75 and agreement >= 0.80 and directional_confluence >= 0.20:
+        status = "STRONG"
+    elif conviction >= 0.60 and agreement >= 0.60:
+        status = "WATCH"
+    else:
+        status = "WEAK"
+
+    return {
+        "direction": direction,
+        "status": status,
+        "conviction": round(conviction, 6),
+        "gate_eligible": bool(gate_eligible),
+        "diagnostic_only": True,
+        "manual_review": True,
+    }
+
 
 def risk_kill_switch(equity: float, peak: float, drawdown_limit: float = 0.20) -> bool:
     if peak <= 0 or not 0 < drawdown_limit <= 1:
