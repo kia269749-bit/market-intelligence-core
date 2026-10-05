@@ -19,6 +19,14 @@ class HistoricalFomoRankerQualityTests(unittest.TestCase):
         by_id = {r["trader_id"]: r for r in rows}
         self.assertLess(by_id["a"]["sample_confidence"], by_id["b"]["sample_confidence"])
 
+    def test_rank_score_uses_stable_ceiling(self):
+        rows = historical_fomo_rank([
+            snap("a", 5, 100, 1000, 10, 1),
+            snap("a", 5, 100, 1000, 10, 2),
+            snap("a", 5, 100, 1000, 10, 3),
+        ], max_rank=150)
+        self.assertAlmostEqual(rows[0]["rank_score"], 0.9732, places=4)
+
     def test_negative_pnl_trend_is_not_rewarded(self):
         rows = historical_fomo_rank([
             snap("a", 1, 100, 1000, 10, 1),
