@@ -70,6 +70,7 @@ def main():
     elif x.cmd=="analyze": analyze(x.input,x.out)
     elif x.cmd=="real": real(x.symbol,x.interval,x.bars,x.out,x.report)
     elif x.cmd=="live": live(x.exchanges,x.symbols,x.interval,x.cycles)
-    elif x.cmd=="intelligence": intelligence(x.input,x.out)\n    else: dashboard(x.report,x.out)
+    elif x.cmd=="intelligence": intelligence(x.input,x.out)
+    else: dashboard(x.report,x.out)
 
 if __name__=="__main__": main()
