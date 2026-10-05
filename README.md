@@ -7,7 +7,7 @@ Collectors -> Raw Append-Only Data -> Normalization -> Features -> Flow/Smart Mo
 
 ## Research modes
 
-**Real market data mode** downloads public historical Binance spot klines without API keys, stores the normalized bars locally as append-only JSONL, then runs the same chronological train/test, cost-aware backtest, Monte Carlo and profitability-gate pipeline used by file-based research. Binance documents its public market-data endpoints and millisecond timestamps in its API documentation. urlBinance public market-data documentationhttps://developers.binance.com/en/docs/products/derivatives-trading-portfolio-margin-pro/general-info
+**Real market data mode** downloads public historical Binance spot klines without API keys, stores the normalized bars locally as append-only JSONL, then runs the same chronological train/test, cost-aware backtest, Monte Carlo and profitability-gate pipeline used by file-based research. Binance documents its public market-data endpoints and millisecond timestamps in its API documentation: https://developers.binance.com/en/docs/products/derivatives-trading-portfolio-margin-pro/general-info
 
 Example:
 
