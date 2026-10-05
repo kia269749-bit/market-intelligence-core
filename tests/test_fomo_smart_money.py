@@ -22,6 +22,18 @@ class FomoSmartMoneyTests(unittest.TestCase):
         ]
         self.assertEqual(build_open_positions(fills, as_of=300), [])
 
+    def test_partial_sell_preserves_correct_cost_basis(self):
+        fills = [
+            TraderFill("t1", "MEME", "buy", 100, 1.0, 1000),
+            TraderFill("t1", "MEME", "sell", 200, 2.0, 500),
+        ]
+        rows = build_open_positions(fills, as_of=300)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].quantity, 500.0)
+        self.assertEqual(rows[0].entry_price_usd, 1.0)
+        self.assertEqual(rows[0].size_usd, 1000.0)
+        self.assertEqual(rows[0].unrealized_return_pct, 100.0)
+
     def test_detects_buy_and_sell_actions(self):
         fills = [
             TraderFill("t1", "MEME", "buy", 100, 1.0, 500),
