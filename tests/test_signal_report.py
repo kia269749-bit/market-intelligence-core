@@ -1,8 +1,8 @@
-from mi_core.signal_report import build_signal_report
+from mi_core.signal_report import build_signal_report, render_signal_report
 
 
-def test_final_signal_report_is_manual_and_research_only():
-    report = build_signal_report(
+def _sample_report():
+    return build_signal_report(
         symbol="BTCUSDT",
         signal={"side": "LONG", "score": 0.9},
         signal_summary={
@@ -16,6 +16,10 @@ def test_final_signal_report_is_manual_and_research_only():
         confluence={"effective_score": 0.85, "agreement": 1.0},
         crowding={"level": "NORMAL", "score": 0.1, "cascade_risk": False},
     )
+
+
+def test_final_signal_report_is_manual_and_research_only():
+    report = _sample_report()
     assert report["direction"] == "LONG"
     assert report["status"] == "STRONG"
     assert report["conviction_pct"] == 82.0
@@ -52,3 +56,14 @@ def test_final_signal_report_surfaces_risk_warnings():
     assert report["risk_level"] == "HIGH"
     assert report["decision"] == "MANUAL_REVIEW_REQUIRED"
     assert report["manual_review"] is True
+
+
+def test_render_signal_report_is_deterministic_and_safe():
+    rendered = render_signal_report(_sample_report())
+    assert "BTCUSDT" in rendered
+    assert "Direction: LONG" in rendered
+    assert "Conviction: 82.00%" in rendered
+    assert "Decision: MANUAL_REVIEW_REQUIRED" in rendered
+    assert "Research Only: YES" in rendered
+    assert "Live Orders: NO" in rendered
+    assert "Cross-Exchange: True [YES]" in rendered
