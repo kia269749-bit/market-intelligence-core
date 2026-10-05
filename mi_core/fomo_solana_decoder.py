@@ -74,7 +74,7 @@ def decode_swap_candidates(tx: Mapping[str, Any], *, signature: str = "", quote_
     sol = _sol_delta(tx, trader)
     if abs(sol) > 1e-12:
         quote_rows.append(("SOL", sol))
-    token_rows = [(mint, d) for (owner, mint), d in deltas.items() if owner == trader and mint not in quotes and abs(d) > 1e-12]
+    token_rows = [(mint, d) for (owner, mint), d in deltas.items() if owner == trader and mint not in quotes and abs(d) > 1e-12]\n    # A swap candidate must have exactly one clear quote direction. Multiple conflicting\n    # quote deltas are ambiguous and are left for a protocol-specific parser.\n    if len(quote_rows) > 1:\n        signs = {1 if qd > 0 else -1 for _, qd in quote_rows}\n        if len(signs) > 1:\n            return []
     out = []
     for token, td in token_rows:
         for quote, qd in quote_rows:
