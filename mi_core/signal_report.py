@@ -112,3 +112,41 @@ def build_signal_report(
         "live_orders": False,
     }
     return report
+
+
+def render_signal_report(report: Mapping) -> str:
+    """Render a deterministic, copy/paste-friendly manual signal summary."""
+    def mark(state: str) -> str:
+        return "YES" if state == "CONFIRMS" else "NO" if state in {"CONFLICTS", "NOT_CONFIRMED"} else "-"
+
+    layers = report.get("layers", {})
+    warnings = report.get("warnings", ())
+    reasons = report.get("reasons", ())
+    lines = [
+        str(report.get("symbol", "UNKNOWN")),
+        f"Direction: {report.get('direction', 'FLAT')}",
+        f"Conviction: {float(report.get('conviction_pct', 0.0)):.2f}%",
+        f"Status: {report.get('status', 'NO_SIGNAL')}",
+        f"Risk: {report.get('risk_level', 'UNKNOWN')}",
+        "",
+        f"Flow: {report.get('flow_bias', 'NEUTRAL')} [{mark(layers.get('flow', 'NEUTRAL'))}]",
+        f"Smart Money: {float(report.get('smart_money_score', 0.0)):.2f}",
+        f"Positioning: {report.get('positioning_bias', 'NEUTRAL')} [{mark(layers.get('positioning', 'NEUTRAL'))}]",
+        f"Microstructure: {report.get('microstructure_bias', 'NEUTRAL')} [{mark(layers.get('microstructure', 'NEUTRAL'))}]",
+        f"Cross-Exchange: {report.get('cross_exchange_confirmed', False)} [{mark(layers.get('cross_exchange_confirmation', 'NEUTRAL'))}]",
+        f"Crowding: {report.get('crowding_level', 'NORMAL')}",
+        f"Cascade Risk: {report.get('cascade_risk', False)}",
+        "",
+        f"Confirmations: {report.get('confirmations', 0)}",
+        f"Conflicts: {report.get('conflicts', 0)}",
+        f"Confirmation Ratio: {float(report.get('confirmation_ratio', 0.0)):.2f}",
+        f"Decision: {report.get('decision', 'NO_SIGNAL')}",
+        "Manual Review: YES",
+        "Research Only: YES",
+        "Live Orders: NO",
+    ]
+    if reasons:
+        lines.extend(["", "Reasons:"] + [f"- {reason}" for reason in reasons])
+    if warnings:
+        lines.extend(["", "Warnings:"] + [f"- {warning}" for warning in warnings])
+    return "\n".join(lines)
