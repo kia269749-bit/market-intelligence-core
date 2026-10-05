@@ -1,0 +1,22 @@
+name: Live Market Smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: One real multi-exchange snapshot
+        run: |
+          python -m mi_core.cli live             --exchanges binance,coinbase,kraken,okx             --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,DOGEUSDT             --interval 5             --cycles 1
