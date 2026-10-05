@@ -15,6 +15,7 @@ from .intelligence import score_bar
 from .macro_gate import macro_regime_fit
 from .positioning import analyze_positioning
 from .microstructure import cross_exchange_confirmation, microstructure_score
+from .confluence import confluence_score
 from .meme_candidate_scoring import score_meme_candidate
 from .signal_gate import SignalQuality, signal_quality_gate
 
@@ -73,6 +74,13 @@ def analyze_market(
     positioning = analyze_positioning(getattr(bar, "derivatives", {}) or {})
     microstructure = microstructure_score(getattr(bar, "microstructure", {}) or {})
     exchange_confirmation = cross_exchange_confirmation(getattr(bar, "exchange_snapshots", ()) or ())
+    confluence = confluence_score(
+        signal_score=(signal.score if signal.side == "LONG" else -signal.score if signal.side == "SHORT" else 0.0),
+        flow_score=flow["composite_flow_score"],
+        positioning_score=positioning["positioning_score"],
+        microstructure_score=microstructure["score"],
+        exchange_score=exchange_confirmation["score"],
+    )
 
     fomo = None
     if volume_history is not None:
@@ -126,6 +134,7 @@ def analyze_market(
         "positioning": positioning,
         "microstructure": microstructure,
         "cross_exchange": exchange_confirmation,
+        "confluence": confluence,
         "signal": signal.to_dict(),
         "fomo": asdict(fomo) if fomo else None,
         "macro": macro_report,
