@@ -7,6 +7,9 @@ from .research import evaluate,train_test
 from .dashboard import build_html
 from .real_data import download as download_real
 from .multi_exchange import fetch_snapshot,print_snapshot,DEFAULT_SYMBOLS,EXCHANGES
+from .intelligence_pipeline import analyze_market
+from .historical_validation import evaluate_historical_evidence
+from .signal_report import render_signal_report
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -35,6 +38,15 @@ def real(symbol,interval,bars,out,report):
     result=train_test(fetched)
     return write_report(result,report,{"mode":"real-market-data","venue":"Binance public market-data API","symbol":symbol.upper(),"interval":interval,"bars":len(fetched),"first_ts":fetched[0].ts,"last_ts":fetched[-1].ts,"data_path":str(data_path),"research_only":True,"live_orders":False})
 
+def intelligence(inp,out=None,pretty=False):
+    bars=load_input(inp)
+    history=evaluate_historical_evidence(bars)
+    result=analyze_market(bars, volume_history=[b.volume for b in bars[-21:-1]], historical_evidence=history)
+    payload=write_report(result,out or Path(inp).with_suffix(".intelligence.json"),{"mode":"integrated-research","bars":len(bars),"historical_evidence":True,"research_only":True,"live_orders":False})
+    if pretty and payload.get("final_report"):
+        print("\n"+render_signal_report(payload["final_report"]))
+    return payload
+
 def dashboard(report,out):
     payload=json.loads(Path(report).read_text(encoding="utf-8")); print(build_html(payload,out))
 
@@ -57,12 +69,14 @@ def main():
     a=sp.add_parser("analyze"); a.add_argument("--input",required=True); a.add_argument("--out")
     r=sp.add_parser("real"); r.add_argument("--symbol",default="BTCUSDT"); r.add_argument("--interval",default="1h"); r.add_argument("--bars",type=int,default=1000); r.add_argument("--out",default="data/real/btcusdt_1h.jsonl"); r.add_argument("--report",default="reports/real_btcusdt_1h.json")
     l=sp.add_parser("live"); l.add_argument("--exchanges",default=",".join(EXCHANGES)); l.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); l.add_argument("--interval",type=int,default=20); l.add_argument("--cycles",type=int,default=0)
+    q=sp.add_parser("intelligence"); q.add_argument("--input",required=True); q.add_argument("--out"); q.add_argument("--pretty",action="store_true",help="print the concise manual-review signal report")
     h=sp.add_parser("dashboard"); h.add_argument("--report",required=True); h.add_argument("--out",default="reports/dashboard.html")
     x=ap.parse_args()
     if x.cmd=="demo": demo(x.out)
     elif x.cmd=="analyze": analyze(x.input,x.out)
     elif x.cmd=="real": real(x.symbol,x.interval,x.bars,x.out,x.report)
     elif x.cmd=="live": live(x.exchanges,x.symbols,x.interval,x.cycles)
+    elif x.cmd=="intelligence": intelligence(x.input,x.out,x.pretty)
     else: dashboard(x.report,x.out)
 
 if __name__=="__main__": main()
