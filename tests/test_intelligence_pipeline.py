@@ -27,6 +27,16 @@ def test_pipeline_is_research_only():
     assert "signal_gate" in report
 
 
+def test_pipeline_exposes_flow_and_smart_money():
+    report = analyze_market(_bars())
+    assert "flow" in report
+    assert report["flow"]["bias"] == "BULLISH"
+    assert report["flow"]["smart_money_score"] > 0
+    assert report["flow"]["components"]["order_flow"] > 0
+    assert report["flow"]["components"]["whale_flow"] > 0
+    assert report["flow"]["diagnostic_only"] is True
+
+
 def test_pipeline_fomo_and_meme_layers():
     report = analyze_market(
         _bars(),
