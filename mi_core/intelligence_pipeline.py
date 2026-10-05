@@ -121,6 +121,9 @@ def analyze_market(
         gate_eligible=gate["eligible"],
         effective_confluence=confluence["effective_score"],
         agreement=confluence["agreement"],
+        crowding_score=crowding["score"],
+        cascade_risk=crowding["cascade_risk"],
+        oi_funding_divergence=crowding["oi_funding_divergence"],
     )
 
     meme_report = None
