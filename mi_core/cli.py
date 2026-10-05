@@ -8,6 +8,7 @@ from .dashboard import build_html
 from .real_data import download as download_real
 from .multi_exchange import fetch_snapshot,print_snapshot,DEFAULT_SYMBOLS,EXCHANGES
 from .intelligence_pipeline import analyze_market
+from .historical_validation import evaluate_historical_evidence
 from .signal_report import render_signal_report
 
 def demo(out):
@@ -39,8 +40,9 @@ def real(symbol,interval,bars,out,report):
 
 def intelligence(inp,out=None,pretty=False):
     bars=load_input(inp)
-    result=analyze_market(bars, volume_history=[b.volume for b in bars[-21:-1]])
-    payload=write_report(result,out or Path(inp).with_suffix(".intelligence.json"),{"mode":"integrated-research","bars":len(bars),"research_only":True,"live_orders":False})
+    history=evaluate_historical_evidence(bars)
+    result=analyze_market(bars, volume_history=[b.volume for b in bars[-21:-1]], historical_evidence=history)
+    payload=write_report(result,out or Path(inp).with_suffix(".intelligence.json"),{"mode":"integrated-research","bars":len(bars),"historical_evidence":True,"research_only":True,"live_orders":False})
     if pretty and payload.get("final_report"):
         print("\n"+render_signal_report(payload["final_report"]))
     return payload
