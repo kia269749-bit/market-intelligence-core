@@ -13,6 +13,7 @@ from .features import order_imbalance
 from .fomo_intelligence import analyze_fomo
 from .intelligence import score_bar
 from .macro_gate import macro_regime_fit
+from .positioning import analyze_positioning
 from .meme_candidate_scoring import score_meme_candidate
 from .signal_gate import SignalQuality, signal_quality_gate
 
@@ -68,6 +69,7 @@ def analyze_market(
     recent = list(bars[-21:-1])
     signal = score_bar(bar, recent, entry_threshold=entry_threshold)
     flow = _flow_report(bar)
+    positioning = analyze_positioning(getattr(bar, "derivatives", {}) or {})
 
     fomo = None
     if volume_history is not None:
@@ -118,6 +120,7 @@ def analyze_market(
         "symbol": bar.symbol,
         "price": bar.price,
         "flow": flow,
+        "positioning": positioning,
         "signal": signal.to_dict(),
         "fomo": asdict(fomo) if fomo else None,
         "macro": macro_report,
