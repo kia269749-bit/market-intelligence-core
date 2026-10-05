@@ -13,7 +13,7 @@ def _market_bias(snapshot):
     if avg<=-1.0: return "BEARISH",min(1.0,0.50+abs(avg)/20)
     return "NEUTRAL",0.50
 
-def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5):
+def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
@@ -21,10 +21,23 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5):
         fomo={"ts":int(time.time()),"candidates":[],"research_only":True,"wallet_level":False}
         fomo_error=str(exc)
     bias,confidence=_market_bias(market)
+    p60_bias = str((project60 or {}).get("bias", "UNKNOWN")).upper()
+    p60_conf = float((project60 or {}).get("confidence", 0.0) or 0.0)
+    final_bias, final_conf = bias, confidence
+    if p60_bias in ("BULLISH", "BEARISH") and bias in ("BULLISH", "BEARISH"):
+        if p60_bias == bias:
+            final_conf = min(1.0, (confidence + p60_conf) / 2 + 0.10)
+        else:
+            final_bias, final_conf = "NEUTRAL", 0.50
+    elif p60_bias in ("BULLISH", "BEARISH") and p60_conf >= 0.60:
+        final_bias, final_conf = p60_bias, p60_conf
     return {
         "ts":int(time.time()),"market":market,"fomo":fomo,
         "evidence":{"market":{"bias":bias,"confidence":round(confidence,4),
                               "sources":len(market.get("rows",[]))},
+                    "project60":{"available":bool(project60 and project60.get("available")),
+                                 "bias":p60_bias,"confidence":round(p60_conf,4)},
+                    "combined":{"bias":final_bias,"confidence":round(final_conf,4)},
                     "fomo":{"candidates":len(fomo.get("candidates",[])),
                             "top":fomo.get("candidates",[])[:3],"wallet_level":False}},
         "architecture":"Project60 + FOMO + MarketBrain -> Evidence -> Risk/Validation",
