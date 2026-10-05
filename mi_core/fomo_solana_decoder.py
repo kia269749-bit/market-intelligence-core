@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from .fomo_public_sources import _balance_map
+from .fomo_public_sources import _balance_map\nfrom .fomo_solana_protocols import classify_protocol
 
 DEX_PROGRAMS = {
     "Jupiter": {"JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB"},
@@ -83,5 +83,5 @@ def decode_swap_candidates(tx: Mapping[str, Any], *, signature: str = "", quote_
                 continue
             qa, ta = abs(qd), abs(td)
             confidence = min(0.85, 0.65 + (0.05 if quote != "SOL" else 0.0) + (0.05 if len(programs) > 1 else 0.0))
-            out.append(SolanaSwapCandidate(signature, int(tx.get("blockTime") or 0), trader, token, side, ta, quote, qa, qa / ta, "+".join(programs), confidence))
+            candidate = SolanaSwapCandidate(signature, int(tx.get("blockTime") or 0), trader, token, side, ta, quote, qa, qa / ta, "+".join(programs), confidence)\n            evidence = classify_protocol(tx)\n            if evidence is not None:\n                if evidence.instruction_direction in {"BUY", "SELL"}:\n                    candidate = SolanaSwapCandidate(candidate.signature, candidate.timestamp, candidate.trader_id, candidate.token_mint, evidence.instruction_direction, candidate.token_amount, candidate.quote_mint, candidate.quote_amount, candidate.price_quote_per_token, evidence.dex, min(0.95, max(candidate.confidence, evidence.confidence)))\n                else:\n                    candidate = SolanaSwapCandidate(candidate.signature, candidate.timestamp, candidate.trader_id, candidate.token_mint, candidate.side, candidate.token_amount, candidate.quote_mint, candidate.quote_amount, candidate.price_quote_per_token, evidence.dex, min(0.95, max(candidate.confidence, evidence.confidence)))\n            out.append(candidate)
     return out
