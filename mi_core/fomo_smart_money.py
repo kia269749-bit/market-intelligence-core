@@ -47,31 +47,39 @@ def build_open_positions(
             continue
         key = (fill.trader_id, fill.token)
         book = books.setdefault(key, {
-            "qty_usd": 0.0,
+            "quantity": 0.0,
             "cost_usd": 0.0,
             "opened_at": fill.timestamp,
             "last_price": fill.price_usd,
         })
+        quantity = fill.quantity if fill.quantity is not None else fill.amount_usd / fill.price_usd
+        if quantity <= 0:
+            continue
         if fill.side.lower() == "buy":
-            book["qty_usd"] = float(book["qty_usd"]) + fill.amount_usd
-            book["cost_usd"] = float(book["cost_usd"]) + fill.amount_usd
-            if float(book["qty_usd"]) == fill.amount_usd:
+            book["quantity"] = float(book["quantity"]) + quantity
+            book["cost_usd"] = float(book["cost_usd"]) + quantity * fill.price_usd
+            if float(book["quantity"]) == quantity:
                 book["opened_at"] = fill.timestamp
         elif fill.side.lower() == "sell":
-            remaining = max(0.0, float(book["qty_usd"]) - fill.amount_usd)
-            book["qty_usd"] = remaining
+            current_qty = float(book["quantity"])
+            sold_qty = min(current_qty, quantity)
+            entry_price = float(book["cost_usd"]) / current_qty if current_qty else 0.0
+            remaining = max(0.0, current_qty - sold_qty)
+            book["quantity"] = remaining
+            book["cost_usd"] = entry_price * remaining
             if remaining == 0.0:
                 book["cost_usd"] = 0.0
         book["last_price"] = fill.price_usd
 
     output: list[TrackedPosition] = []
     for (trader_id, token), book in books.items():
-        size = float(book["qty_usd"])
-        if size <= 0:
+        quantity = float(book["quantity"])
+        if quantity <= 0:
             continue
         cost = float(book["cost_usd"])
-        entry = cost / size if size else 0.0
+        entry = cost / quantity if quantity else 0.0
         last = float(book["last_price"])
+        size = quantity * last
         ret = (last / entry - 1.0) * 100.0 if entry > 0 else 0.0
         opened = int(book["opened_at"])
         output.append(TrackedPosition(
@@ -83,6 +91,7 @@ def build_open_positions(
             last_price_usd=round(last, 10),
             unrealized_return_pct=round(ret, 6),
             age_seconds=max(0, int(as_of) - opened),
+            quantity=round(quantity, 10),
         ))
     return output
 
