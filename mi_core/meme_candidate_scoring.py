@@ -79,8 +79,9 @@ def score_meme_candidate(
 
 
 def rank_meme_candidates(candidates: Iterable[MemeCandidate]) -> list[MemeCandidate]:
+    status_priority = {"STRONG_WATCH": 2, "WATCH": 1, "HIGH_RISK": 0}
     return sorted(
         candidates,
-        key=lambda x: (x.status != "HIGH_RISK", x.quality_score, x.smart_money_score),
+        key=lambda x: (status_priority.get(x.status, -1), x.quality_score, x.smart_money_score),
         reverse=True,
     )
