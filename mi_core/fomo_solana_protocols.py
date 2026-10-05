@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-PUMPSWAP_BUY_DISCRIMINATOR = bytes.fromhex("66063d1201daebea")\nPUMPSWAP_SELL_DISCRIMINATOR = bytes.fromhex("33e685a4017f83ad")\n\nDEX_PROGRAMS = {
+PUMPSWAP_BUY_DISCRIMINATOR = bytes.fromhex("66063d1201daebea")\nPUMPSWAP_SELL_DISCRIMINATOR = bytes.fromhex("33e685a4017f83ad")\nPUMPSWAP_BUY_EXACT_QUOTE_IN_DISCRIMINATOR = bytes.fromhex("c62e1552b4d9e870")\n\nDEX_PROGRAMS = {
     "Jupiter": {"JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB"},
     "Raydium": {"675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8", "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", "CAMMCzo5YL8w4VFFKVHrK22GGUsp5VTaW7grrKgrWqK"},
     "Meteora": {"LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo", "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG", "dbcij3LWUppWqq96dh6gWzBifmcGfLSB5D4DuSMaqN"},
@@ -64,4 +64,41 @@ def classify_protocol(tx: Mapping[str, Any]) -> ProtocolEvidence | None:
     elif dex == "Raydium":
         confidence = 0.80
 
-    return ProtocolEvidence(dex, route_type, direction, confidence, "program_id+logs")
+    return ProtocolEvidence(dex, route_type, direction, confidence, "program_id+logs")def _base58_decode(value: str) -> bytes:
+    alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+    n = 0
+    for ch in value:
+        n = n * 58 + alphabet.index(ch)
+    raw = n.to_bytes((n.bit_length() + 7) // 8, "big") if n else b""
+    return b"\\x00" * (len(value) - len(value.lstrip("1"))) + raw
+
+
+def _instruction_data_blobs(tx: Mapping[str, Any]) -> list[bytes]:
+    out: list[bytes] = []
+    msg = ((tx.get("transaction") or {}).get("message") or {})
+    for ins in msg.get("instructions") or []:
+        data = ins.get("data") if isinstance(ins, Mapping) else None
+        if isinstance(data, str):
+            try:
+                out.append(_base58_decode(data))
+            except (ValueError, IndexError):
+                pass
+    for group in ((tx.get("meta") or {}).get("innerInstructions") or []):
+        for ins in group.get("instructions") or []:
+            data = ins.get("data") if isinstance(ins, Mapping) else None
+            if isinstance(data, str):
+                try:
+                    out.append(_base58_decode(data))
+                except (ValueError, IndexError):
+                    pass
+    return out
+
+
+def _pumpswap_direction(tx: Mapping[str, Any]) -> str:
+    for data in _instruction_data_blobs(tx):
+        if data.startswith(PUMPSWAP_BUY_DISCRIMINATOR) or data.startswith(PUMPSWAP_BUY_EXACT_QUOTE_IN_DISCRIMINATOR):
+            return "BUY"
+        if data.startswith(PUMPSWAP_SELL_DISCRIMINATOR):
+            return "SELL"
+    return "UNKNOWN"
+
