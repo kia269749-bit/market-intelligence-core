@@ -22,6 +22,9 @@ def test_final_signal_report_is_manual_and_research_only():
     assert report["confirmations"] >= 4
     assert report["conflicts"] == 0
     assert report["cross_exchange_confirmed"] is True
+    assert report["confirmations"] == 5
+    assert report["risk_level"] == "LOW"
+    assert report["decision"] == "MANUAL_REVIEW_REQUIRED"
     assert report["manual_review"] is True
     assert report["research_only"] is True
     assert report["live_orders"] is False
@@ -46,4 +49,6 @@ def test_final_signal_report_surfaces_risk_warnings():
     assert "EXTREME_CROWDING" in report["warnings"]
     assert "LIQUIDATION_CASCADE_RISK" in report["warnings"]
     assert report["conflicts"] >= 1
+    assert report["risk_level"] == "HIGH"
+    assert report["decision"] == "MANUAL_REVIEW_REQUIRED"
     assert report["manual_review"] is True
