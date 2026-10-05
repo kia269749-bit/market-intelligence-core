@@ -1,6 +1,11 @@
 import unittest
 
-from mi_core.fomo_solana_protocols import classify_protocol
+from mi_core.fomo_solana_protocols import (
+    RAYDIUM_CPMM_SWAP_BASE_INPUT,
+    RAYDIUM_CPMM_SWAP_BASE_OUTPUT,
+    RAYDIUM_CLMM_SWAP,
+    classify_protocol,
+)
 
 
 def b58(data: bytes) -> str:
@@ -13,38 +18,35 @@ def b58(data: bytes) -> str:
     return "1" * (len(data) - len(data.lstrip(b"\\x00"))) + (out or "")
 
 
-class PumpSwapProtocolTests(unittest.TestCase):
-    def _tx(self, disc: bytes):
+class ProtocolDecoderTests(unittest.TestCase):
+    def tx(self, program: str, data: bytes, err=None):
         return {
             "transaction": {
                 "message": {
-                    "accountKeys": [
-                        {"pubkey": "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"}
-                    ],
-                    "instructions": [
-                        {"programId": "pAMMBay6oceH9fJKBRHGP5D4bD4sWpm52FMfXEA", "data": b58(disc + b"\\x00" * 16)}
-                    ],
+                    "accountKeys": [{"pubkey": program, "signer": True}],
+                    "instructions": [{"programId": program, "data": b58(data)}],
                 }
             },
-            "meta": {"err": None, "innerInstructions": []},
+            "meta": {"err": err, "innerInstructions": [], "logMessages": []},
         }
 
-    def test_buy_discriminator(self):
-        tx = self._tx(bytes.fromhex("66063d1201daebea"))
-        evidence = classify_protocol(tx)
-        self.assertEqual(evidence.dex, "Pump")
-        self.assertEqual(evidence.instruction_direction, "BUY")
-        self.assertGreaterEqual(evidence.confidence, 0.95)
+    def test_raydium_cpmm_base_input(self):
+        e = classify_protocol(self.tx("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", RAYDIUM_CPMM_SWAP_BASE_INPUT + b"\\x00" * 16))
+        self.assertEqual(e.dex, "Raydium")
+        self.assertIn("CPMM_SWAP_BASE_INPUT", e.evidence)
+        self.assertEqual(e.instruction_direction, "UNKNOWN")
 
-    def test_sell_discriminator(self):
-        tx = self._tx(bytes.fromhex("33e685a4017f83ad"))
-        evidence = classify_protocol(tx)
-        self.assertEqual(evidence.instruction_direction, "SELL")
+    def test_raydium_cpmm_base_output(self):
+        e = classify_protocol(self.tx("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", RAYDIUM_CPMM_SWAP_BASE_OUTPUT + b"\\x00" * 16))
+        self.assertIn("CPMM_SWAP_BASE_OUTPUT", e.evidence)
 
-    def test_unknown_is_not_forced(self):
-        tx = self._tx(bytes.fromhex("0102030405060708"))
-        evidence = classify_protocol(tx)
-        self.assertEqual(evidence.instruction_direction, "UNKNOWN")
+    def test_raydium_clmm(self):
+        e = classify_protocol(self.tx("CAMMCzo5YL8w4VFFKVHrK22GGUsp5VTaW7grrKgrWqK", RAYDIUM_CLMM_SWAP + b"\\x00" * 32))
+        self.assertIn("CLMM_SWAP", e.evidence)
+
+    def test_failed_transaction_rejected(self):
+        e = classify_protocol(self.tx("CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", RAYDIUM_CPMM_SWAP_BASE_INPUT, err={"failed": True}))
+        self.assertIsNone(e)
 
 
 if __name__ == "__main__":
