@@ -45,3 +45,14 @@ python -m mi_core.cli analyze --input data/demo/market.jsonl
 ```
 
 See `docs/ARCHITECTURE.md`, `docs/VALIDATION.md`, `docs/DATA_SCHEMA.md`, `docs/TERMUX_LIVE.md` and `config/markets.json`.
+
+## Integrated intelligence snapshot
+
+The high-level research orchestrator composes the existing signal, FOMO, macro and meme layers into one auditable snapshot:
+
+```bash
+python -m mi_core.cli demo --out data/demo
+python -m mi_core.cli intelligence --input data/demo/market.jsonl --out reports/intelligence.json
+```
+
+Optional layers use point-in-time inputs supplied by the caller. The pipeline is research-only and explicitly reports `live_orders=false`; it does not connect to private exchange APIs or place orders.
