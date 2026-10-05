@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-DEX_PROGRAMS = {
+PUMPSWAP_BUY_DISCRIMINATOR = bytes.fromhex("66063d1201daebea")\nPUMPSWAP_SELL_DISCRIMINATOR = bytes.fromhex("33e685a4017f83ad")\n\nDEX_PROGRAMS = {
     "Jupiter": {"JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB"},
     "Raydium": {"675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8", "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", "CAMMCzo5YL8w4VFFKVHrK22GGUsp5VTaW7grrKgrWqK"},
     "Meteora": {"LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo", "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG", "dbcij3LWUppWqq96dh6gWzBifmcGfLSB5D4DuSMaqN"},
@@ -47,7 +47,7 @@ def classify_protocol(tx: Mapping[str, Any]) -> ProtocolEvidence | None:
     confidence = 0.70
     text = " ".join(logs).lower()
 
-    if dex == "Jupiter":
+    if dex == "Pump":\n        direction = _pumpswap_direction(tx)\n        if direction != "UNKNOWN":\n            return ProtocolEvidence("Pump", "DIRECT", direction, 0.96, "PumpSwap discriminator")\n\n    if dex == "Jupiter":
         route_type = "AGGREGATED_ROUTE"
         confidence = 0.72
         if "instruction: route" in text or " route" in text:
