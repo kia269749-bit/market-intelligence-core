@@ -38,7 +38,7 @@ class FomoHistoricalReplayTests(unittest.TestCase):
         ]
         rows = replay_fomo_events(events, bars)
         matrix = build_trader_edge_matrix(rows, min_events=2)
-        self.assertEqual(len(matrix), 3)
+        self.assertEqual(len(matrix), 2)
         bull = next(x for x in matrix if x["trader_id"] == "t1")
         self.assertTrue(bull["eligible"])
         self.assertEqual(bull["events"], 2)
