@@ -79,3 +79,10 @@ def test_pipeline_exposes_microstructure_and_cross_exchange():
     report = analyze_market(bars)
     assert report["microstructure"]["bias"] == "BULLISH"
     assert report["cross_exchange"]["confirmed"] is True
+
+
+def test_pipeline_confluence_is_research_only():
+    report = analyze_market(_bars())
+    assert "confluence" in report
+    assert report["confluence"]["diagnostic_only"] is True
+    assert report["confluence"]["layers"] == 5
