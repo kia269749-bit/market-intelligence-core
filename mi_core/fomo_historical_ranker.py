@@ -14,6 +14,7 @@ def _clip01(value: float) -> float:
 def historical_fomo_rank(
     snapshots: Iterable[FomoTraderSnapshot],
     min_snapshots: int = 3,
+    max_rank: int = 150,
 ) -> list[dict]:
     grouped = defaultdict(list)
     for snapshot in snapshots:
@@ -33,8 +34,8 @@ def historical_fomo_rank(
 
         avg_rank = mean(ranks)
         best_rank = min(ranks)
-        rank_scale = max(1.0, max(ranks) - 1.0)
-        rank_score = _clip01(1.0 - (avg_rank - 1.0) / rank_scale)
+        rank_ceiling = max(2, int(max_rank))
+        rank_score = _clip01(1.0 - (avg_rank - 1.0) / (rank_ceiling - 1.0))
 
         pnl_positive = sum(x > 0 for x in pnls) / len(pnls)
         pnl_nonnegative = sum(x >= 0 for x in pnls) / len(pnls)
@@ -80,6 +81,7 @@ def historical_fomo_rank(
             "snapshots": len(rows),
             "avg_rank": round(avg_rank, 3),
             "best_rank": best_rank,
+            "rank_score": round(rank_score, 4),
             "pnl_usd_latest": pnls[-1],
             "pnl_positive_rate": round(pnl_positive, 4),
             "pnl_trend": round(pnl_trend, 4),
