@@ -42,7 +42,7 @@ def summarize(path):
             "has_funding":"funding" in fields or "funding_rate" in fields,
             "has_orderbook":"orderbook" in fields or "order_book" in fields or "orderbook" in text,
             "has_tradeflow":"tradeflow" in fields or "trade_flow" in fields or "tradeflow" in text,
-            "fields":fields}
+            "fields":fields,"bias":_direction(data.get("raw",{})),"confidence":_confidence(data.get("raw",{}))}
 
 
 def _direction(raw):
@@ -77,4 +77,4 @@ def live_evidence(path):
     return {"available":True,"bias":_direction(data.get("raw",{})),
             "confidence":_confidence(data.get("raw",{})),
             "assets":data.get("assets",{}),
-            "timestamp":data.get("timestamp")}
+            "timestamp":data.get("fields",{}).get("timestamp") or data.get("fields",{}).get("datetime")}
