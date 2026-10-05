@@ -17,7 +17,7 @@ from .positioning import analyze_positioning
 from .microstructure import cross_exchange_confirmation, microstructure_score
 from .confluence import confluence_score
 from .meme_candidate_scoring import score_meme_candidate
-from .signal_gate import SignalQuality, signal_quality_gate
+from .signal_gate import SignalQuality, signal_quality_gate, research_signal_summary
 
 
 def _flow_report(bar) -> dict:
@@ -112,6 +112,14 @@ def analyze_market(
         decay=1.0,
     )
     gate = signal_quality_gate(quality)
+    signal_summary = research_signal_summary(
+        side=signal.side,
+        signal_score=signal.score,
+        confidence=confidence,
+        gate_eligible=gate["eligible"],
+        effective_confluence=confluence["effective_score"],
+        agreement=confluence["agreement"],
+    )
 
     meme_report = None
     if meme is not None:
@@ -140,6 +148,7 @@ def analyze_market(
         "macro": macro_report,
         "meme": meme_report,
         "signal_gate": gate,
+        "signal_summary": signal_summary,
         "research_only": True,
         "live_orders": False,
     }
