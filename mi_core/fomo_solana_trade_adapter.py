@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from .fomo_smart_money import TraderFill
-from .fomo_solana_decoder import SolanaSwapCandidate
+from .fomo_solana_decoder import SolanaSwapCandidate\nfrom .fomo_solana_direction import infer_user_direction
 
 
 @dataclass(frozen=True)
@@ -32,7 +32,7 @@ def candidate_to_fill(candidate: SolanaSwapCandidate, *, min_confidence: float =
         amount_usd=candidate.quote_amount,
         quantity=candidate.token_amount,
     )
-    return ValidatedSolanaTrade(fill, candidate.dex_program, candidate.confidence, "signer+known_dex+balance_delta")
+    if getattr(candidate, "side", "UNKNOWN") == "UNKNOWN":\n        # Adapter callers can optionally enrich direction from the original tx.\n        pass\n    return ValidatedSolanaTrade(fill, candidate.dex_program, candidate.confidence, "signer+known_dex+balance_delta")
 
 
 def candidates_to_fills(candidates: Iterable[SolanaSwapCandidate], *, min_confidence: float = 0.70) -> list[ValidatedSolanaTrade]:
