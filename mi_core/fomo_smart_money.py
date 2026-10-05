@@ -12,6 +12,7 @@ class TraderFill:
     timestamp: int
     price_usd: float
     amount_usd: float
+    quantity: float | None = None
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class TrackedPosition:
     last_price_usd: float
     unrealized_return_pct: float
     age_seconds: int
+    quantity: float = 0.0
 
 
 @dataclass(frozen=True)
