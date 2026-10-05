@@ -55,3 +55,27 @@ def test_pipeline_fomo_and_meme_layers():
     )
     assert report["fomo"] is None or "event" in report["fomo"]
     assert report["meme"]["token"] == "TEST"
+
+
+def test_pipeline_exposes_microstructure_and_cross_exchange():
+    bars = _bars()
+    bars[-1] = MarketBar(
+        ts=bars[-1].ts,
+        symbol=bars[-1].symbol,
+        price=bars[-1].price,
+        volume=bars[-1].volume,
+        buy_volume=bars[-1].buy_volume,
+        sell_volume=bars[-1].sell_volume,
+        whale_buy=bars[-1].whale_buy,
+        whale_sell=bars[-1].whale_sell,
+        sentiment=bars[-1].sentiment,
+        microstructure={"bid_size": 80, "ask_size": 20, "trade_flow": 0.5, "spread_bps": 5},
+        exchange_snapshots=(
+            {"exchange": "binance", "score": 0.7},
+            {"exchange": "okx", "score": 0.6},
+            {"exchange": "coinbase", "score": 0.5},
+        ),
+    )
+    report = analyze_market(bars)
+    assert report["microstructure"]["bias"] == "BULLISH"
+    assert report["cross_exchange"]["confirmed"] is True
