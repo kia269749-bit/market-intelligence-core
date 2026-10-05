@@ -19,6 +19,7 @@ from .confluence import confluence_score
 from .crowding import analyze_crowding
 from .meme_candidate_scoring import score_meme_candidate
 from .signal_gate import SignalQuality, signal_quality_gate, research_signal_summary
+from .signal_report import build_signal_report
 
 
 def _flow_report(bar) -> dict:
@@ -41,6 +42,21 @@ def _flow_report(bar) -> dict:
             + 0.10 * funding_pressure + 0.10 * sentiment),
     )
     bias = "BULLISH" if composite >= 0.20 else "BEARISH" if composite <= -0.20 else "NEUTRAL"
+
+    final_report = build_signal_report(
+        symbol=bar.symbol,
+        signal=signal.to_dict(),
+        signal_summary=signal_summary,
+        flow=flow,
+        positioning=positioning,
+        microstructure=microstructure,
+        cross_exchange=exchange_confirmation,
+        confluence=confluence,
+        crowding=crowding,
+        fomo=asdict(fomo) if fomo else None,
+        macro=macro_report,
+        meme=meme_report,
+    )
 
     return {
         "components": components,
@@ -126,6 +142,7 @@ def analyze_market(
         oi_funding_divergence=crowding["oi_funding_divergence"],
     )
 
+    final_report = None
     meme_report = None
     if meme is not None:
         meme_report = asdict(score_meme_candidate(
@@ -155,6 +172,7 @@ def analyze_market(
         "meme": meme_report,
         "signal_gate": gate,
         "signal_summary": signal_summary,
+        "final_report": final_report,
         "research_only": True,
         "live_orders": False,
     }
