@@ -86,3 +86,12 @@ def test_pipeline_confluence_is_research_only():
     assert "confluence" in report
     assert report["confluence"]["diagnostic_only"] is True
     assert report["confluence"]["layers"] == 5
+
+
+def test_pipeline_exposes_manual_signal_summary():
+    report = analyze_market(_bars())
+    summary = report["signal_summary"]
+    assert summary["direction"] == report["signal"]["side"]
+    assert 0.0 <= summary["conviction"] <= 1.0
+    assert summary["diagnostic_only"] is True
+    assert summary["manual_review"] is True
