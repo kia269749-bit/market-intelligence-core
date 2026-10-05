@@ -2,14 +2,44 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Mapping
+import hashlib
 
-PUMPSWAP_BUY_DISCRIMINATOR = bytes.fromhex("66063d1201daebea")\nPUMPSWAP_SELL_DISCRIMINATOR = bytes.fromhex("33e685a4017f83ad")\nPUMPSWAP_BUY_EXACT_QUOTE_IN_DISCRIMINATOR = bytes.fromhex("c62e1552b4d9e870")\nORCA_SWAP_DISCRIMINATORS = {bytes.fromhex("f8c69e91e17587c8"), bytes.fromhex("9c8b7f5f8c0a0f8b")}\nMETEORA_DLMM_SWAP_DISCRIMINATORS = {bytes.fromhex("f8c69e91e17587c8")}\nMETEORA_DBC_SWAP_DISCRIMINATORS = {bytes.fromhex("f8c69e91e17587c8"), bytes.fromhex("414b3f4ceb5b5b88")}\n\nDEX_PROGRAMS = {
-    "Jupiter": {"JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB"},
-    "Raydium": {"675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8", "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C", "CAMMCzo5YL8w4VFFKVHrK22GGUsp5VTaW7grrKgrWqK"},
-    "Meteora": {"LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo", "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG", "dbcij3LWUppWqq96dh6gWzBifmcGfLSB5D4DuSMaqN"},
+
+def _anchor(name: str) -> bytes:
+    return hashlib.sha256(("global:" + name).encode()).digest()[:8]
+
+
+PUMPSWAP_BUY_DISCRIMINATOR = bytes.fromhex("66063d1201daebea")
+PUMPSWAP_SELL_DISCRIMINATOR = bytes.fromhex("33e685a4017f83ad")
+PUMPSWAP_BUY_EXACT_QUOTE_IN_DISCRIMINATOR = bytes.fromhex("c62e1552b4d9e870")
+
+RAYDIUM_CPMM_SWAP_BASE_INPUT = _anchor("swap_base_input")
+RAYDIUM_CPMM_SWAP_BASE_OUTPUT = _anchor("swap_base_output")
+RAYDIUM_CLMM_SWAP = _anchor("swap")
+RAYDIUM_CLMM_SWAP_V2 = _anchor("swap_v2")
+
+DEX_PROGRAMS = {
+    "Jupiter": {
+        "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+        "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB",
+    },
+    "Raydium": {
+        "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+        "CPMMoo8L3F4NbTegBCKVNunggL7H1ZpdTHKxQB5qKP1C",
+        "CAMMCzo5YL8w4VFFKVHrK22GGUsp5VTaW7grrKgrWqK",
+    },
+    "Meteora": {
+        "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+        "cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG",
+        "dbcij3LWUppWqq96dh6gWzBifmcGfLSB5D4DuSMaqN",
+    },
     "Orca": {"whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc"},
-    "Pump": {"6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P", "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"},
+    "Pump": {
+        "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P",
+        "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA",
+    },
 }
+
 
 @dataclass(frozen=True)
 class ProtocolEvidence:
@@ -20,51 +50,7 @@ class ProtocolEvidence:
     evidence: str
 
 
-def _logs(tx: Mapping[str, Any]) -> list[str]:
-    return [str(x) for x in ((tx.get("meta") or {}).get("logMessages") or [])]
-
-
-def classify_protocol(tx: Mapping[str, Any]) -> ProtocolEvidence | None:
-    logs = _logs(tx)
-    msg = ((tx.get("transaction") or {}).get("message") or {})
-    keys = {str(row.get("pubkey") if isinstance(row, Mapping) else row) for row in msg.get("accountKeys") or []}
-    loaded = (tx.get("meta") or {}).get("loadedAddresses") or {}
-    if isinstance(loaded, Mapping):
-        keys.update(map(str, loaded.get("writable") or []))
-        keys.update(map(str, loaded.get("readonly") or []))
-
-    matches = [name for name, ids in DEX_PROGRAMS.items() if keys.intersection(ids)]
-    if not matches:
-        for name, ids in DEX_PROGRAMS.items():
-            if any(any(pid in log for pid in ids) for log in logs):
-                matches.append(name)
-    if not matches:
-        return None
-
-    dex = matches[0]
-    direction = "UNKNOWN"
-    route_type = "DIRECT"
-    confidence = 0.70
-    text = " ".join(logs).lower()
-
-    if dex == "Pump":\n        direction = _pumpswap_direction(tx)\n        if direction != "UNKNOWN":\n            return ProtocolEvidence("Pump", "DIRECT", direction, 0.96, "PumpSwap discriminator")\n\n    if dex == "Orca":\n        for data in _instruction_data_blobs(tx):\n            if data.startswith(next(iter(ORCA_SWAP_DISCRIMINATORS))):\n                # Whirlpool encodes a_to_b in instruction args; keep direction unknown here.\n                confidence = 0.88\n                break\n\n    if dex == "Meteora":\n        for data in _instruction_data_blobs(tx):\n            if any(data.startswith(d) for d in METEORA_DLMM_SWAP_DISCRIMINATORS | METEORA_DBC_SWAP_DISCRIMINATORS):\n                confidence = 0.88\n                break\n\n    if dex == "Jupiter":
-        route_type = "AGGREGATED_ROUTE"
-        confidence = 0.72
-        if "instruction: route" in text or " route" in text:
-            confidence = 0.76
-    elif dex == "Pump":
-        if "instruction: buy" in text or " buy" in text:
-            direction, confidence = "BUY", 0.90
-        elif "instruction: sell" in text or " sell" in text:
-            direction, confidence = "SELL", 0.90
-        else:
-            confidence = 0.80
-    elif dex in {"Orca", "Meteora"}:
-        confidence = 0.82
-    elif dex == "Raydium":
-        confidence = 0.80
-
-    return ProtocolEvidence(dex, route_type, direction, confidence, "program_id+logs")def _base58_decode(value: str) -> bytes:
+def _base58_decode(value: str) -> bytes:
     alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     n = 0
     for ch in value:
@@ -73,25 +59,61 @@ def classify_protocol(tx: Mapping[str, Any]) -> ProtocolEvidence | None:
     return b"\\x00" * (len(value) - len(value.lstrip("1"))) + raw
 
 
+def _instruction_records(tx: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    msg = ((tx.get("transaction") or {}).get("message") or {})
+    out = [x for x in (msg.get("instructions") or []) if isinstance(x, Mapping)]
+    for group in ((tx.get("meta") or {}).get("innerInstructions") or []):
+        out.extend(x for x in (group.get("instructions") or []) if isinstance(x, Mapping))
+    return out
+
+
 def _instruction_data_blobs(tx: Mapping[str, Any]) -> list[bytes]:
     out: list[bytes] = []
-    msg = ((tx.get("transaction") or {}).get("message") or {})
-    for ins in msg.get("instructions") or []:
-        data = ins.get("data") if isinstance(ins, Mapping) else None
+    for ins in _instruction_records(tx):
+        data = ins.get("data")
         if isinstance(data, str):
             try:
                 out.append(_base58_decode(data))
             except (ValueError, IndexError):
-                pass
-    for group in ((tx.get("meta") or {}).get("innerInstructions") or []):
-        for ins in group.get("instructions") or []:
-            data = ins.get("data") if isinstance(ins, Mapping) else None
-            if isinstance(data, str):
-                try:
-                    out.append(_base58_decode(data))
-                except (ValueError, IndexError):
-                    pass
+                continue
     return out
+
+
+def _signer_keys(tx: Mapping[str, Any]) -> set[str]:
+    msg = ((tx.get("transaction") or {}).get("message") or {})
+    keys = set()
+    for row in msg.get("accountKeys") or []:
+        if isinstance(row, Mapping):
+            if row.get("signer"):
+                keys.add(str(row.get("pubkey")))
+        elif row:
+            keys.add(str(row))
+    return keys
+
+
+def _program_matches(tx: Mapping[str, Any], ids: set[str]) -> bool:
+    msg = ((tx.get("transaction") or {}).get("message") or {})
+    for row in msg.get("accountKeys") or []:
+        key = str(row.get("pubkey") if isinstance(row, Mapping) else row)
+        if key in ids:
+            return True
+    for ins in _instruction_records(tx):
+        if str(ins.get("programId") or "") in ids:
+            return True
+    return False
+
+
+def _raydium_instruction(tx: Mapping[str, Any]) -> str:
+    for data in _instruction_data_blobs(tx):
+        if data.startswith(RAYDIUM_CPMM_SWAP_BASE_INPUT):
+            return "CPMM_SWAP_BASE_INPUT"
+        if data.startswith(RAYDIUM_CPMM_SWAP_BASE_OUTPUT):
+            return "CPMM_SWAP_BASE_OUTPUT"
+        if data.startswith(RAYDIUM_CLMM_SWAP_V2):
+            return "CLMM_SWAP_V2"
+        if data.startswith(RAYDIUM_CLMM_SWAP):
+            return "CLMM_SWAP"
+    return "UNKNOWN"
 
 
 def _pumpswap_direction(tx: Mapping[str, Any]) -> str:
@@ -102,3 +124,38 @@ def _pumpswap_direction(tx: Mapping[str, Any]) -> str:
             return "SELL"
     return "UNKNOWN"
 
+
+def classify_protocol(tx: Mapping[str, Any]) -> ProtocolEvidence | None:
+    if (tx.get("meta") or {}).get("err") is not None:
+        return None
+
+    matches = [name for name, ids in DEX_PROGRAMS.items() if _program_matches(tx, ids)]
+    if not matches:
+        return None
+
+    dex = matches[0]
+    logs = " ".join(str(x) for x in ((tx.get("meta") or {}).get("logMessages") or [])).lower()
+
+    if dex == "Pump":
+        direction = _pumpswap_direction(tx)
+        if direction != "UNKNOWN":
+            return ProtocolEvidence(dex, "DIRECT", direction, 0.96, "PumpSwap discriminator")
+        return ProtocolEvidence(dex, "DIRECT", "UNKNOWN", 0.80, "PumpSwap program")
+
+    if dex == "Raydium":
+        kind = _raydium_instruction(tx)
+        if kind != "UNKNOWN":
+            return ProtocolEvidence(dex, "DIRECT", "UNKNOWN", 0.94, "Raydium discriminator:" + kind)
+        return ProtocolEvidence(dex, "DIRECT", "UNKNOWN", 0.80, "Raydium program")
+
+    if dex == "Jupiter":
+        confidence = 0.76 if "route" in logs else 0.72
+        return ProtocolEvidence(dex, "AGGREGATED_ROUTE", "UNKNOWN", confidence, "Jupiter route")
+
+    if dex == "Orca":
+        return ProtocolEvidence(dex, "DIRECT", "UNKNOWN", 0.84, "Orca Whirlpool program")
+
+    if dex == "Meteora":
+        return ProtocolEvidence(dex, "DIRECT", "UNKNOWN", 0.84, "Meteora program")
+
+    return ProtocolEvidence(dex, "DIRECT", "UNKNOWN", 0.70, "known program")
