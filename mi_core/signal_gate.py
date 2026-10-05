@@ -60,6 +60,9 @@ def research_signal_summary(
     gate_eligible: bool,
     effective_confluence: float,
     agreement: float,
+    crowding_score: float = 0.0,
+    cascade_risk: bool = False,
+    oi_funding_divergence: bool = False,
 ) -> dict:
     """Rank a signal for manual research/trading review, without execution."""
     direction = side if side in {"LONG", "SHORT"} else "FLAT"
@@ -68,21 +71,38 @@ def research_signal_summary(
         else -effective_confluence if direction == "SHORT"
         else 0.0
     )
-    conviction = max(
-        0.0,
-        min(
-            1.0,
-            0.35 * signal_score
-            + 0.25 * confidence
-            + 0.25 * max(0.0, directional_confluence)
-            + 0.15 * agreement,
-        ),
+
+    # Crowding/cascade diagnostics act as a risk penalty, never as an order.
+    crowding_score = max(0.0, min(1.0, float(crowding_score)))
+    penalty = 0.15 * crowding_score
+    if cascade_risk:
+        penalty += 0.15
+    if oi_funding_divergence:
+        penalty += 0.10
+
+    raw_conviction = (
+        0.35 * signal_score
+        + 0.25 * confidence
+        + 0.25 * max(0.0, directional_confluence)
+        + 0.15 * agreement
     )
+    conviction = max(0.0, min(1.0, raw_conviction - penalty))
+
+    warnings = []
+    if crowding_score >= 0.70:
+        warnings.append("EXTREME_CROWDING")
+    elif crowding_score >= 0.45:
+        warnings.append("ELEVATED_CROWDING")
+    if cascade_risk:
+        warnings.append("LIQUIDATION_CASCADE_RISK")
+    if oi_funding_divergence:
+        warnings.append("OI_FUNDING_DIVERGENCE")
+
     if direction == "FLAT":
         status = "NO_SIGNAL"
     elif not gate_eligible:
         status = "FILTERED"
-    elif conviction >= 0.75 and agreement >= 0.80 and directional_confluence >= 0.20:
+    elif conviction >= 0.75 and agreement >= 0.80 and directional_confluence >= 0.20 and not cascade_risk:
         status = "STRONG"
     elif conviction >= 0.60 and agreement >= 0.60:
         status = "WATCH"
@@ -93,6 +113,9 @@ def research_signal_summary(
         "direction": direction,
         "status": status,
         "conviction": round(conviction, 6),
+        "raw_conviction": round(max(0.0, min(1.0, raw_conviction)), 6),
+        "risk_penalty": round(penalty, 6),
+        "warnings": tuple(warnings),
         "gate_eligible": bool(gate_eligible),
         "diagnostic_only": True,
         "manual_review": True,
