@@ -122,6 +122,51 @@ def _forecast_from_project60(path, asset="BTC", max_rows=600):
             "early_reversal":bool(reversal),"breakout_probability":round(breakout_prob,4),
             "method":"momentum+volatility probabilistic baseline","research_only":True}
 
+def _validated_forecast_from_project60(path, asset="BTC", max_rows=500):
+    """Build MarketBars from Project60 and return walk-forward-trained forecast outputs."""
+    if not path:
+        return {"available":False,"reason":"no_history_path"}
+    from pathlib import Path
+    import json
+    from .models import MarketBar
+    from .validated_forecast import forecast_now
+    p=Path(path)
+    if not p.exists():
+        return {"available":False,"reason":"history_not_found"}
+    bars=[]
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines()[-max_rows:]:
+            try:
+                x=json.loads(line); coins=x.get("coins",{})
+                if isinstance(coins,list):
+                    coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
+                a=coins.get(asset) or coins.get(asset.upper())
+                if not isinstance(a,dict): continue
+                price=_num(a.get("price"))
+                if price<=0: continue
+                ob=a.get("orderbook") or {}; tr=a.get("trades") or {}
+                bars.append(MarketBar(ts=int(_num(x.get("timestamp"))), symbol=asset, price=price,
+                    oi=_num(a.get("open_interest")) if a.get("open_interest") is not None else None,
+                    funding=_num(a.get("funding")) if a.get("funding") is not None else None,
+                    buy_volume=_num(tr.get("buy_usd")), sell_volume=_num(tr.get("sell_usd")),
+                    bid=_num(ob.get("bid_usd")), ask=_num(ob.get("ask_usd"))))
+            except (TypeError,ValueError,json.JSONDecodeError):
+                continue
+    except OSError:
+        return {"available":False,"reason":"history_read_error"}
+    if len(bars)<100:
+        return {"available":False,"reason":"insufficient_history","samples":len(bars)}
+    horizons={}
+    for h in (5,15,60,240):
+        result=forecast_now(bars,horizon=h,train_window=min(300,len(bars)-1))
+        if result.get("available"): horizons[str(h)]=result
+    if not horizons:
+        return {"available":False,"reason":"forecast_training_unavailable","samples":len(bars)}
+    selected=next((horizons[k] for k in ("60","15","5","240") if k in horizons), None)
+    return {"available":True,"asset":asset,"samples":len(bars),"horizons":horizons,
+            "selected":selected,"method":"walk-forward trained multinomial forecast",
+            "research_only":True,"live_orders":False}
+
 def _smart_money_score(fomo_leader_evidence):
     lf=fomo_leader_evidence or {}
     scores=[]
