@@ -57,7 +57,7 @@ def walk_forward_forecast(bars,horizon=5,train_window=300,min_train=60,flat_band
             if f is not None and lab is not None: X.append(f); y.append(lab)
         if len(X)<min_train: continue
         p=_predict(_fit(X,y),_feat(bars,i)); pred=max(p,key=p.get); actual=_label(bars,i,horizon,flat_band)
-        preds.append({"ts":bars[i].ts,"pred":pred,"actual":actual,"p_up":p[1],"p_flat":p[0],"p_down":p[-1]})
+        preds.append({"ts":bars[i].ts,"pred":pred,"actual":actual,"actual_return_pct":round(_ret(bars[i+horizon].price,bars[i].price)*100,6) if i+horizon < len(bars) else None,"p_up":p[1],"p_flat":p[0],"p_down":p[-1]})
         if actual is not None: resolved+=1; correct+=int(pred==actual)
     return {"available":bool(preds),"horizon_bars":horizon,"resolved":resolved,
             "accuracy":round(correct/resolved,6) if resolved else 0,"predictions":preds,
