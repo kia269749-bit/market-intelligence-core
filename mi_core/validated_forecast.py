@@ -82,3 +82,24 @@ def forecast_now(bars,horizon=5,train_window=300,flat_band=.0015):
             "upper_return_pct":round(exp+band,4),"confidence":round(max(p.values()),4),
             "reversal_warning":reversal,"breakout_probability":round(breakout,4),
             "model_version":"wf-logit-v2","research_only":True,"live_orders":False}
+
+def score_predictions(result):
+    """Compute OOS accuracy, per-class precision/recall and confidence calibration."""
+    rows=[x for x in result.get("predictions",[]) if x.get("actual") is not None]
+    if not rows:
+        return {"resolved":0,"accuracy":0.0,"precision":{},"recall":{},"high_conf_accuracy":0.0}
+    metrics={}
+    for c in (-1,0,1):
+        tp=sum(x["pred"]==c and x["actual"]==c for x in rows)
+        fp=sum(x["pred"]==c and x["actual"]!=c for x in rows)
+        fn=sum(x["pred"]!=c and x["actual"]==c for x in rows)
+        metrics[str(c)]={"precision":round(tp/(tp+fp),6) if tp+fp else 0.0,
+                         "recall":round(tp/(tp+fn),6) if tp+fn else 0.0}
+    correct=sum(x["pred"]==x["actual"] for x in rows)
+    high=[x for x in rows if max(x["p_up"],x["p_flat"],x["p_down"])>=.70]
+    high_correct=sum(x["pred"]==x["actual"] for x in high)
+    return {"resolved":len(rows),"accuracy":round(correct/len(rows),6),
+            "precision":{k:v["precision"] for k,v in metrics.items()},
+            "recall":{k:v["recall"] for k,v in metrics.items()},
+            "high_conf_samples":len(high),
+            "high_conf_accuracy":round(high_correct/len(high),6) if high else 0.0}
