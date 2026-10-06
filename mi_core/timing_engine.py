@@ -6,13 +6,14 @@ def evaluate_entry_timing(confidence=0.0, expected_move_pct=0.0, current_move_pc
     expected_move_pct=abs(float(expected_move_pct)); current_move_pct=abs(float(current_move_pct)); required_move_pct=max(0.0,float(required_move_pct))
     remaining=max(0.0, expected_move_pct-current_move_pct)
     extension=current_move_pct/max(expected_move_pct,1e-9)
+    consumed_ratio=min(1.0, extension)
     if expected_move_pct<=0: state,reason="WAIT","no_remaining_expected_move"
     elif extension>=0.75: state,reason="LATE","most_of_modeled_move_already_consumed"
     elif confidence>=0.68 and agreement>=0.60 and quality_score>=0.90 and remaining>=required_move_pct and str(regime).upper() in ("TREND","MIXED"):
         state,reason="EARLY","meaningful_move_remains_with_multi_source_confirmation"
     elif remaining>0: state,reason="DEVELOPING","setup_developing_but_not_early_entry_grade"
     else: state,reason="WAIT","remaining_move_below_economic_requirement"
-    return {"state":state,"reason":reason,"expected_move_pct":round(expected_move_pct,4),"current_move_pct":round(current_move_pct,4),"remaining_move_pct":round(remaining,4),"extension_ratio":round(extension,4),"research_only":True,"live_orders":False}
+    return {"state":state,"reason":reason,"expected_move_pct":round(expected_move_pct,4),"current_move_pct":round(current_move_pct,4),"remaining_move_pct":round(remaining,4),"extension_ratio":round(extension,4),"consumed_ratio":round(consumed_ratio,4),"consumed_pct":round(consumed_ratio*100.0,2),"research_only":True,"live_orders":False}
 
 def evaluate_exit_timing(position_open=True, profit_pct=0.0, momentum_score=0.0, leader_exit=False, orderbook_deterioration=False, tradeflow_deterioration=False, forecast_reversal=False, remaining_move_pct=0.0):
     if not position_open: return {"state":"NO_POSITION","reason":"no_position_context","research_only":True,"live_orders":False}
