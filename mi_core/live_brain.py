@@ -245,14 +245,14 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
         eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
-                                    capital_usd=100.0, min_profit_usd=10.0)
+                                    capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0)
         capital_economics={"available":True,"approved":eco.approved,
                            "expected_move_pct":eco.expected_move_pct,
                            "required_move_pct":eco.required_move_pct,
                            "net_move_pct":eco.net_move_pct,
                            "modeled_profit_usd":eco.modeled_profit_usd,
                            "round_trip_cost_pct":eco.round_trip_cost_pct,
-                           "reason":eco.reason}
+                           "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,"reason":eco.reason}
     if top:
         avg_change=sum(_num(x.get("price_change_24h_pct")) for x in top)/len(top)
         if avg_change>=15: votes.append(("BULLISH",min(.65,.40+avg_change/200)))
@@ -294,7 +294,7 @@ def print_live(snapshot):
     if e.get("no_trade",{}).get("blocked"): print("NO_TRADE_GUARD=BLOCK | reasons=" + ",".join(e["no_trade"].get("reasons",[])))
     ce=e.get("capital_economics",{})
     if ce.get("available"):
-        print("CAPITAL $100 | expected={:.2f}% required={:.2f}% net={:.2f}% profit=${:.2f} cost={:.3f}% approved={}".format(ce["expected_move_pct"],ce["required_move_pct"],ce["net_move_pct"],ce["modeled_profit_usd"],ce["round_trip_cost_pct"],ce["approved"]))
+        print("CAPITAL $100 | net_profit=${:.2f} | tier={} | floor=$5 | preferred=$10 | expected={:.2f}% required5={:.2f}% required10={:.2f}% cost={:.3f}%".format(ce["modeled_profit_usd"],ce.get("tier","REJECT"),ce["expected_move_pct"],ce["required_move_pct"],ce.get("preferred_required_move_pct",0),ce["round_trip_cost_pct"]))
     fc=e.get("forecast",{})
     if fc.get("available"):
         h=fc.get("horizons",{})
