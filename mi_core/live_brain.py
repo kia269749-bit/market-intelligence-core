@@ -13,7 +13,7 @@ def _market_bias(snapshot):
     if avg<=-1.0: return "BEARISH",min(1.0,0.50+abs(avg)/20)
     return "NEUTRAL",0.50
 
-def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None):
+def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None, fomo_leader_evidence=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
@@ -38,6 +38,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
                     "project60":{"available":bool(project60 and project60.get("available")),
                                  "bias":p60_bias,"confidence":round(p60_conf,4)},
                     "combined":{"bias":final_bias,"confidence":round(final_conf,4)},
+                    "fomo_leader_follower": fomo_leader_evidence or {"available": False, "confirmed": False, "events": []},
                     "fomo":{"candidates":len(fomo.get("candidates",[])),
                             "top":fomo.get("candidates",[])[:3],"wallet_level":False}},
         "architecture":"Project60 + FOMO + MarketBrain -> Evidence -> Risk/Validation",
