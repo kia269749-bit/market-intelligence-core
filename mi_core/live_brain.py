@@ -16,7 +16,8 @@ def _market_bias(snapshot):
 def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None, fomo_leader_evidence=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
-        fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
+        fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit)
+        fomo_error=None
     except Exception as exc:
         fomo={"ts":int(time.time()),"candidates":[],"research_only":True,"wallet_level":False}
         fomo_error=str(exc)
@@ -46,11 +47,16 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
 
 def print_live(snapshot):
     e=snapshot["evidence"]
+    combined=e.get("combined",{})
     print("\nMARKET BRAIN LIVE | {}".format(time.strftime("%Y-%m-%d %H:%M:%S",time.gmtime(snapshot["ts"]))))
-    print("market_bias={} confidence={:.2f} market_sources={}".format(
-        e["market"]["bias"],e["market"]["confidence"],e["market"]["sources"]))
+    # The headline must use the same final combined decision consumed by the
+    # Persian action/report layer. Keep raw market bias visible separately.
+    print("market_bias={} confidence={:.2f} market_sources={} raw_market_bias={} raw_confidence={:.2f}".format(
+        combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),
+        e["market"]["sources"],e["market"]["bias"],e["market"]["confidence"]))
     print("fomo_candidates={} wallet_level={}".format(e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
     for i,row in enumerate(e["fomo"]["top"],1):
         print("  FOMO#{} {} score={} vol={:,.0f} chg={:.2f}%".format(
             i,row.get("token"),row.get("fomo_score"),row.get("volume_24h_usd",0),row.get("price_change_24h_pct",0)))
-    if snapshot.get("fomo_error"): print("fomo_warning="+snapshot["fomo_error"])
+    if snapshot.get("fomo_error"):
+        print("fomo_warning="+snapshot["fomo_error"])
