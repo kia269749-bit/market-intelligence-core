@@ -9,6 +9,7 @@ from pathlib import Path
 from .models import MarketBar
 from .validated_forecast import forecast_now
 from .forecast_trade_filter import evaluate_forecast
+from .opportunity_score import score_opportunity
 
 
 def _num(v, d=0.0):
@@ -139,12 +140,24 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
             trade_filter["watchlist_only"] = True
             trade_filter["reason"] = "economic_floor_not_met_watchlist_only"
 
+        adaptive_context = {
+            "regime": regime,
+            "quality_score": quality_score,
+            "agreement": agreement,
+        }
+        opportunity = score_opportunity(
+            result,
+            ranking=item,
+            adaptive_context=adaptive_context,
+            trade_filter=trade_filter,
+        )
         forecasts.append({
             "asset": item["symbol"],
             "ranking": item,
             "forecast": result,
             "trade_filter": trade_filter,
-            "adaptive_context": {"regime": regime, "quality_score": quality_score, "agreement": agreement},
+            "adaptive_context": adaptive_context,
+            "opportunity": opportunity,
         })
     return {
         "available": bool(forecasts),
