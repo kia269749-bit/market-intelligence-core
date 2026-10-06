@@ -3,14 +3,14 @@ from mi_core.trade_economics import evaluate_capital_target
 
 
 class CapitalEconomicsTests(unittest.TestCase):
-    def test_four_percent_move_is_below_floor_after_costs(self):
-        r = evaluate_capital_target(4.0)
+    def test_one_percent_move_is_below_floor_after_costs(self):
+        r = evaluate_capital_target(1.0)
         self.assertFalse(r.approved)
         self.assertEqual(r.tier, "REJECT")
         self.assertLess(r.modeled_profit_usd, 4.0)
 
-    def test_five_percent_move_is_acceptable_watch(self):
-        r = evaluate_capital_target(5.0)
+    def test_one_point_two_percent_move_is_acceptable_watch(self):
+        r = evaluate_capital_target(1.2)
         self.assertTrue(r.approved)
         self.assertEqual(r.tier, "WATCH")
         self.assertGreaterEqual(r.modeled_profit_usd, 4.0)
