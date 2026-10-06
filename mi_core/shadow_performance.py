@@ -37,10 +37,23 @@ def summarize_performance(path: str) -> dict:
         "net_profit_usd":round(sum(profits),4),
         "average_net_profit_usd":round(sum(profits)/n,4) if n else 0.0,
         "expectancy_usd":round(sum(profits)/n,4) if n else 0.0,
-        "profit_factor":round(gross_profit/gross_loss,4) if gross_loss else (None if not gross_profit else float("inf")),
+        "profit_factor":round(gross_profit/gross_loss,4) if gross_loss else None,
         "max_drawdown_usd":round(drawdown,4),
         "profit_ge_4_usd":hit4,"profit_ge_10_usd":hit10,
         "hit_rate_ge_4_usd":round(hit4/n,4) if n else 0.0,
         "hit_rate_ge_10_usd":round(hit10/n,4) if n else 0.0,
         "research_only":True,"live_orders":False,
     }
+
+def format_performance_line(metrics: dict) -> str:
+    """Render a compact human-readable shadow performance line."""
+    return (
+        "Shadow: "
+        f'{int(metrics.get("resolved",0))} resolved | '
+        f'Win {float(metrics.get("win_rate",0.0))*100:.0f}% | '
+        f'Net ${float(metrics.get("net_profit_usd",0.0)):+.2f} | '
+        f'Expectancy ${float(metrics.get("expectancy_usd",0.0)):+.2f} | '
+        f'DD ${float(metrics.get("max_drawdown_usd",0.0)):.2f} | '
+        f'≥$4: {int(metrics.get("profit_ge_4_usd",0))} | '
+        f'≥$10: {int(metrics.get("profit_ge_10_usd",0))}'
+    )
