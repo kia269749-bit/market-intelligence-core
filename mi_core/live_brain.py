@@ -67,6 +67,61 @@ def _microstructure(project60, market_bias):
     return {"flow_bullish":bullish,"flow_bearish":bearish,"divergence":signal,
             "details":divergences,"squeeze_risk":bool(squeeze)}
 
+
+def _forecast_from_project60(path, asset="BTC", max_rows=600):
+    """Lightweight probabilistic multi-horizon forecast from Project60 snapshots."""
+    if not path:
+        return {"available":False,"reason":"no_history_path"}
+    from pathlib import Path
+    import json, math
+    p=Path(path)
+    if not p.exists():
+        return {"available":False,"reason":"history_not_found"}
+    rows=[]
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines()[-max_rows:]:
+            try:
+                x=json.loads(line); coins=x.get("coins",{})
+                if isinstance(coins,list):
+                    coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
+                a=coins.get(asset) or coins.get(asset.upper())
+                if isinstance(a,dict) and _num(a.get("price"),0)>0:
+                    rows.append((_num(x.get("timestamp")), _num(a.get("price"))))
+            except (TypeError,ValueError,json.JSONDecodeError):
+                continue
+    except OSError:
+        return {"available":False,"reason":"history_read_error"}
+    if len(rows)<30:
+        return {"available":False,"reason":"insufficient_history","samples":len(rows)}
+    prices=[x[1] for x in rows]
+    rets=[math.log(prices[i]/prices[i-1]) for i in range(1,len(prices)) if prices[i]>0 and prices[i-1]>0]
+    if len(rets)<20:
+        return {"available":False,"reason":"insufficient_returns","samples":len(prices)}
+    def sigmoid(x):
+        return 1/(1+math.exp(-max(-20,min(20,x))))
+    def horizon(n):
+        n=min(n,len(rets)); recent=rets[-n:]
+        mean=sum(recent)/len(recent); vol=statistics.pstdev(recent) or 1e-9
+        short=sum(rets[-min(8,len(rets)):])/min(8,len(rets))
+        long=sum(rets[-min(30,len(rets)):])/min(30,len(rets))
+        edge=(0.55*mean+0.30*short+0.15*long)*math.sqrt(n)/max(vol,1e-9)
+        p_up=0.5+(sigmoid(edge)-0.5)*0.75
+        expected_pct=(math.exp(mean*n)-1)*100
+        return {"up":round(p_up,4),"down":round(1-p_up,4),
+                "expected_move_pct":round(expected_pct,4),
+                "volatility_pct":round(vol*math.sqrt(n)*100,4)}
+    horizons={"3_snapshots":3,"10_snapshots":10,"30_minutes":30,"1_hour":60,"4_hours":240}
+    out={k:horizon(v) for k,v in horizons.items()}
+    short=out["3_snapshots"]["up"]; h1=out["1_hour"]["up"]
+    reversal=(short<0.42 and h1>0.55) or (short>0.58 and h1<0.45)
+    recent_vol=statistics.pstdev(rets[-30:]) or 1e-9
+    projected=abs(sum(rets[-10:])/10)*math.sqrt(30)
+    breakout_prob=min(0.95,max(0.05,0.50+projected/max(recent_vol,1e-9)*0.12))
+    return {"available":True,"asset":asset,"samples":len(prices),
+            "current_price":prices[-1],"horizons":out,
+            "early_reversal":bool(reversal),"breakout_probability":round(breakout_prob,4),
+            "method":"momentum+volatility probabilistic baseline","research_only":True}
+
 def _smart_money_score(fomo_leader_evidence):
     lf=fomo_leader_evidence or {}
     scores=[]
@@ -122,7 +177,7 @@ def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None):
             "actionable":actionable,"regime":regime_name,"outcome_memory":outcome}
 
 def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None,
-             fomo_leader_evidence=None, outcome_memory=None):
+             fomo_leader_evidence=None, outcome_memory=None, forecast=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
@@ -161,7 +216,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "data_quality":quality,"regime":regime,"microstructure":micro,"combined":combined,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False},
-          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"no_trade":no_trade},
+          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"no_trade":no_trade,"forecast":forecast or {"available":False}},
         "architecture":"Project60 + FOMO + SmartMoney -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
@@ -175,6 +230,14 @@ def print_live(snapshot):
         e.get("microstructure",{}).get("divergence","NONE"),e.get("microstructure",{}).get("squeeze_risk",False),
         e.get("smart_money",{}).get("status","NONE"),e.get("outcome_memory",{}).get("win_rate",0.0),e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
     if e.get("no_trade",{}).get("blocked"): print("NO_TRADE_GUARD=BLOCK | reasons=" + ",".join(e["no_trade"].get("reasons",[])))
+    fc=e.get("forecast",{})
+    if fc.get("available"):
+        h=fc.get("horizons",{})
+        print("FORECAST {} | 3={} 1H={} 4H={} | reversal={} breakout_prob={:.0f}%".format(
+            fc.get("asset","BTC"), h.get("3_snapshots",{}).get("up",.5),
+            h.get("1_hour",{}).get("up",.5), h.get("4_hours",{}).get("up",.5),
+            fc.get("early_reversal",False), fc.get("breakout_probability",.5)*100))
+
     for i,row in enumerate(e["fomo"]["top"],1):
         print("  FOMO#{} {} score={} vol={:,.0f} chg={:.2f}%".format(i,row.get("token"),row.get("fomo_score"),row.get("volume_24h_usd",0),row.get("price_change_24h_pct",0)))
     if snapshot.get("fomo_error"): print("fomo_warning="+snapshot["fomo_error"])
