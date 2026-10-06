@@ -60,6 +60,22 @@ def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
     }
 
 
+def _path_excursion_metrics(result, target_levels=(1.15, 2.35), stop_levels=(0.50, 0.75, 1.00, 1.25, 1.50)):
+    rows=[x for x in result.get("predictions",[]) if x.get("pred") in (-1,1)]
+    out={"directional_predictions":len(rows),"target_hit_rates":{},"adverse_excursion_rates":{}}
+    for level in target_levels:
+        hits=sum(_num(x.get("favorable_mfe_pct")) >= level for x in rows)
+        out["target_hit_rates"][str(level)] = round(hits/len(rows),6) if rows else 0.0
+    for stop in stop_levels:
+        hits=sum(_num(x.get("adverse_mae_pct")) >= stop for x in rows)
+        out["adverse_excursion_rates"][str(stop)] = round(hits/len(rows),6) if rows else 0.0
+    return out
+
+def _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics):
+    if economic_metrics.get("net_profit_usd",0.0) > 0 and economic_metrics.get("expectancy_usd",0.0) > 0 and capital_metrics.get("min_target_hit_rate",0.0) >= 0.15 and prediction_metrics.get("high_conf_accuracy",0.0) >= 0.65:
+        return "WATCH"
+    return "NO_TRADE"
+
 def _aggregate(asset_results):
     resolved = sum(int(x["prediction_metrics"].get("resolved", 0)) for x in asset_results)
     correct = sum(
@@ -96,89 +112,71 @@ def _aggregate(asset_results):
     }
 
 
+def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, preferred_profit_usd, round_trip_cost_pct):
+    asset_results = []
+    for item in selected:
+        bars = series[item["symbol"]]
+        result = walk_forward_forecast(bars, horizon=horizon,
+                                       train_window=min(300, max(60, len(bars) - horizon - 1)),
+                                       min_train=60)
+        if not result.get("available"):
+            continue
+        prediction_metrics = score_predictions(result)
+        capital_metrics = score_capital_targets(result, capital_usd=capital_usd,
+                                                 min_profit_usd=min_profit_usd,
+                                                 preferred_profit_usd=preferred_profit_usd,
+                                                 round_trip_cost_pct=round_trip_cost_pct)
+        economic_metrics = _directional_metrics(result, capital_usd=capital_usd,
+                                                round_trip_cost_pct=round_trip_cost_pct)
+        path_metrics = _path_excursion_metrics(result)
+        gate = forecast_acceptance_gate(prediction_metrics, capital_metrics,
+                                        min_oos_samples=100, min_high_conf_samples=20,
+                                        min_high_conf_accuracy=0.55,
+                                        min_profit_hit_rate=0.30,
+                                        preferred_profit_hit_rate=0.15)
+        tier = "TRADE" if gate.get("accepted") else _opportunity_tier(
+            prediction_metrics, economic_metrics, capital_metrics)
+        asset_results.append({
+            "asset": item["symbol"], "samples": len(bars), "ranking": item,
+            "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
+            "economic_metrics": economic_metrics, "path_metrics": path_metrics,
+            "opportunity_tier": tier, "acceptance_gate": gate,
+        })
+    aggregate = _aggregate(asset_results)
+    return {
+        "horizon_bars": horizon, "validated_assets": len(asset_results),
+        "accepted_assets": sum(bool(x["acceptance_gate"].get("accepted")) for x in asset_results),
+        "aggregate": aggregate, "assets": asset_results,
+    }
+
 def validate_project60(
-    path,
-    top_n=10,
-    max_rows=800,
-    horizon=60,
-    min_samples=100,
-    capital_usd=500.0,
-    min_profit_usd=4.0,
-    preferred_profit_usd=10.0,
-    round_trip_cost_pct=0.35,
+    path, top_n=10, max_rows=800, horizon=60, min_samples=100,
+    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
+    round_trip_cost_pct=0.35, horizons=None,
 ):
     series = load_project60_assets(path, max_rows=max_rows)
     ranked = [x for x in rank_assets(series, min_samples=max(60, min_samples))
               if x["symbol"] in series]
     selected = ranked[:max(1, int(top_n))]
-
-    asset_results = []
-    for item in selected:
-        bars = series[item["symbol"]]
-        result = walk_forward_forecast(
-            bars,
-            horizon=horizon,
-            train_window=min(300, max(60, len(bars) - horizon - 1)),
-            min_train=60,
-        )
-        if not result.get("available"):
-            continue
-
-        prediction_metrics = score_predictions(result)
-        capital_metrics = score_capital_targets(
-            result,
-            capital_usd=capital_usd,
-            min_profit_usd=min_profit_usd,
-            preferred_profit_usd=preferred_profit_usd,
-            round_trip_cost_pct=round_trip_cost_pct,
-        )
-        economic_metrics = _directional_metrics(
-            result,
-            capital_usd=capital_usd,
-            round_trip_cost_pct=round_trip_cost_pct,
-        )
-        gate = forecast_acceptance_gate(
-            prediction_metrics,
-            capital_metrics,
-            min_oos_samples=100,
-            min_high_conf_samples=20,
-            min_high_conf_accuracy=0.55,
-            min_profit_hit_rate=0.30,
-            preferred_profit_hit_rate=0.15,
-        )
-        asset_results.append({
-            "asset": item["symbol"],
-            "samples": len(bars),
-            "ranking": item,
-            "prediction_metrics": prediction_metrics,
-            "capital_metrics": capital_metrics,
-            "economic_metrics": economic_metrics,
-            "acceptance_gate": gate,
-        })
-
-    aggregate = _aggregate(asset_results)
-    accepted = sum(
-        bool(x["acceptance_gate"].get("accepted")) for x in asset_results
-    )
+    hs = [int(horizon)] if horizons is None else [int(x) for x in horizons if int(x) > 0]
+    if not hs:
+        hs = [int(horizon)]
+    results = [_validate_horizon(series, selected, h, capital_usd, min_profit_usd,
+                                 preferred_profit_usd, round_trip_cost_pct) for h in hs]
+    primary = next((x for x in results if x["horizon_bars"] == int(horizon)), results[0])
     return {
-        "available": bool(asset_results),
+        "available": bool(primary["assets"]),
         "mode": "project60_real_market_walk_forward_oos",
-        "assets_seen": len(series),
-        "eligible_assets": len(ranked),
-        "validated_assets": len(asset_results),
-        "accepted_assets": accepted,
-        "aggregate": aggregate,
-        "assets": asset_results,
-        "policy": {
-            "capital_usd": capital_usd,
-            "min_profit_usd": min_profit_usd,
-            "preferred_profit_usd": preferred_profit_usd,
-            "round_trip_cost_pct": round_trip_cost_pct,
-        },
-        "research_only": True,
-        "live_orders": False,
+        "assets_seen": len(series), "eligible_assets": len(ranked),
+        "validated_assets": primary["validated_assets"],
+        "accepted_assets": primary["accepted_assets"],
+        "aggregate": primary["aggregate"], "assets": primary["assets"],
+        "horizon_results": results if len(results) > 1 else [],
+        "policy": {"capital_usd": capital_usd, "min_profit_usd": min_profit_usd,
+                   "preferred_profit_usd": preferred_profit_usd,
+                   "round_trip_cost_pct": round_trip_cost_pct},
+        "research_only": True, "live_orders": False,
     }
-
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Research-only Project60 OOS validation")
@@ -186,6 +184,7 @@ def main(argv=None):
     ap.add_argument("--top", type=int, default=10)
     ap.add_argument("--max-rows", type=int, default=800)
     ap.add_argument("--horizon", type=int, default=60)
+    ap.add_argument("--horizons", default="", help="comma-separated horizons for comparison")
     ap.add_argument("--min-samples", type=int, default=100)
     ap.add_argument("--out", default="")
     args = ap.parse_args(argv)
@@ -196,6 +195,7 @@ def main(argv=None):
         max_rows=args.max_rows,
         horizon=args.horizon,
         min_samples=args.min_samples,
+        horizons=[int(x) for x in args.horizons.split(",") if x.strip()] or None,
     )
     payload = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out:
