@@ -99,17 +99,35 @@ def _append_shadow_if_actionable(journal_path, snapshot):
     bias=str(combined.get("bias","")).upper()
     if bias not in ("BULLISH","BEARISH"):
         return False
-    market=snapshot.get("market") or {}
-    rows=market.get("rows") or []
-    entry_price=None
-    if rows and isinstance(rows[-1],dict):
-        try:
-            entry_price=float(rows[-1].get("price"))
-        except (TypeError,ValueError):
-            entry_price=None
     forecast=(snapshot.get("evidence") or {}).get("forecast") or {}
+    selected=forecast.get("selected") if isinstance(forecast,dict) else {}
+    if not isinstance(selected,dict):
+        selected={}
+    entry_price=selected.get("current_price")
+    asset=str(forecast.get("asset") or selected.get("asset") or "MARKET")
+    try:
+        entry_price=float(entry_price)
+    except (TypeError,ValueError):
+        entry_price=None
+    if entry_price is None or entry_price <= 0:
+        return False
+    signal_id=f"{asset}:{bias}:{round(entry_price,4)}"
+    try:
+        existing=Path(journal_path)
+        if existing.exists():
+            for line in existing.read_text(encoding="utf-8").splitlines():
+                try:
+                    row=json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if row.get("status")!="OPEN": continue
+                if row.get("signal_id")==signal_id:
+                    return False
+    except OSError:
+        pass
     signal={
-        "signal_id":f"{bias}:{int(snapshot.get('ts',time.time()))}",
+        "signal_id":signal_id,
+        "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
         "expected_move_pct":economics.get("expected_move_pct"),
@@ -176,7 +194,8 @@ def main():
             snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast)
             if x.outcome_journal:
                 fc=snap.get("evidence",{}).get("forecast",{})
-                current_price=fc.get("current_price") if isinstance(fc,dict) else None
+                selected=fc.get("selected") if isinstance(fc,dict) else {}
+                current_price=selected.get("current_price") if isinstance(selected,dict) else None
                 if current_price is not None:
                     resolve_open_signals(x.outcome_journal, float(current_price))
             shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
