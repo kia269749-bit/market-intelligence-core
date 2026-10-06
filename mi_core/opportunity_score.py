@@ -65,7 +65,7 @@ def score_opportunity(forecast, ranking=None, adaptive_context=None, trade_filte
     net_move = float(trade_filter.get("net_move_pct", 0.0) or 0.0)
     policy_status = str(trade_filter.get("policy_status") or "")
     economic_block = trade_filter.get("reason") in (
-        "expected_move_below_usd5_after_costs",
+        "expected_move_below_usd4_after_costs",
         "economic_floor_not_met_watchlist_only",
     )
     early_watch = (
