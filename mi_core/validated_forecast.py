@@ -76,11 +76,13 @@ def forecast_now(bars,horizon=5,train_window=300,flat_band=.0015):
     band=1.96*vol*math.sqrt(horizon)*100; short=sum(rs[-5:])
     reversal=(short<0 and direction=="UP") or (short>0 and direction=="DOWN")
     breakout=min(.95,max(.05,.5+abs(short)/(vol*5)*.12))
+    current_move_pct=short*100.0
     return {"available":True,"ts":bars[i].ts,"symbol":bars[i].symbol,"horizon_bars":horizon,
             "direction":direction,"p_up":round(p[1],4),"p_flat":round(p[0],4),"p_down":round(p[-1],4),
             "expected_return_pct":round(exp,4),"lower_return_pct":round(exp-band,4),
             "upper_return_pct":round(exp+band,4),"confidence":round(max(p.values()),4),
             "reversal_warning":reversal,"breakout_probability":round(breakout,4),
+            "current_move_pct":round(current_move_pct,4),
             "model_version":"wf-logit-v2","research_only":True,"live_orders":False}
 
 def score_predictions(result):
