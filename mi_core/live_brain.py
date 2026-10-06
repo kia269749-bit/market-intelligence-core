@@ -314,7 +314,7 @@ def print_live(snapshot):
     if ce.get("available"):
         print("CAPITAL $500 | net_profit=${:.2f} | tier={} | floor=$4 | preferred=$10 | expected={:.2f}% required4={:.2f}% required10={:.2f}% cost={:.3f}%".format(ce["modeled_profit_usd"],ce.get("tier","REJECT"),ce["expected_move_pct"],ce["required_move_pct"],ce.get("preferred_required_move_pct",0),ce["round_trip_cost_pct"]))
     tm=e.get("timing",{})
-    print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}%".format(tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),tm.get("extension_ratio",0.0)*100))
+    print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}%".format(tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0))))
     fc=e.get("forecast",{})
     if fc.get("available"):
         h=fc.get("horizons",{})
