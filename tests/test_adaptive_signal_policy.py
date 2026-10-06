@@ -41,6 +41,17 @@ class AdaptiveSignalPolicyTests(unittest.TestCase):
         self.assertFalse(result["approved"])
         self.assertEqual(result["status"], "NO_TRADE")
 
+    def test_subfloor_opportunity_is_watchlist_only(self):
+        forecast = {
+            "available": True, "direction": "UP",
+            "confidence": 0.92, "expected_return_pct": 0.30
+        }
+        result = evaluate_forecast(
+            forecast, regime="TREND", quality_score=1.0, agreement=0.62
+        )
+        self.assertFalse(result["approved"])
+        self.assertEqual(result["status"], "NO_TRADE")
+
     def test_economic_watch_can_pass_with_adaptive_confidence(self):
         forecast = {
             "available": True, "direction": "UP",
