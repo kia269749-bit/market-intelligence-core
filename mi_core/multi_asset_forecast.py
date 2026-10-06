@@ -159,11 +159,24 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
             "adaptive_context": adaptive_context,
             "opportunity": opportunity,
         })
+    early_watchlist = [
+        {
+            "asset": x["asset"],
+            "direction": x["forecast"].get("direction"),
+            "opportunity_score": x["opportunity"].get("score"),
+            "label": x["opportunity"].get("label"),
+            "reason": x["opportunity"].get("reason"),
+        }
+        for x in forecasts
+        if x.get("opportunity", {}).get("early_watch")
+    ]
     return {
         "available": bool(forecasts),
         "assets_seen": len(series),
         "eligible_assets": len(ranked),
         "selected": len(forecasts),
+        "early_watch_count": len(early_watchlist),
+        "early_watchlist": early_watchlist,
         "horizon_bars": horizon,
         "ranked": ranked,
         "forecasts": forecasts,
