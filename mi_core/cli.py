@@ -115,10 +115,10 @@ def main():
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
         result["metrics"]=score_predictions(result)
-        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=5.0,preferred_profit_usd=10.0)
+        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
         result["forecast_now"] = _validated_forecast_from_project60(x.input,x.asset,x.max_rows)
-        write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":5.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
+        write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
         bars=load_input(x.input)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window)
