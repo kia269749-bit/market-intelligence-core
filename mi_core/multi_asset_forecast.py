@@ -86,6 +86,7 @@ def rank_assets(series, min_samples=60):
         ranked.append({
             "symbol": symbol, "samples": len(bars), "score": round(score, 4),
             "direction": direction, "momentum": round(momentum, 4),
+            "medium_score": round(medium_score, 4),
             "flow": round(flow, 4), "orderbook": round(book, 4),
             "oi_change": round(oi_change, 6), "volatility": round(vol, 6),
         })
@@ -97,7 +98,7 @@ def _candidate_regime(item):
     """Cheap per-asset regime label for adaptive signal thresholds."""
     vol = abs(_num(item.get("volatility")))
     momentum = abs(_num(item.get("momentum")))
-    medium = abs(_num(item.get("direction") == "BULLISH" and item.get("momentum") or item.get("momentum")))
+    medium = abs(_num(item.get("medium_score")))
     if vol >= 0.003:
         return "HIGH_VOLATILITY"
     if momentum >= 0.55 and medium >= 0.40:
