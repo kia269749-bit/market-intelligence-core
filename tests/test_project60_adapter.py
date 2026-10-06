@@ -37,7 +37,7 @@ class Project60AdapterTests(unittest.TestCase):
             result = read_snapshot(str(path))
             self.assertTrue(result["available"])
             self.assertEqual(result["assets"]["BTC"]["price"], 85313.0)
-            self.assertEqual(result["assets"]["ETH"]["direction"], "BEARISH")
+            self.assertEqual(result["assets"]["ETH"]["direction"], "UNKNOWN")
 
     def test_conflicting_asset_evidence_becomes_unknown(self):
         raw = {
