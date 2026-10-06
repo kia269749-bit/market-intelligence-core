@@ -29,7 +29,7 @@ class CapitalTarget:
     preferred_required_move_pct: float
     reason: str
 
-def evaluate_capital_target(expected_move_pct, capital_usd=100.0,
+def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
                             min_profit_usd=5.0, preferred_profit_usd=10.0,
                             exchange="hyperliquid_perps", order_type="taker",
                             spread_bps=None, slippage_bps=None):
