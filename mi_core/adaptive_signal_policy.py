@@ -2,7 +2,7 @@
 
 The policy is intentionally elastic: it tightens in noisy/range conditions and
 loosens modestly when trend, agreement and data quality improve. It never
-overrides the economic $5 minimum or creates orders.
+overrides the economic $4 minimum or creates orders.
 """
 from __future__ import annotations
 from dataclasses import dataclass
