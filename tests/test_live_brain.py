@@ -1,6 +1,6 @@
-import unittest
+import unittest, json, tempfile, os
 from unittest.mock import patch
-from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard
+from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard, _forecast_from_project60
 
 class LiveBrainTests(unittest.TestCase):
     def test_leader_follower_evidence_shape_is_preserved(self):
@@ -81,7 +81,7 @@ class LiveBrainTests(unittest.TestCase):
         self.assertEqual(adj["factor"],1.0)
 
     def test_smart_money_score_uses_leader_scores_and_events(self):
-        result=_smart_money_score({"leader_scores":{"a":.8,"b":.7},"events":[{"x":1},{"x":2}]})
+        result=_smart_money_score({"leader_score_map":{"a":.8,"b":.7},"leader_scores":2,"events":[{"x":1},{"x":2}]})
         self.assertEqual(result["status"],"STRONG")
         self.assertEqual(result["leaders"],2)
         self.assertEqual(result["events"],2)
@@ -94,5 +94,23 @@ class LiveBrainTests(unittest.TestCase):
         )
         self.assertTrue(result["blocked"])
         self.assertIn("source_conflict",result["reasons"])
+
+
+    def test_future_forecast_is_multi_horizon_and_read_only(self):
+        fd,path=tempfile.mkstemp(suffix=".jsonl"); os.close(fd)
+        try:
+            price=100.0
+            with open(path,"w",encoding="utf-8") as f:
+                for i in range(80):
+                    price*=1.0005
+                    f.write(json.dumps({"timestamp":i,"coins":{"BTC":{"price":price}}})+"\n")
+            result=_forecast_from_project60(path,"BTC")
+            self.assertTrue(result["available"])
+            self.assertIn("1_hour",result["horizons"])
+            self.assertIn("4_hours",result["horizons"])
+            self.assertGreater(result["horizons"]["1_hour"]["up"],.5)
+            self.assertTrue(result["research_only"])
+        finally:
+            os.unlink(path)
 
 if __name__=="__main__": unittest.main()
