@@ -124,7 +124,22 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
         trade_filter = evaluate_forecast(
             result, capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0,
             regime=regime, quality_score=quality_score, agreement=agreement)
+        # Keep the asset symbol at the top level for compact reports/CLI output.
+        # If a valid directional setup passes the adaptive policy but misses the
+        # $5 economic floor, expose it as WATCHLIST only. This preserves
+        # opportunity visibility without weakening the economic trade floor.
+        if (
+            trade_filter.get("status") == "NO_TRADE"
+            and trade_filter.get("reason") == "expected_move_below_usd5_after_costs"
+            and trade_filter.get("policy", {}).get("status") in ("WATCH", "STRONG")
+        ):
+            trade_filter = dict(trade_filter)
+            trade_filter["status"] = "WATCHLIST"
+            trade_filter["watchlist_only"] = True
+            trade_filter["reason"] = "economic_floor_not_met_watchlist_only"
+
         forecasts.append({
+            "asset": item["symbol"],
             "ranking": item,
             "forecast": result,
             "trade_filter": trade_filter,
