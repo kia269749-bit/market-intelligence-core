@@ -15,7 +15,7 @@ from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
 from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals
-from .shadow_performance import summarize_performance
+from .shadow_performance import summarize_performance, format_performance_line
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 from .multi_asset_forecast import scan_project60
 
@@ -209,10 +209,13 @@ def main():
                 if current_price is not None:
                     resolve_open_signals(x.outcome_journal, float(current_price))
             shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
+            shadow_metrics=summarize_performance(x.outcome_journal) if x.outcome_journal else None
             print_live_brain(snap)
             print(render_persian(snap,p60))
             if shadow_added:
                 print("SHADOW_JOURNAL=APPENDED")
+            if shadow_metrics is not None:
+                print(format_performance_line(shadow_metrics))
             count+=1
             if x.cycles==0 or count<x.cycles: time.sleep(x.interval)
     else: dashboard(x.report,x.out)
