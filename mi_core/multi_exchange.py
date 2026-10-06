@@ -83,12 +83,17 @@ def print_snapshot(snapshot):
     print(f"\nLIVE MARKET | ts_ms={snapshot['ts_ms']}")
     q=snapshot.get("data_quality",{})
     if q:
-        print("DATA QUALITY | status={} | source_success={}/{} ({:.0f}%) | healthy={} degraded={} unsafe={}".format(
+        print("🧪 سلامت داده | وضعیت={} | منابع موفق={}/{} ({:.0f}٪) | سالم={} کاهش‌یافته={} ناامن={}".format(
             q.get("status","UNKNOWN"),q.get("successful_sources",0),q.get("expected_sources",0),
             q.get("success_ratio",0.0)*100,q.get("healthy_symbols",0),q.get("degraded_symbols",0),q.get("unsafe_symbols",0)))
     print("SYMBOL       MEDIAN PRICE        RANGE              SPREAD%   SOURCES")
     for a in snapshot["aggregates"]:
         print(f"{a['symbol']:<12}{a['median_price']:>18.8g}  {a['min_price']:>12.8g}..{a['max_price']:<12.8g} {a['cross_exchange_spread_pct']:>8.3f} {a['sources']:>7}")
     if snapshot["errors"]:
-        print(f"warnings={len(snapshot['errors'])}")
-        for e in snapshot["errors"][:8]: print("  ",e)
+        counts={}
+        for e in snapshot["errors"]:
+            key=(e.get("exchange","unknown"),e.get("error","unknown"))
+            counts[key]=counts.get(key,0)+1
+        print(f"⚠️ هشدارهای داده={len(snapshot['errors'])} | خطاهای یکتا={len(counts)}")
+        for (exchange,error),n in list(counts.items())[:8]:
+            print("  {} x{} | {}".format(exchange,n,error))
