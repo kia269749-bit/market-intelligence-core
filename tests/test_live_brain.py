@@ -105,6 +105,15 @@ class LiveBrainTests(unittest.TestCase):
         self.assertIn("source_conflict",result["reasons"])
 
 
+    def test_capital_economics_exposes_preferred_required_move(self):
+        market={"rows":[{"change_24h_pct":0.0,"price":100}],"data_quality":{"status":"HEALTHY","score":1.0}}
+        forecast={"available":True,"selected":{"expected_return_pct":0.59,"confidence":0.8,"current_move_pct":0.1}}
+        with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}), patch("mi_core.live_brain.evaluate_capital_target", wraps=__import__("mi_core.trade_economics", fromlist=["evaluate_capital_target"]).evaluate_capital_target):
+            snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5}, forecast=forecast)
+        self.assertTrue(snap["capital_economics"]["available"])
+        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 1.15, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.35, places=2)
+
     def test_future_forecast_is_multi_horizon_and_read_only(self):
         fd,path=tempfile.mkstemp(suffix=".jsonl"); os.close(fd)
         try:
