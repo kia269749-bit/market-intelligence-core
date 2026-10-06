@@ -254,6 +254,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     top=fomo.get("candidates",[])[:3]
     capital_economics={"available":False,"reason":"no_forecast"}
     timing={"state":"WAIT","reason":"no_forecast","research_only":True,"live_orders":False}
+    combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money)
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
         eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
@@ -265,12 +266,12 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
                            "modeled_profit_usd":eco.modeled_profit_usd,
                            "round_trip_cost_pct":eco.round_trip_cost_pct,
                            "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,"reason":eco.reason}
-        timing=evaluate_entry_timing(confidence=_num(selected.get("confidence")), expected_move_pct=_num(selected.get("expected_return_pct")), current_move_pct=_num(selected.get("current_move_pct")), required_move_pct=_num(eco.required_move_pct), agreement=combined.get("agreement",0.0), quality_score=quality.get("score",0.0), regime=regime.get("name","UNKNOWN"))
+        timing=evaluate_entry_timing(confidence=_num(selected.get("confidence")), expected_move_pct=_num(selected.get("expected_return_pct")), current_move_pct=_num(selected.get("current_move_pct")), required_move_pct=_num(eco.required_move_pct), agreement=combined_preview.get("agreement",0.0), quality_score=quality.get("score",0.0), regime=regime.get("name","UNKNOWN"))
     if top:
         avg_change=sum(_num(x.get("price_change_24h_pct")) for x in top)/len(top)
         if avg_change>=15: votes.append(("BULLISH",min(.65,.40+avg_change/200)))
         elif avg_change<=-15: votes.append(("BEARISH",min(.65,.40+abs(avg_change)/200)))
-    combined=_fuse(votes,quality["score"],regime,outcome_memory,smart_money)
+    combined=combined_preview
     no_trade=_no_trade_guard(quality,regime,micro,smart_money,outcome_memory)
     # Data-quality gate: HEALTHY -> normal analysis, DEGRADED -> watch-only, UNSAFE -> WAIT.
     if quality_status == "DEGRADED":
@@ -285,7 +286,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     if capital_economics.get("available") and not capital_economics.get("approved"):
         combined["actionable"]=False
         no_trade["blocked"]=True
-        no_trade["reasons"]=list(no_trade.get("reasons",[]))+["usd10_target_not_met"]
+        no_trade["reasons"]=list(no_trade.get("reasons",[]))+["economic_floor_not_met"]
     if micro["divergence"]=="CONFLICT":
         combined["confidence"]=round(combined["confidence"]*.70,4); combined["actionable"]=False
     elif micro["divergence"] in ("BULLISH_DIVERGENCE","BEARISH_DIVERGENCE"):
