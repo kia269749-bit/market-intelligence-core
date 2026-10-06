@@ -125,7 +125,7 @@ def _forecast_from_project60(path, asset="BTC", max_rows=600):
 def _smart_money_score(fomo_leader_evidence):
     lf=fomo_leader_evidence or {}
     scores=[]
-    for v in (lf.get("leader_scores") or {}).values():
+    for v in (lf.get("leader_score_map") or (lf.get("leader_scores") if isinstance(lf.get("leader_scores"),dict) else {})).values():
         scores.append(_num(v))
     events=lf.get("events") or []
     if not scores and not events:
