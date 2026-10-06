@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mi_core.real_validation import _directional_metrics, validate_project60
+from mi_core.real_validation import _directional_metrics, _path_excursion_metrics, _opportunity_tier, validate_project60
 
 
 class RealValidationTests(unittest.TestCase):
@@ -21,6 +21,23 @@ class RealValidationTests(unittest.TestCase):
         self.assertAlmostEqual(result["net_profit_usd"], -7.75, places=4)
         self.assertLess(result["expectancy_usd"], 0.0)
         self.assertEqual(result["positive_net_outcomes"], 1)
+
+    def test_path_excursion_metrics_measure_targets_and_adverse_move(self):
+        result = _path_excursion_metrics({"predictions": [
+            {"pred": 1, "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
+            {"pred": -1, "favorable_mfe_pct": 1.2, "adverse_mae_pct": 1.4},
+        ]})
+        self.assertEqual(result["target_hit_rates"]["1.15"], 1.0)
+        self.assertEqual(result["target_hit_rates"]["2.35"], 0.5)
+        self.assertEqual(result["adverse_excursion_rates"]["1.0"], 0.5)
+
+    def test_positive_but_not_gate_pass_is_watch(self):
+        tier = _opportunity_tier(
+            {"high_conf_accuracy": 0.80},
+            {"net_profit_usd": 20.0, "expectancy_usd": 0.40},
+            {"min_target_hit_rate": 0.20},
+        )
+        self.assertEqual(tier, "WATCH")
 
     def test_validation_is_research_only(self):
         with tempfile.TemporaryDirectory() as td:
