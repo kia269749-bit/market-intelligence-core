@@ -67,6 +67,54 @@ class ShadowJournalTests(unittest.TestCase):
             self.assertFalse(_append_shadow_if_actionable(path,self._snapshot(bias="NEUTRAL")))
             self.assertFalse(Path(path).exists())
 
+    def test_outcome_summary_groups_context(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=str(Path(td)/"shadow.jsonl")
+            rows=[
+                {
+                    "status":"TARGET","direction":"BULLISH","regime":"TREND",
+                    "confidence":0.82,"modeled_profit_usd":12.0,
+                    "net_profit_usd":12.0,
+                },
+                {
+                    "status":"STOP","direction":"BULLISH","regime":"TREND",
+                    "confidence":0.68,"modeled_profit_usd":6.0,
+                    "net_profit_usd":-4.0,
+                },
+                {
+                    "status":"TARGET","direction":"BEARISH","regime":"RANGE",
+                    "confidence":0.91,"modeled_profit_usd":5.0,
+                    "net_profit_usd":5.0,
+                },
+            ]
+            Path(path).write_text(
+                "".join(json.dumps(r)+"\n" for r in rows),
+                encoding="utf-8"
+            )
+
+            summary=summarize(path)
+
+            self.assertEqual(summary["resolved"],3)
+            self.assertEqual(summary["by_regime"]["TREND"]["resolved"],2)
+            self.assertEqual(summary["by_regime"]["TREND"]["win_rate"],0.5)
+            self.assertEqual(summary["by_direction"]["BULLISH"]["resolved"],2)
+            self.assertEqual(summary["by_direction"]["BEARISH"]["wins"],1)
+            self.assertEqual(summary["by_confidence"]["HIGH"]["resolved"],1)
+            self.assertEqual(summary["by_confidence"]["MEDIUM"]["resolved"],1)
+            self.assertEqual(summary["by_confidence"]["VERY_HIGH"]["resolved"],1)
+            self.assertEqual(summary["by_economic_tier"]["PREFERRED"]["resolved"],1)
+            self.assertEqual(summary["by_economic_tier"]["ACCEPTABLE"]["resolved"],2)
+
+    def test_outcome_summary_empty_file_is_safe(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=str(Path(td)/"missing.jsonl")
+            summary=summarize(path)
+            self.assertEqual(summary["resolved"],0)
+            self.assertEqual(summary["by_regime"],{})
+            self.assertEqual(summary["by_direction"],{})
+            self.assertEqual(summary["by_confidence"],{})
+            self.assertEqual(summary["by_economic_tier"],{})
+
 
 if __name__=="__main__":
     unittest.main()

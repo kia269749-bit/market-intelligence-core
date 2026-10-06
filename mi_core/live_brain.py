@@ -188,18 +188,120 @@ def _no_trade_guard(quality, regime, micro, smart_money, outcome_memory):
     if regime.get("name")=="HIGH_VOLATILITY": reasons.append("high_volatility")
     if micro.get("divergence")=="CONFLICT": reasons.append("source_conflict")
     if micro.get("squeeze_risk"): reasons.append("crowding_risk")
-    if outcome_memory and outcome_memory.get("resolved",0)>=10 and _num(outcome_memory.get("win_rate"))<.40:
-        reasons.append("weak_historical_edge")
     return {"blocked":bool(reasons),"reasons":reasons}
 
-def _outcome_adjustment(outcome_memory):
-    if not outcome_memory or outcome_memory.get("resolved",0)<10:
-        return {"factor":1.0,"status":"INSUFFICIENT","reason":"not_enough_resolved_signals"}
-    win_rate=_num(outcome_memory.get("win_rate"),0.0)
-    if win_rate<0.40: return {"factor":0.75,"status":"WEAK","reason":"low_historical_win_rate"}
-    if win_rate<0.50: return {"factor":0.90,"status":"CAUTION","reason":"below_50pct_win_rate"}
-    if win_rate>=0.65: return {"factor":1.05,"status":"STRONG","reason":"strong_historical_win_rate"}
-    return {"factor":1.0,"status":"NEUTRAL","reason":"historical_win_rate_ok"}
+def _outcome_adjustment(outcome_memory, regime=None, direction=None):
+    """Apply bounded, context-aware historical adjustment.
+
+    Global history is only a weak prior. Context-specific history is used
+    only after a minimum sample size, and the final factor is always bounded.
+    Historical performance never becomes a standalone trade blocker.
+    """
+    if not outcome_memory:
+        return {
+            "factor": 1.0,
+            "status": "INSUFFICIENT",
+            "reason": "not_enough_resolved_signals",
+        }
+
+    try:
+        resolved=int(outcome_memory.get("resolved", 0) or 0)
+    except (TypeError, ValueError):
+        resolved=0
+
+    if resolved < 10:
+        return {
+            "factor": 1.0,
+            "status": "INSUFFICIENT",
+            "reason": "not_enough_resolved_signals",
+        }
+
+    try:
+        win_rate=float(outcome_memory.get("win_rate", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        win_rate=0.0
+
+    # Conservative global prior.
+    if win_rate < 0.40:
+        factor=0.90
+        status="WEAK"
+        reason="low_historical_win_rate"
+    elif win_rate < 0.50:
+        factor=0.95
+        status="CAUTION"
+        reason="below_50pct_win_rate"
+    elif win_rate >= 0.65:
+        factor=1.05
+        status="STRONG"
+        reason="strong_historical_win_rate"
+    else:
+        factor=1.0
+        status="NEUTRAL"
+        reason="historical_win_rate_ok"
+
+    context_used=[]
+
+    def context_adjustment(bucket, label):
+        if not isinstance(bucket, dict):
+            return None
+        try:
+            n=int(bucket.get("resolved", 0) or 0)
+            wr=float(bucket.get("win_rate", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return None
+
+        # Do not react to tiny samples.
+        if n < 8:
+            return None
+
+        if wr >= 0.65:
+            delta=0.025
+        elif wr < 0.40:
+            delta=-0.05
+        elif wr < 0.50:
+            delta=-0.025
+        else:
+            delta=0.0
+
+        context_used.append({
+            "context": label,
+            "resolved": n,
+            "win_rate": round(wr, 4),
+            "delta": delta,
+        })
+        return delta
+
+    by_regime=outcome_memory.get("by_regime") or {}
+    by_direction=outcome_memory.get("by_direction") or {}
+
+    if regime:
+        delta=context_adjustment(
+            by_regime.get(str(regime).upper()),
+            f"regime:{str(regime).upper()}",
+        )
+        if delta is not None:
+            factor += delta
+
+    if direction:
+        delta=context_adjustment(
+            by_direction.get(str(direction).upper()),
+            f"direction:{str(direction).upper()}",
+        )
+        if delta is not None:
+            factor += delta
+
+    # Hard safety bounds. Historical memory can never dominate live evidence.
+    factor=max(0.90, min(1.05, factor))
+
+    if context_used:
+        reason += ";context_adjusted"
+
+    return {
+        "factor": round(factor, 4),
+        "status": status,
+        "reason": reason,
+        "context_used": context_used,
+    }
 
 def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None):
     smart_money=smart_money or {"score":0.0,"status":"NONE"}
@@ -215,7 +317,7 @@ def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None):
     regime_name=(regime or {}).get("name","UNKNOWN")
     if regime_name=="HIGH_VOLATILITY": confidence*=0.85
     elif regime_name=="MIXED": confidence*=0.90
-    outcome=_outcome_adjustment(outcome_memory)
+    outcome=_outcome_adjustment(outcome_memory, regime=regime_name, direction=bias)
     confidence*=outcome["factor"]
     if smart_money.get("status")=="STRONG": confidence*=1.05
     elif smart_money.get("status")=="WEAK": confidence*=0.90

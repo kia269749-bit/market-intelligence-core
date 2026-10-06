@@ -85,6 +85,42 @@ class LiveBrainTests(unittest.TestCase):
         fused=_fuse([("BULLISH",.8)],1.0,{"name":"TREND"},outcome)
         self.assertLess(fused["confidence"],.8)
 
+    def test_contextual_outcome_memory_is_bounded(self):
+        outcome={
+            "resolved":20,
+            "win_rate":0.55,
+            "by_regime":{
+                "TREND":{"resolved":10,"win_rate":0.70},
+                "RANGE":{"resolved":10,"win_rate":0.30},
+            },
+            "by_direction":{
+                "BULLISH":{"resolved":10,"win_rate":0.70},
+                "BEARISH":{"resolved":10,"win_rate":0.40},
+            },
+        }
+
+        trend=_outcome_adjustment(outcome, regime="TREND", direction="BULLISH")
+        range_case=_outcome_adjustment(outcome, regime="RANGE", direction="BEARISH")
+
+        self.assertGreaterEqual(trend["factor"],0.90)
+        self.assertLessEqual(trend["factor"],1.05)
+        self.assertGreaterEqual(range_case["factor"],0.90)
+        self.assertLessEqual(range_case["factor"],1.05)
+        self.assertNotEqual(trend["factor"],range_case["factor"])
+
+    def test_context_with_small_sample_does_not_overreact(self):
+        outcome={
+            "resolved":20,
+            "win_rate":0.55,
+            "by_regime":{
+                "TREND":{"resolved":3,"win_rate":0.0},
+            },
+        }
+
+        result=_outcome_adjustment(outcome, regime="TREND")
+
+        self.assertEqual(result["factor"],1.0)
+
     def test_insufficient_outcome_memory_is_neutral(self):
         adj=_outcome_adjustment({"resolved":3,"win_rate":0.0})
         self.assertEqual(adj["status"],"INSUFFICIENT")
@@ -95,6 +131,17 @@ class LiveBrainTests(unittest.TestCase):
         self.assertEqual(result["status"],"STRONG")
         self.assertEqual(result["leaders"],2)
         self.assertEqual(result["events"],2)
+
+    def test_weak_history_alone_does_not_block(self):
+        result=_no_trade_guard(
+            {"status":"SAFE"},
+            {"name":"TREND"},
+            {"divergence":"ALIGNED","squeeze_risk":False},
+            {"status":"STRONG"},
+            {"resolved":20,"win_rate":0.35},
+        )
+        self.assertFalse(result["blocked"])
+        self.assertNotIn("weak_historical_edge", result["reasons"])
 
     def test_no_trade_guard_blocks_unsafe_conditions(self):
         result=_no_trade_guard(

@@ -64,18 +64,92 @@ def resolve_open_signals(path: str, current_price: float, now: int | None = None
         tmp.replace(p)
     return changed
 
+def _bucket_confidence(value):
+    try:
+        x=float(value)
+    except (TypeError, ValueError):
+        return "UNKNOWN"
+    if x < 0.60:
+        return "LOW"
+    if x < 0.75:
+        return "MEDIUM"
+    if x < 0.90:
+        return "HIGH"
+    return "VERY_HIGH"
+
+
+def _bucket_economic(value):
+    try:
+        x=float(value)
+    except (TypeError, ValueError):
+        return "UNKNOWN"
+    if x >= 10.0:
+        return "PREFERRED"
+    if x >= 4.0:
+        return "ACCEPTABLE"
+    return "BELOW_MIN"
+
+
+def _group_outcomes(rows, key_fn):
+    groups={}
+    for row in rows:
+        key=key_fn(row)
+        item=groups.setdefault(key, {"resolved":0,"wins":0,"losses":0,"net_profit_usd":0.0})
+        item["resolved"] += 1
+        if row.get("status") == "TARGET":
+            item["wins"] += 1
+        elif row.get("status") == "STOP":
+            item["losses"] += 1
+        item["net_profit_usd"] += float(row.get("net_profit_usd",0.0) or 0.0)
+    for item in groups.values():
+        n=item["resolved"]
+        item["win_rate"]=round(item["wins"]/n,4) if n else 0.0
+        item["net_profit_usd"]=round(item["net_profit_usd"],4)
+    return groups
+
+
 def summarize(path: str) -> dict:
     p=Path(path)
-    if not p.exists(): return {"count":0,"open":0,"resolved":0,"wins":0,"losses":0,"win_rate":0.0,"net_profit_usd":0.0}
+    if not p.exists():
+        return {
+            "count":0,"open":0,"resolved":0,"wins":0,"losses":0,
+            "win_rate":0.0,"net_profit_usd":0.0,
+            "by_regime":{},"by_direction":{},
+            "by_confidence":{},"by_economic_tier":{}
+        }
+
     rows=[]
     for line in p.read_text(encoding="utf-8").splitlines():
-        try: rows.append(json.loads(line))
-        except json.JSONDecodeError: continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
     resolved=[r for r in rows if r.get("status") in ("TARGET","STOP")]
     wins=sum(r.get("status")=="TARGET" for r in resolved)
     losses=sum(r.get("status")=="STOP" for r in resolved)
     net=sum(float(r.get("net_profit_usd",0.0) or 0.0) for r in resolved)
-    return {"count":len(rows),"open":sum(r.get("status")=="OPEN" for r in rows),
-            "resolved":len(resolved),"wins":wins,"losses":losses,
-            "win_rate":round(wins/len(resolved),4) if resolved else 0.0,
-            "net_profit_usd":round(net,4)}
+
+    return {
+        "count":len(rows),
+        "open":sum(r.get("status")=="OPEN" for r in rows),
+        "resolved":len(resolved),
+        "wins":wins,
+        "losses":losses,
+        "win_rate":round(wins/len(resolved),4) if resolved else 0.0,
+        "net_profit_usd":round(net,4),
+        "by_regime":_group_outcomes(
+            resolved, lambda r: str(r.get("regime","UNKNOWN")).upper() or "UNKNOWN"
+        ),
+        "by_direction":_group_outcomes(
+            resolved, lambda r: str(r.get("direction","UNKNOWN")).upper() or "UNKNOWN"
+        ),
+        "by_confidence":_group_outcomes(
+            resolved, lambda r: _bucket_confidence(r.get("confidence"))
+        ),
+        "by_economic_tier":_group_outcomes(
+            resolved, lambda r: _bucket_economic(
+                r.get("modeled_profit_usd")
+            )
+        ),
+    }
