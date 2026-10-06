@@ -15,6 +15,7 @@ from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
 from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals
+from .shadow_performance import summarize_performance
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 from .multi_asset_forecast import scan_project60
 
@@ -166,9 +167,9 @@ def main():
     v=sp.add_parser("forecast-validate"); v.add_argument("--input",required=True); v.add_argument("--horizon",type=int,default=60); v.add_argument("--train-window",type=int,default=300); v.add_argument("--out")
     pv=sp.add_parser("forecast-project60"); pv.add_argument("--input",required=True); pv.add_argument("--asset",default="BTC"); pv.add_argument("--horizon",type=int,default=60); pv.add_argument("--max-rows",type=int,default=800); pv.add_argument("--out")
     ms=sp.add_parser("forecast-scan"); ms.add_argument("--input",required=True); ms.add_argument("--top",type=int,default=5); ms.add_argument("--horizon",type=int,default=60); ms.add_argument("--max-rows",type=int,default=800); ms.add_argument("--out")
-    z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default="")
+    sr=sp.add_parser("shadow-report"); sr.add_argument("--journal",required=True)\n    z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default="")
     x=ap.parse_args()
-    if x.cmd=="demo": demo(x.out)
+    if x.cmd=="demo": demo(x.out)\n    elif x.cmd=="shadow-report": print(json.dumps(summarize_performance(x.journal),indent=2,ensure_ascii=False))
     elif x.cmd=="analyze": analyze(x.input,x.out)
     elif x.cmd=="real": real(x.symbol,x.interval,x.bars,x.out,x.report)
     elif x.cmd=="live": live(x.exchanges,x.symbols,x.interval,x.cycles)
