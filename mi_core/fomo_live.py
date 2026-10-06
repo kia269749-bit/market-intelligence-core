@@ -7,8 +7,9 @@ import json, time
 from urllib.request import Request, urlopen
 
 DEX_BASE="https://api.dexscreener.com"
+DEFAULT_TIMEOUT=4
 
-def _get_json(path: str, timeout: int = 8):
+def _get_json(path: str, timeout: int = DEFAULT_TIMEOUT):
     req=Request(DEX_BASE+path, headers={"User-Agent":"market-intelligence-core/1.0"})
     with urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
@@ -58,12 +59,17 @@ def scan_tokens(addresses, chain=None, limit=10):
 def scan_boosted(chain=None, limit=10):
     data=_get_json("/token-boosts/latest/v1")
     candidates=[]
-    for item in data if isinstance(data,list) else []:
+    # Bound public API work so one slow cycle cannot fan out into dozens of
+    # sequential token requests on a phone.
+    max_boosts=max(3, min(12, int(limit)*2))
+    for item in data[:max_boosts] if isinstance(data,list) else []:
         if chain and item.get("chainId") != chain: continue
         address=item.get("tokenAddress")
         if not address: continue
-        try: candidates.extend(scan_tokens([address],chain=chain,limit=3)["candidates"])
-        except Exception: continue
+        try:
+            candidates.extend(scan_tokens([address],chain=chain,limit=3)["candidates"])
+        except Exception:
+            continue
     candidates.sort(key=lambda x:(x["fomo_score"],x["volume_24h_usd"]),reverse=True)
     return {"ts":int(time.time()),"candidates":candidates[:max(1,limit)],
             "research_only":True,"wallet_level":False}
