@@ -3,6 +3,7 @@ from __future__ import annotations
 import time, statistics
 from .fomo_live import scan_boosted
 from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
+from .trade_economics import evaluate_capital_target
 
 def _num(v, d=0.0):
     try: return float(v)
@@ -240,6 +241,18 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         direction=str(lf.get("direction","")).upper()
         if direction in ("BULLISH","BEARISH"): votes.append((direction,min(1.0,_num(lf.get("confidence"),0.0))))
     top=fomo.get("candidates",[])[:3]
+    capital_economics={"available":False,"reason":"no_forecast"}
+    if forecast and forecast.get("available"):
+        selected=forecast.get("selected") or {}
+        eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
+                                    capital_usd=100.0, min_profit_usd=10.0)
+        capital_economics={"available":True,"approved":eco.approved,
+                           "expected_move_pct":eco.expected_move_pct,
+                           "required_move_pct":eco.required_move_pct,
+                           "net_move_pct":eco.net_move_pct,
+                           "modeled_profit_usd":eco.modeled_profit_usd,
+                           "round_trip_cost_pct":eco.round_trip_cost_pct,
+                           "reason":eco.reason}
     if top:
         avg_change=sum(_num(x.get("price_change_24h_pct")) for x in top)/len(top)
         if avg_change>=15: votes.append(("BULLISH",min(.65,.40+avg_change/200)))
@@ -247,6 +260,10 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     combined=_fuse(votes,quality["score"],regime,outcome_memory,smart_money)
     no_trade=_no_trade_guard(quality,regime,micro,smart_money,outcome_memory)
     if no_trade["blocked"]: combined["actionable"]=False
+    if capital_economics.get("available") and not capital_economics.get("approved"):
+        combined["actionable"]=False
+        no_trade["blocked"]=True
+        no_trade["reasons"]=list(no_trade.get("reasons",[]))+["usd10_target_not_met"]
     if micro["divergence"]=="CONFLICT":
         combined["confidence"]=round(combined["confidence"]*.70,4); combined["actionable"]=False
     elif micro["divergence"] in ("BULLISH_DIVERGENCE","BEARISH_DIVERGENCE"):
@@ -261,7 +278,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "data_quality":quality,"regime":regime,"microstructure":micro,"combined":combined,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False},
-          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"no_trade":no_trade,"forecast":forecast or {"available":False}},
+          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"no_trade":no_trade,"forecast":forecast or {"available":False},"capital_economics":capital_economics},
         "architecture":"Project60 + FOMO + SmartMoney -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
@@ -275,6 +292,9 @@ def print_live(snapshot):
         e.get("microstructure",{}).get("divergence","NONE"),e.get("microstructure",{}).get("squeeze_risk",False),
         e.get("smart_money",{}).get("status","NONE"),e.get("outcome_memory",{}).get("win_rate",0.0),e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
     if e.get("no_trade",{}).get("blocked"): print("NO_TRADE_GUARD=BLOCK | reasons=" + ",".join(e["no_trade"].get("reasons",[])))
+    ce=e.get("capital_economics",{})
+    if ce.get("available"):
+        print("CAPITAL $100 | expected={:.2f}% required={:.2f}% net={:.2f}% profit=${:.2f} cost={:.3f}% approved={}".format(ce["expected_move_pct"],ce["required_move_pct"],ce["net_move_pct"],ce["modeled_profit_usd"],ce["round_trip_cost_pct"],ce["approved"]))
     fc=e.get("forecast",{})
     if fc.get("available"):
         h=fc.get("horizons",{})
