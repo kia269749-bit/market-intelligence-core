@@ -17,6 +17,7 @@ class TestDataQualityGate(unittest.TestCase):
         original=lb.fetch_snapshot
         try:
             lb.fetch_snapshot=lambda symbols, exchanges:self._base("HEALTHY")
+            lb.scan_boosted=lambda chain,limit: {"candidates":[]}
             out=run_once(symbols=["BTCUSDT"], exchanges=[])
             self.assertEqual(out["evidence"]["market_data_gate"],"HEALTHY")
         finally:
@@ -27,6 +28,7 @@ class TestDataQualityGate(unittest.TestCase):
         original=lb.fetch_snapshot
         try:
             lb.fetch_snapshot=lambda symbols, exchanges:self._base("DEGRADED")
+            lb.scan_boosted=lambda chain,limit: {"candidates":[]}
             out=run_once(symbols=["BTCUSDT"], exchanges=[])
             self.assertEqual(out["evidence"]["market_data_gate"],"DEGRADED")
             self.assertFalse(out["evidence"]["combined"]["actionable"])
@@ -39,6 +41,7 @@ class TestDataQualityGate(unittest.TestCase):
         original=lb.fetch_snapshot
         try:
             lb.fetch_snapshot=lambda symbols, exchanges:self._base("UNSAFE")
+            lb.scan_boosted=lambda chain,limit: {"candidates":[]}
             out=run_once(symbols=["BTCUSDT"], exchanges=[])
             self.assertEqual(out["evidence"]["market_data_gate"],"UNSAFE")
             self.assertFalse(out["evidence"]["combined"]["actionable"])
