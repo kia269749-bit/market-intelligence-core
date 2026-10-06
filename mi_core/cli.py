@@ -24,6 +24,25 @@ def demo(out):
         append_jsonl(fp,MarketBar(i,"BTCUSDT",price,volume=100+i%20,buy_volume=60+i%10,sell_volume=40,whale_buy=12+i%5,whale_sell=6,sentiment=.2).to_dict())
     print(fp)
 
+def load_project60_bars(path, asset="BTC", max_rows=800):
+    rows=[]
+    for line in Path(path).read_text(encoding="utf-8").splitlines()[-max_rows:]:
+        try:
+            x=json.loads(line); coins=x.get("coins",{})
+            if isinstance(coins,list): coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
+            a=coins.get(asset) or coins.get(asset.upper())
+            if not isinstance(a,dict): continue
+            tr=a.get("trades") or {}; ob=a.get("orderbook") or {}
+            price=float(a.get("price") or 0)
+            if price<=0: continue
+            rows.append(MarketBar(int(float(x.get("timestamp",0))),asset,price,
+                oi=float(a["open_interest"]) if a.get("open_interest") is not None else None,
+                funding=float(a["funding"]) if a.get("funding") is not None else None,
+                bid=float(ob.get("bid_usd") or 0),ask=float(ob.get("ask_usd") or 0),
+                buy_volume=float(tr.get("buy_usd") or 0),sell_volume=float(tr.get("sell_usd") or 0)))
+        except (TypeError,ValueError,json.JSONDecodeError): continue
+    return rows
+
 def load_input(path):
     p=Path(path)
     return load_csv(p) if p.suffix.lower()==".csv" else load_bars(p)
@@ -78,6 +97,7 @@ def main():
     q=sp.add_parser("intelligence"); q.add_argument("--input",required=True); q.add_argument("--out"); q.add_argument("--pretty",action="store_true",help="print the concise manual-review signal report")
     h=sp.add_parser("dashboard"); h.add_argument("--report",required=True); h.add_argument("--out",default="reports/dashboard.html")
     v=sp.add_parser("forecast-validate"); v.add_argument("--input",required=True); v.add_argument("--horizon",type=int,default=60); v.add_argument("--train-window",type=int,default=300); v.add_argument("--out")
+    pv=sp.add_parser("forecast-project60"); pv.add_argument("--input",required=True); pv.add_argument("--asset",default="BTC"); pv.add_argument("--horizon",type=int,default=60); pv.add_argument("--max-rows",type=int,default=800); pv.add_argument("--out")
     z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default="")
     x=ap.parse_args()
     if x.cmd=="demo": demo(x.out)
@@ -85,6 +105,13 @@ def main():
     elif x.cmd=="real": real(x.symbol,x.interval,x.bars,x.out,x.report)
     elif x.cmd=="live": live(x.exchanges,x.symbols,x.interval,x.cycles)
     elif x.cmd=="intelligence": intelligence(x.input,x.out,x.pretty)
+    elif x.cmd=="forecast-project60":
+        bars=load_project60_bars(x.input,x.asset,x.max_rows)
+        result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
+        result["metrics"]=score_predictions(result)
+        result["capital_metrics"]=score_capital_targets(result,capital_usd=100.0,min_profit_usd=5.0,preferred_profit_usd=10.0)
+        result["forecast_now"] = _validated_forecast_from_project60(x.input,x.asset,x.max_rows)
+        write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":100.0,"min_profit_usd":5.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
         bars=load_input(x.input)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window)
