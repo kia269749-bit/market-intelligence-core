@@ -1,6 +1,6 @@
 """Opportunity scoring for research-only early opportunity watchlists.
 
-The score surfaces promising setups before they clear the economic $5 floor.
+The score surfaces promising setups before they clear the economic $4 floor.
 It never approves a trade and never lowers the economic gate.
 """
 from __future__ import annotations
