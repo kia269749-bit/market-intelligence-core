@@ -121,7 +121,16 @@ def _append_shadow_if_actionable(journal_path, snapshot):
                 except json.JSONDecodeError:
                     continue
                 if row.get("status")!="OPEN": continue
-                if row.get("signal_id")==signal_id:
+                same_id=row.get("signal_id")==signal_id
+                try:
+                    same_setup=(
+                        str(row.get("asset","" )).upper()==asset.upper()
+                        and str(row.get("direction","" )).upper()==bias
+                        and abs(float(row.get("entry_price",0.0))-entry_price) <= max(entry_price*0.0001, 1e-12)
+                    )
+                except (TypeError,ValueError):
+                    same_setup=False
+                if same_id or same_setup:
                     return False
     except OSError:
         pass
