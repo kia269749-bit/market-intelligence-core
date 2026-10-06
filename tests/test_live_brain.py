@@ -40,6 +40,15 @@ class LiveBrainTests(unittest.TestCase):
         fused=_fuse([("BULLISH",.9)], q["score"])
         self.assertFalse(fused["actionable"])
 
+    def test_raw_fomo_candidates_do_not_vote_without_leader_confirmation(self):
+        market={"rows":[{"change_24h_pct":2.0,"price":100}]}
+        fomo={"candidates":[{"token":"PUMP","price_change_24h_pct":500.0,"volume_24h_usd":1000000,"fomo_score":99}]}
+        with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value=fomo):
+            snap=run_once()
+        self.assertEqual(snap["evidence"]["fomo"]["candidate_signal"], "BULLISH_CANDIDATE")
+        self.assertFalse(snap["evidence"]["fusion_inputs"]["fomo_candidates"]["used_as_vote"])
+        self.assertEqual(snap["evidence"]["combined"]["bias"], "BULLISH")
+
     def test_conflicting_microstructure_penalizes_action(self):
         market={"rows":[{"change_24h_pct":5.0,"price":100}]}
         p60={"available":True,"bias":"BULLISH","confidence":.8,
