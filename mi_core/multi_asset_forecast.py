@@ -8,6 +8,7 @@ import json, math, statistics
 from pathlib import Path
 from .models import MarketBar
 from .validated_forecast import forecast_now
+from .forecast_trade_filter import evaluate_forecast
 
 
 def _num(v, d=0.0):
@@ -100,9 +101,11 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
     for item in selected:
         bars = series[item["symbol"]]
         result = forecast_now(bars, horizon=horizon, train_window=min(300, len(bars)-1))
+        trade_filter = evaluate_forecast(result, capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0)
         forecasts.append({
             "ranking": item,
             "forecast": result,
+            "trade_filter": trade_filter,
         })
     return {
         "available": bool(forecasts),
