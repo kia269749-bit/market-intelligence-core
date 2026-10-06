@@ -1,6 +1,7 @@
 import unittest, json, tempfile, os
 from unittest.mock import patch
 from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard, _forecast_from_project60
+from mi_core.timing_engine import evaluate_entry_timing
 
 class LiveBrainTests(unittest.TestCase):
     def test_leader_follower_evidence_shape_is_preserved(self):
@@ -113,6 +114,12 @@ class LiveBrainTests(unittest.TestCase):
         self.assertTrue(snap["capital_economics"]["available"])
         self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 1.15, places=2)
         self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.35, places=2)
+
+    def test_timing_consumption_is_capped_for_display(self):
+        timing=evaluate_entry_timing(expected_move_pct=0.14, current_move_pct=0.266, required_move_pct=1.15)
+        self.assertEqual(timing["state"], "LATE")
+        self.assertGreater(timing["extension_ratio"], 1.0)
+        self.assertEqual(timing["consumed_pct"], 100.0)
 
     def test_future_forecast_is_multi_horizon_and_read_only(self):
         fd,path=tempfile.mkstemp(suffix=".jsonl"); os.close(fd)
