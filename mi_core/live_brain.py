@@ -230,7 +230,17 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     except Exception as exc:
         fomo={"ts":int(time.time()),"candidates":[],"research_only":True,"wallet_level":False}; fomo_error=str(exc)
     raw_bias,raw_conf=_market_bias(market)
-    quality=_data_quality(market); regime=_regime(market)
+    # Use the multi-exchange snapshot gate as the authoritative decision gate.
+    # The local row-level check remains a fallback for snapshots that predate the gate.
+    market_quality=market.get("data_quality") or {}
+    quality_status=str(market_quality.get("status","")).upper()
+    if quality_status in ("HEALTHY","DEGRADED","UNSAFE"):
+        quality_score=_num(market_quality.get("score"), 1.0 if quality_status=="HEALTHY" else 0.65 if quality_status=="DEGRADED" else 0.0)
+        quality={**market_quality, "status":quality_status, "score":round(max(0.0,min(1.0,quality_score)),4)}
+    else:
+        quality=_data_quality(market)
+        quality_status=str(quality.get("status","UNSAFE")).upper()
+    regime=_regime(market)
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
     votes=[(raw_bias,raw_conf)]
@@ -245,7 +255,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
         eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
-                                    capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0)
+                                    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
         capital_economics={"available":True,"approved":eco.approved,
                            "expected_move_pct":eco.expected_move_pct,
                            "required_move_pct":eco.required_move_pct,
@@ -259,6 +269,15 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         elif avg_change<=-15: votes.append(("BEARISH",min(.65,.40+abs(avg_change)/200)))
     combined=_fuse(votes,quality["score"],regime,outcome_memory,smart_money)
     no_trade=_no_trade_guard(quality,regime,micro,smart_money,outcome_memory)
+    # Data-quality gate: HEALTHY -> normal analysis, DEGRADED -> watch-only, UNSAFE -> WAIT.
+    if quality_status == "DEGRADED":
+        combined["actionable"]=False
+        no_trade["blocked"]=True
+        no_trade["reasons"]=list(no_trade.get("reasons",[]))+["degraded_data_watch_only"]
+    elif quality_status == "UNSAFE":
+        combined["actionable"]=False
+        no_trade["blocked"]=True
+        no_trade["reasons"]=list(no_trade.get("reasons",[]))+["unsafe_data"]
     if no_trade["blocked"]: combined["actionable"]=False
     if capital_economics.get("available") and not capital_economics.get("approved"):
         combined["actionable"]=False
@@ -269,13 +288,13 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     elif micro["divergence"] in ("BULLISH_DIVERGENCE","BEARISH_DIVERGENCE"):
         combined["confidence"]=round(combined["confidence"]*.85,4)
     if micro["squeeze_risk"]: combined["actionable"]=False
-    if quality["status"]=="UNSAFE":
+    if quality_status=="UNSAFE":
         combined={"bias":"NEUTRAL","confidence":0.0,"agreement":combined["agreement"],"actionable":False,
                   "regime":regime["name"],"outcome_memory":_outcome_adjustment(outcome_memory)}
     return {"ts":int(time.time()),"market":market,"fomo":fomo,
         "evidence":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
           "project60":{"available":bool(project60 and project60.get("available")),"bias":p60_bias,"confidence":round(p60_conf,4)},
-          "data_quality":quality,"regime":regime,"microstructure":micro,"combined":combined,
+          "data_quality":quality,"market_data_gate":quality_status,"regime":regime,"microstructure":micro,"combined":combined,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False},
           "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"no_trade":no_trade,"forecast":forecast or {"available":False},"capital_economics":capital_economics},
@@ -294,7 +313,7 @@ def print_live(snapshot):
     if e.get("no_trade",{}).get("blocked"): print("NO_TRADE_GUARD=BLOCK | reasons=" + ",".join(e["no_trade"].get("reasons",[])))
     ce=e.get("capital_economics",{})
     if ce.get("available"):
-        print("CAPITAL $100 | net_profit=${:.2f} | tier={} | floor=$5 | preferred=$10 | expected={:.2f}% required5={:.2f}% required10={:.2f}% cost={:.3f}%".format(ce["modeled_profit_usd"],ce.get("tier","REJECT"),ce["expected_move_pct"],ce["required_move_pct"],ce.get("preferred_required_move_pct",0),ce["round_trip_cost_pct"]))
+        print("CAPITAL $500 | net_profit=${:.2f} | tier={} | floor=$4 | preferred=$10 | expected={:.2f}% required5={:.2f}% required10={:.2f}% cost={:.3f}%".format(ce["modeled_profit_usd"],ce.get("tier","REJECT"),ce["expected_move_pct"],ce["required_move_pct"],ce.get("preferred_required_move_pct",0),ce["round_trip_cost_pct"]))
     fc=e.get("forecast",{})
     if fc.get("available"):
         h=fc.get("horizons",{})
