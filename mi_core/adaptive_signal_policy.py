@@ -59,6 +59,23 @@ def policy_decision(confidence, direction, regime="UNKNOWN", quality_score=1.0,
         return {"eligible": False, "status": "NO_TRADE", "reason": "forecast_not_directional",
                 "policy": policy.__dict__}
     if float(agreement) < policy.min_agreement:
+        # A 0.50 agreement score means the forecast and ranking disagree, but
+        # it is not necessarily a fatal market conflict. In clean TREND/MIXED
+        # regimes, a high-confidence forecast may still surface as WATCH.
+        # Strong signals are never promoted through this soft-conflict path.
+        soft_conflict_floor = max(policy.watch_confidence + 0.08, 0.68)
+        if (
+            float(agreement) >= 0.50
+            and confidence >= soft_conflict_floor
+            and float(quality_score) >= 0.90
+            and regime in ("TREND", "MIXED")
+        ):
+            return {
+                "eligible": True,
+                "status": "WATCH",
+                "reason": "soft_source_conflict_watch_only",
+                "policy": policy.__dict__,
+            }
         return {"eligible": False, "status": "NO_TRADE", "reason": "weak_cross_source_agreement",
                 "policy": policy.__dict__}
     if confidence >= policy.strong_confidence:
