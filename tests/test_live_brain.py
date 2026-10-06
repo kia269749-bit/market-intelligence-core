@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch
-from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse
+from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment
 
 class LiveBrainTests(unittest.TestCase):
     def test_leader_follower_evidence_shape_is_preserved(self):
@@ -53,5 +53,31 @@ class LiveBrainTests(unittest.TestCase):
         result=_fuse([("BULLISH",.8),("BEARISH",.8)],1.0)
         self.assertFalse(result["actionable"])
         self.assertEqual(result["bias"],"NEUTRAL")
+
+    def test_regime_blocks_high_volatility_action(self):
+        market={"rows":[
+            {"change_24h_pct":20.0,"price":100},
+            {"change_24h_pct":-18.0,"price":100},
+            {"change_24h_pct":15.0,"price":100},
+            {"change_24h_pct":-14.0,"price":100},
+        ]}
+        regime=_regime(market)
+        self.assertEqual(regime["name"],"HIGH_VOLATILITY")
+        fused=_fuse([("BULLISH",.9)],1.0,regime)
+        self.assertFalse(fused["actionable"])
+        self.assertLess(fused["confidence"],.9)
+
+    def test_weak_outcome_memory_reduces_confidence(self):
+        outcome={"resolved":20,"win_rate":0.35}
+        adj=_outcome_adjustment(outcome)
+        self.assertEqual(adj["status"],"WEAK")
+        self.assertLess(adj["factor"],1.0)
+        fused=_fuse([("BULLISH",.8)],1.0,{"name":"TREND"},outcome)
+        self.assertLess(fused["confidence"],.8)
+
+    def test_insufficient_outcome_memory_is_neutral(self):
+        adj=_outcome_adjustment({"resolved":3,"win_rate":0.0})
+        self.assertEqual(adj["status"],"INSUFFICIENT")
+        self.assertEqual(adj["factor"],1.0)
 
 if __name__=="__main__": unittest.main()
