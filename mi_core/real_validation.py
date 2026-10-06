@@ -11,7 +11,9 @@ import json
 from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
-SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.\n\nfrom .validated_forecast import (
+SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
+
+from .validated_forecast import (
     forecast_acceptance_gate,
     score_capital_targets,
     score_predictions,
@@ -112,7 +114,8 @@ def _aggregate(asset_results):
     }
 
 
-def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, preferred_profit_usd, round_trip_cost_pct):\n    signal_eligible = int(horizon) >= SHORT_HORIZON_SIGNAL_CUTOFF
+def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, preferred_profit_usd, round_trip_cost_pct):
+    signal_eligible = int(horizon) >= SHORT_HORIZON_SIGNAL_CUTOFF
     asset_results = []
     for item in selected:
         bars = series[item["symbol"]]
@@ -171,7 +174,8 @@ def validate_project60(
         "validated_assets": primary["validated_assets"],
         "accepted_assets": primary["accepted_assets"],
         "aggregate": primary["aggregate"], "assets": primary["assets"],
-        "horizon_results": results if len(results) > 1 else [],\n        "signal_horizon_policy": {"minimum_signal_horizon_bars": SHORT_HORIZON_SIGNAL_CUTOFF, "shorter_horizons": "diagnostic_only"},
+        "horizon_results": results if len(results) > 1 else [],
+        "signal_horizon_policy": {"minimum_signal_horizon_bars": SHORT_HORIZON_SIGNAL_CUTOFF, "shorter_horizons": "diagnostic_only"},
         "policy": {"capital_usd": capital_usd, "min_profit_usd": min_profit_usd,
                    "preferred_profit_usd": preferred_profit_usd,
                    "round_trip_cost_pct": round_trip_cost_pct},
@@ -201,7 +205,8 @@ def main(argv=None):
     if args.out:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(payload + "\n", encoding="utf-8")
+        out.write_text(payload + "
+", encoding="utf-8")
         print(out)
     else:
         print(payload)
