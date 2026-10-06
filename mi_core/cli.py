@@ -208,7 +208,24 @@ def main():
                 fc=snap.get("evidence",{}).get("forecast",{})
                 selected=fc.get("selected") if isinstance(fc,dict) else {}
                 current_price=selected.get("current_price") if isinstance(selected,dict) else None
-                if current_price is not None:
+                current_prices={}
+                if x.project60_file:
+                    try:
+                        latest=Path(x.project60_file).read_text(encoding="utf-8").splitlines()[-1]
+                        payload=json.loads(latest)
+                        coins=payload.get("coins",{})
+                        if isinstance(coins,list):
+                            coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
+                        for asset,row in coins.items():
+                            if isinstance(row,dict) and row.get("price") is not None:
+                                price=float(row.get("price"))
+                                if price>0:
+                                    current_prices[str(asset).upper()]=price
+                    except (OSError,ValueError,TypeError,IndexError,json.JSONDecodeError):
+                        current_prices={}
+                if current_prices:
+                    resolve_open_signals(x.outcome_journal, current_prices)
+                elif current_price is not None:
                     resolve_open_signals(x.outcome_journal, float(current_price))
             shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
             shadow_metrics=summarize_performance(x.outcome_journal) if x.outcome_journal else None
