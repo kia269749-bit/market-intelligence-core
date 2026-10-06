@@ -14,7 +14,7 @@ from .live_brain import _validated_forecast_from_project60, run_once as run_live
 from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
-from .paper_journal import summarize as summarize_paper_journal
+from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 from .multi_asset_forecast import scan_project60
 
@@ -88,6 +88,45 @@ def live(exchanges,symbols,interval,cycles):
         count+=1
         if cycles==0 or count<cycles: time.sleep(interval)
 
+def _append_shadow_if_actionable(journal_path, snapshot):
+    """Append only an approved, actionable research signal to the shadow journal."""
+    if not journal_path:
+        return False
+    combined=(snapshot.get("evidence") or {}).get("combined") or {}
+    economics=snapshot.get("capital_economics") or {}
+    if not combined.get("actionable") or not economics.get("approved"):
+        return False
+    bias=str(combined.get("bias","")).upper()
+    if bias not in ("BULLISH","BEARISH"):
+        return False
+    market=snapshot.get("market") or {}
+    rows=market.get("rows") or []
+    entry_price=None
+    if rows and isinstance(rows[-1],dict):
+        try:
+            entry_price=float(rows[-1].get("price"))
+        except (TypeError,ValueError):
+            entry_price=None
+    forecast=(snapshot.get("evidence") or {}).get("forecast") or {}
+    signal={
+        "signal_id":f"{bias}:{int(snapshot.get('ts',time.time()))}",
+        "direction":bias,
+        "entry_price":entry_price,
+        "expected_move_pct":economics.get("expected_move_pct"),
+        "required_move_pct":economics.get("required_move_pct"),
+        "preferred_required_move_pct":economics.get("preferred_required_move_pct"),
+        "modeled_profit_usd":economics.get("modeled_profit_usd"),
+        "confidence":combined.get("confidence"),
+        "agreement":combined.get("agreement"),
+        "regime":combined.get("regime"),
+        "quality":(snapshot.get("evidence") or {}).get("data_quality",{}).get("status"),
+        "forecast":forecast,
+        "research_only":True,
+        "live_orders":False,
+    }
+    append_paper_signal(journal_path,signal)
+    return True
+
 def main():
     ap=argparse.ArgumentParser(description="Market Intelligence Core")
     sp=ap.add_subparsers(dest="cmd",required=True)
@@ -135,8 +174,11 @@ def main():
             outcome=summarize_paper_journal(x.outcome_journal) if x.outcome_journal else None
             forecast=_validated_forecast_from_project60(x.project60_file, "BTC") if x.project60_file else None
             snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast)
+            shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
             print_live_brain(snap)
             print(render_persian(snap,p60))
+            if shadow_added:
+                print("SHADOW_JOURNAL=APPENDED")
             count+=1
             if x.cycles==0 or count<x.cycles: time.sleep(x.interval)
     else: dashboard(x.report,x.out)
