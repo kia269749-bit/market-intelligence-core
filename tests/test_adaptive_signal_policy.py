@@ -33,7 +33,7 @@ class AdaptiveSignalPolicyTests(unittest.TestCase):
     def test_economic_floor_still_applies(self):
         forecast = {
             "available": True, "direction": "UP",
-            "confidence": 0.70, "expected_return_pct": 4.0
+            "confidence": 0.70, "expected_return_pct": 0.30
         }
         result = evaluate_forecast(
             forecast, regime="TREND", quality_score=1.0, agreement=0.85
@@ -41,7 +41,7 @@ class AdaptiveSignalPolicyTests(unittest.TestCase):
         self.assertFalse(result["approved"])
         self.assertEqual(result["status"], "NO_TRADE")
 
-    def test_subfloor_opportunity_is_watchlist_only(self):
+    def test_subfloor_opportunity_stays_below_economic_floor(self):
         forecast = {
             "available": True, "direction": "UP",
             "confidence": 0.92, "expected_return_pct": 0.30
@@ -55,7 +55,7 @@ class AdaptiveSignalPolicyTests(unittest.TestCase):
     def test_economic_watch_can_pass_with_adaptive_confidence(self):
         forecast = {
             "available": True, "direction": "UP",
-            "confidence": 0.61, "expected_return_pct": 5.4
+            "confidence": 0.61, "expected_return_pct": 1.5
         }
         result = evaluate_forecast(
             forecast, regime="TREND", quality_score=1.0, agreement=0.85
