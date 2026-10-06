@@ -30,7 +30,7 @@ class CapitalTarget:
     reason: str
 
 def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
-                            min_profit_usd=5.0, preferred_profit_usd=10.0,
+                            min_profit_usd=4.0, preferred_profit_usd=10.0,
                             exchange="hyperliquid_perps", order_type="taker",
                             spread_bps=None, slippage_bps=None):
     if capital_usd <= 0 or min_profit_usd <= 0 or preferred_profit_usd < min_profit_usd:
@@ -50,9 +50,9 @@ def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
     if net >= preferred_net_pct:
         tier, approved, reason = "STRONG", True, "preferred_usd10_target_passed"
     elif net >= min_net_pct:
-        tier, approved, reason = "WATCH", True, "minimum_usd5_target_passed"
+        tier, approved, reason = "WATCH", True, "minimum_usd4_target_passed"
     else:
-        tier, approved, reason = "REJECT", False, "expected_move_below_usd5_after_costs"
+        tier, approved, reason = "REJECT", False, "expected_move_below_usd4_after_costs"
     return CapitalTarget(approved, tier, capital_usd, min_profit_usd, preferred_profit_usd,
                          float(expected_move_pct), round(cost, 4), round(net, 4),
                          round(profit, 2), round(required, 4), round(preferred_required, 4), reason)
