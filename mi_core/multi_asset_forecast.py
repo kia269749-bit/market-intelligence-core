@@ -93,6 +93,20 @@ def rank_assets(series, min_samples=60):
     return ranked
 
 
+def _candidate_regime(item):
+    """Cheap per-asset regime label for adaptive signal thresholds."""
+    vol = abs(_num(item.get("volatility")))
+    momentum = abs(_num(item.get("momentum")))
+    medium = abs(_num(item.get("direction") == "BULLISH" and item.get("momentum") or item.get("momentum")))
+    if vol >= 0.003:
+        return "HIGH_VOLATILITY"
+    if momentum >= 0.55 and medium >= 0.40:
+        return "TREND"
+    if momentum <= 0.25 and medium <= 0.25:
+        return "RANGE"
+    return "MIXED"
+
+
 def scan_project60(path, top_n=5, max_rows=800, horizon=60):
     series = load_project60_assets(path, max_rows=max_rows)
     ranked = rank_assets(series)
@@ -101,11 +115,19 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
     for item in selected:
         bars = series[item["symbol"]]
         result = forecast_now(bars, horizon=horizon, train_window=min(300, len(bars)-1))
-        trade_filter = evaluate_forecast(result, capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0)
+        regime = _candidate_regime(item)
+        forecast_direction = str(result.get("direction", ""))
+        ranking_direction = "UP" if item.get("direction") == "BULLISH" else "DOWN" if item.get("direction") == "BEARISH" else ""
+        agreement = 0.85 if forecast_direction == ranking_direction and ranking_direction else 0.62 if not ranking_direction else 0.50
+        quality_score = 1.0 if len(bars) >= 150 else 0.90
+        trade_filter = evaluate_forecast(
+            result, capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0,
+            regime=regime, quality_score=quality_score, agreement=agreement)
         forecasts.append({
             "ranking": item,
             "forecast": result,
             "trade_filter": trade_filter,
+            "adaptive_context": {"regime": regime, "quality_score": quality_score, "agreement": agreement},
         })
     return {
         "available": bool(forecasts),
