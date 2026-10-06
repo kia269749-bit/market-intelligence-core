@@ -67,6 +67,29 @@ def _microstructure(project60, market_bias):
     return {"flow_bullish":bullish,"flow_bearish":bearish,"divergence":signal,
             "details":divergences,"squeeze_risk":bool(squeeze)}
 
+def _smart_money_score(fomo_leader_evidence):
+    lf=fomo_leader_evidence or {}
+    scores=[]
+    for v in (lf.get("leader_scores") or {}).values():
+        scores.append(_num(v))
+    events=lf.get("events") or []
+    if not scores and not events:
+        return {"score":0.0,"status":"NONE","leaders":0,"events":0}
+    score=(sum(scores)/len(scores) if scores else 0.0)
+    if events: score=min(1.0,score+min(.30,.10*len(events)))
+    status="STRONG" if score>=.75 else ("ACTIVE" if score>=.55 else "WEAK")
+    return {"score":round(score,4),"status":status,"leaders":len(scores),"events":len(events)}
+
+def _no_trade_guard(quality, regime, micro, smart_money, outcome_memory):
+    reasons=[]
+    if quality.get("status")=="UNSAFE": reasons.append("unsafe_data")
+    if regime.get("name")=="HIGH_VOLATILITY": reasons.append("high_volatility")
+    if micro.get("divergence")=="CONFLICT": reasons.append("source_conflict")
+    if micro.get("squeeze_risk"): reasons.append("crowding_risk")
+    if outcome_memory and outcome_memory.get("resolved",0)>=10 and _num(outcome_memory.get("win_rate"))<.40:
+        reasons.append("weak_historical_edge")
+    return {"blocked":bool(reasons),"reasons":reasons}
+
 def _outcome_adjustment(outcome_memory):
     if not outcome_memory or outcome_memory.get("resolved",0)<10:
         return {"factor":1.0,"status":"INSUFFICIENT","reason":"not_enough_resolved_signals"}
@@ -76,7 +99,10 @@ def _outcome_adjustment(outcome_memory):
     if win_rate>=0.65: return {"factor":1.05,"status":"STRONG","reason":"strong_historical_win_rate"}
     return {"factor":1.0,"status":"NEUTRAL","reason":"historical_win_rate_ok"}
 
-def _fuse(votes, quality, regime=None, outcome_memory=None):
+def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None):
+    smart_money=smart_money or {"score":0.0,"status":"NONE"}
+    # Smart-money evidence is a confidence modifier, never a standalone trade trigger.
+
     usable=[(b,max(0,min(1,c))) for b,c in votes if b in ("BULLISH","BEARISH") and c>0]
     if not usable: return {"bias":"NEUTRAL","confidence":0.0,"agreement":0.0,"actionable":False}
     bull=sum(c for b,c in usable if b=="BULLISH"); bear=sum(c for b,c in usable if b=="BEARISH")
@@ -89,6 +115,8 @@ def _fuse(votes, quality, regime=None, outcome_memory=None):
     elif regime_name=="MIXED": confidence*=0.90
     outcome=_outcome_adjustment(outcome_memory)
     confidence*=outcome["factor"]
+    if smart_money.get("status")=="STRONG": confidence*=1.05
+    elif smart_money.get("status")=="WEAK": confidence*=0.90
     actionable=(bias!="NEUTRAL" and agreement>=.60 and confidence>=.60 and quality>=.55 and regime_name!="HIGH_VOLATILITY")
     return {"bias":bias,"confidence":round(min(1,confidence),4),"agreement":round(agreement,4),
             "actionable":actionable,"regime":regime_name,"outcome_memory":outcome}
@@ -107,6 +135,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     votes=[(raw_bias,raw_conf)]
     if p60_bias in ("BULLISH","BEARISH"): votes.append((p60_bias,p60_conf))
     lf=fomo_leader_evidence or {}
+    smart_money=_smart_money_score(lf)
     if lf.get("confirmed"):
         direction=str(lf.get("direction","")).upper()
         if direction in ("BULLISH","BEARISH"): votes.append((direction,min(1.0,_num(lf.get("confidence"),0.0))))
@@ -115,7 +144,9 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         avg_change=sum(_num(x.get("price_change_24h_pct")) for x in top)/len(top)
         if avg_change>=15: votes.append(("BULLISH",min(.65,.40+avg_change/200)))
         elif avg_change<=-15: votes.append(("BEARISH",min(.65,.40+abs(avg_change)/200)))
-    combined=_fuse(votes,quality["score"],regime,outcome_memory)
+    combined=_fuse(votes,quality["score"],regime,outcome_memory,smart_money)
+    no_trade=_no_trade_guard(quality,regime,micro,smart_money,outcome_memory)
+    if no_trade["blocked"]: combined["actionable"]=False
     if micro["divergence"]=="CONFLICT":
         combined["confidence"]=round(combined["confidence"]*.70,4); combined["actionable"]=False
     elif micro["divergence"] in ("BULLISH_DIVERGENCE","BEARISH_DIVERGENCE"):
@@ -130,7 +161,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "data_quality":quality,"regime":regime,"microstructure":micro,"combined":combined,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False},
-          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0}},
+          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"no_trade":no_trade},
         "architecture":"Project60 + FOMO + SmartMoney -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
@@ -140,9 +171,10 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
-    print("microstructure={} squeeze_risk={} | outcome_memory={} | fomo_candidates={} wallet_level={}".format(
+    print("microstructure={} squeeze_risk={} | smart_money={} | outcome_memory={} | fomo_candidates={} wallet_level={}".format(
         e.get("microstructure",{}).get("divergence","NONE"),e.get("microstructure",{}).get("squeeze_risk",False),
-        e.get("outcome_memory",{}).get("win_rate",0.0),e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
+        e.get("smart_money",{}).get("status","NONE"),e.get("outcome_memory",{}).get("win_rate",0.0),e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
+    if e.get("no_trade",{}).get("blocked"): print("NO_TRADE_GUARD=BLOCK | reasons=" + ",".join(e["no_trade"].get("reasons",[])))
     for i,row in enumerate(e["fomo"]["top"],1):
         print("  FOMO#{} {} score={} vol={:,.0f} chg={:.2f}%".format(i,row.get("token"),row.get("fomo_score"),row.get("volume_24h_usd",0),row.get("price_change_24h_pct",0)))
     if snapshot.get("fomo_error"): print("fomo_warning="+snapshot["fomo_error"])
