@@ -11,7 +11,7 @@ class OpportunityScoreTests(unittest.TestCase):
             "adaptive_context": {"regime": "MIXED", "quality_score": 1.0, "agreement": 0.85},
             "trade_filter": {
                 "policy_status": "STRONG",
-                "reason": "expected_move_below_usd5_after_costs",
+                "reason": "expected_move_below_usd4_after_costs",
                 "net_move_pct": 0.20,
             },
         }
