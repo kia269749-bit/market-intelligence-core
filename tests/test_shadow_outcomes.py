@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -40,6 +41,21 @@ class ShadowOutcomeTests(unittest.TestCase):
             s=summarize(p)
             self.assertEqual(s["losses"],1)
             self.assertLess(s["net_profit_usd"],0)
+
+    def test_asset_price_map_does_not_cross_resolve_assets(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=str(Path(td)/"shadow.jsonl")
+            append_signal(p,{"signal_id":"btc","asset":"BTC","direction":"BULLISH","entry_price":100.0,
+                             "stop":99.0,"target":102.0,"capital_usd":500.0,
+                             "round_trip_cost_pct":0.35,"research_only":True})
+            append_signal(p,{"signal_id":"eth","asset":"ETH","direction":"BULLISH","entry_price":2000.0,
+                             "stop":1980.0,"target":2040.0,"capital_usd":500.0,
+                             "round_trip_cost_pct":0.35,"research_only":True})
+            self.assertEqual(resolve_open_signals(p,{"BTC":102.0,"ETH":2000.0},now=200),1)
+            rows=[json.loads(line) for line in Path(p).read_text(encoding="utf-8").splitlines()]
+            states={r["asset"]:r["status"] for r in rows}
+            self.assertEqual(states["BTC"],"TARGET")
+            self.assertEqual(states["ETH"],"OPEN")
 
 if __name__=="__main__":
     unittest.main()
