@@ -14,7 +14,7 @@ from .live_brain import _validated_forecast_from_project60, run_once as run_live
 from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
-from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal
+from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 from .multi_asset_forecast import scan_project60
 
@@ -174,6 +174,11 @@ def main():
             outcome=summarize_paper_journal(x.outcome_journal) if x.outcome_journal else None
             forecast=_validated_forecast_from_project60(x.project60_file, "BTC") if x.project60_file else None
             snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast)
+            if x.outcome_journal:
+                fc=snap.get("evidence",{}).get("forecast",{})
+                current_price=fc.get("current_price") if isinstance(fc,dict) else None
+                if current_price is not None:
+                    resolve_open_signals(x.outcome_journal, float(current_price))
             shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
             print_live_brain(snap)
             print(render_persian(snap,p60))
