@@ -103,3 +103,23 @@ def score_predictions(result):
             "recall":{k:v["recall"] for k,v in metrics.items()},
             "high_conf_samples":len(high),
             "high_conf_accuracy":round(high_correct/len(high),6) if high else 0.0}
+
+
+def score_capital_targets(result, capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
+    """Score OOS directional predictions against $5 minimum / $10 preferred net targets."""
+    rows=[x for x in result.get("predictions",[]) if x.get("actual_return_pct") is not None and x.get("pred") in (-1,1)]
+    min_move=min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
+    preferred_move=preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
+    min_hits=preferred_hits=directional=0
+    for x in rows:
+        directional += 1
+        r=float(x["actual_return_pct"])
+        favorable=r if x["pred"]==1 else -r
+        min_hits += favorable >= min_move
+        preferred_hits += favorable >= preferred_move
+    return {"resolved_directional":directional,"min_profit_usd":min_profit_usd,
+            "preferred_profit_usd":preferred_profit_usd,"min_required_move_pct":round(min_move,4),
+            "preferred_required_move_pct":round(preferred_move,4),
+            "min_target_hit_rate":round(min_hits/directional,6) if directional else 0.0,
+            "preferred_target_hit_rate":round(preferred_hits/directional,6) if directional else 0.0,
+            "research_only":True,"live_orders":False}
