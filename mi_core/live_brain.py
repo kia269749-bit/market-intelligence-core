@@ -267,12 +267,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
                            "round_trip_cost_pct":eco.round_trip_cost_pct,
                            "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,"reason":eco.reason}
         timing=evaluate_entry_timing(confidence=_num(selected.get("confidence")), expected_move_pct=_num(selected.get("expected_return_pct")), current_move_pct=_num(selected.get("current_move_pct")), required_move_pct=_num(eco.required_move_pct), agreement=combined_preview.get("agreement",0.0), quality_score=quality.get("score",0.0), regime=regime.get("name","UNKNOWN"))
-    if top:
-        avg_change=sum(_num(x.get("price_change_24h_pct")) for x in top)/len(top)
-        if avg_change>=15: votes.append(("BULLISH",min(.65,.40+avg_change/200)))
-        elif avg_change<=-15: votes.append(("BEARISH",min(.65,.40+abs(avg_change)/200)))
-    combined=combined_preview
-    no_trade=_no_trade_guard(quality,regime,micro,smart_money,outcome_memory)
+    # Raw FOMO candidates are discovery evidence only. They are not allowed to\n    # cast a directional market vote until Leader->Follower evidence confirms them.\n    # This prevents a token pump from masquerading as broad smart-money confirmation.\n    fomo_candidate_signal = "NONE"\n    if top:\n        avg_change=sum(_num(x.get("price_change_24h_pct")) for x in top)/len(top)\n        if avg_change>=15: fomo_candidate_signal="BULLISH_CANDIDATE"\n        elif avg_change<=-15: fomo_candidate_signal="BEARISH_CANDIDATE"\n    combined=combined_preview\n    no_trade=_no_trade_guard(quality,regime,micro,smart_money,outcome_memory)
     # Data-quality gate: HEALTHY -> normal analysis, DEGRADED -> watch-only, UNSAFE -> WAIT.
     if quality_status == "DEGRADED":
         combined["actionable"]=False
