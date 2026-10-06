@@ -34,23 +34,34 @@ def resolve_signal(entry_price: float, current_price: float, direction: str,
         if current_price <= target: return "TARGET"
     return "OPEN"
 
-def resolve_open_signals(path: str, current_price: float, now: int | None = None) -> int:
-    """Resolve OPEN records using the supplied current market price."""
+def resolve_open_signals(path: str, current_price: float | dict, now: int | None = None) -> int:
+    """Resolve OPEN records with one price or an asset->price map.
+
+    When a mapping is supplied, each open signal is resolved only against the
+    current price for its own asset. This prevents BTC prices from resolving
+    ETH or other asset shadow records.
+    """
     p=Path(path)
     if not p.exists(): return 0
     try: rows=[json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
     except (OSError, json.JSONDecodeError): return 0
     changed=0; now=int(time.time() if now is None else now)
+    price_map={str(k).upper():float(v) for k,v in current_price.items()} if isinstance(current_price,dict) else None
     for row in rows:
         if row.get("status") != "OPEN": continue
         try:
-            status=resolve_signal(float(row["entry_price"]), float(current_price),
+            if price_map is not None:
+                asset=str(row.get("asset","")).upper()
+                if asset not in price_map: continue
+                price=float(price_map[asset])
+            else:
+                price=float(current_price)
+            status=resolve_signal(float(row["entry_price"]), price,
                                   row["direction"], float(row["stop"]), float(row["target"]))
         except (KeyError, TypeError, ValueError):
             continue
         if status=="OPEN": continue
-        entry=float(row["entry_price"]); price=float(current_price)
-        direction=str(row["direction"]).upper()
+        entry=float(row["entry_price"]); direction=str(row["direction"]).upper()
         gross_pct=((price-entry)/entry*100) if direction=="BULLISH" else ((entry-price)/entry*100)
         cost_pct=float(row.get("round_trip_cost_pct",0.0) or 0.0)
         capital=float(row.get("capital_usd",500.0) or 500.0)
