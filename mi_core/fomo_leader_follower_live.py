@@ -14,7 +14,14 @@ def _rows(path):
             except json.JSONDecodeError:
                 continue
             payload=x.get("payload",x)
-            rows=payload if isinstance(payload,list) else payload.get("candidates",payload.get("fills",[])) if isinstance(payload,dict) else []
+            if isinstance(payload, list):
+                rows = payload
+            elif isinstance(payload, dict) and ("trader_id" in payload or "owner" in payload):
+                rows = [payload]
+            elif isinstance(payload, dict):
+                rows = payload.get("candidates", payload.get("fills", []))
+            else:
+                rows = []
             if isinstance(rows,list): out.extend(r for r in rows if isinstance(r,dict))
     return out
 
