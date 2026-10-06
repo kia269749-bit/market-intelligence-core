@@ -122,7 +122,7 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
         agreement = 0.85 if forecast_direction == ranking_direction and ranking_direction else 0.62 if not ranking_direction else 0.50
         quality_score = 1.0 if len(bars) >= 150 else 0.90
         trade_filter = evaluate_forecast(
-            result, capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0,
+            result, capital_usd=500.0, min_profit_usd=5.0, preferred_profit_usd=10.0,
             regime=regime, quality_score=quality_score, agreement=agreement)
         # Keep the asset symbol at the top level for compact reports/CLI output.
         # If a valid directional setup passes the adaptive policy but misses the
@@ -131,7 +131,8 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
         if (
             trade_filter.get("status") == "NO_TRADE"
             and trade_filter.get("reason") == "expected_move_below_usd5_after_costs"
-            and trade_filter.get("policy", {}).get("status") in ("WATCH", "STRONG")
+            and trade_filter.get("policy_status") in ("WATCH", "STRONG")
+            and float(trade_filter.get("net_move_pct", -999.0)) > 0.0
         ):
             trade_filter = dict(trade_filter)
             trade_filter["status"] = "WATCHLIST"
