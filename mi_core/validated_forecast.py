@@ -105,6 +105,25 @@ def score_predictions(result):
             "high_conf_accuracy":round(high_correct/len(high),6) if high else 0.0}
 
 
+def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_high_conf_samples=20, min_high_conf_accuracy=0.55, min_profit_hit_rate=0.30, preferred_profit_hit_rate=0.15):
+    """Conservative research gate. No orders are created."""
+    reasons=[]
+    resolved=int(metrics.get("resolved",0))
+    high_n=int(metrics.get("high_conf_samples",0))
+    high_acc=float(metrics.get("high_conf_accuracy",0.0))
+    min_hit=float(capital_metrics.get("min_target_hit_rate",0.0))
+    pref_hit=float(capital_metrics.get("preferred_target_hit_rate",0.0))
+    if resolved < min_oos_samples: reasons.append("insufficient_oos_samples")
+    if high_n < min_high_conf_samples: reasons.append("insufficient_high_conf_samples")
+    if high_n >= min_high_conf_samples and high_acc < min_high_conf_accuracy: reasons.append("weak_high_conf_accuracy")
+    if min_hit < min_profit_hit_rate: reasons.append("weak_usd5_target_hit_rate")
+    if pref_hit < preferred_profit_hit_rate: reasons.append("weak_usd10_target_hit_rate")
+    return {"accepted":not reasons,"status":"PASS" if not reasons else "NO_TRADE","reasons":reasons,
+            "thresholds":{"min_oos_samples":min_oos_samples,"min_high_conf_samples":min_high_conf_samples,
+                          "min_high_conf_accuracy":min_high_conf_accuracy,"min_usd5_hit_rate":min_profit_hit_rate,
+                          "min_usd10_hit_rate":preferred_profit_hit_rate},
+            "research_only":True,"live_orders":False}
+
 def score_capital_targets(result, capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
     """Score OOS directional predictions against $5 minimum / $10 preferred net targets."""
     rows=[x for x in result.get("predictions",[]) if x.get("actual_return_pct") is not None and x.get("pred") in (-1,1)]
