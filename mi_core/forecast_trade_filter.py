@@ -9,7 +9,7 @@ from .trade_economics import evaluate_capital_target
 from .adaptive_signal_policy import policy_decision
 
 
-def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=5.0,
+def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
                       preferred_profit_usd=10.0, min_confidence=None,
                       exchange="hyperliquid_perps", order_type="taker",
                       regime="UNKNOWN", quality_score=1.0, agreement=1.0,
