@@ -62,5 +62,18 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(result["policy"]["preferred_profit_usd"], 10.0)
 
 
+    def test_short_horizon_is_diagnostic_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "market.jsonl"
+            path.write_text("", encoding="utf-8")
+            with patch("mi_core.real_validation.load_project60_assets", return_value={}):
+                with patch("mi_core.real_validation.rank_assets", return_value=[]):
+                    result = validate_project60(str(path), horizon=30, horizons=[30, 60])
+        short = next(x for x in result["horizon_results"] if x["horizon_bars"] == 30)
+        long = next(x for x in result["horizon_results"] if x["horizon_bars"] == 60)
+        self.assertFalse(short["signal_eligible"])
+        self.assertTrue(long["signal_eligible"])
+        self.assertEqual(short["accepted_assets"], 0)
+
 if __name__ == "__main__":
     unittest.main()
