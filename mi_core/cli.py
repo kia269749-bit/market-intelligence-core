@@ -110,6 +110,7 @@ def main():
     elif x.cmd=="forecast-scan":
         result=scan_project60(x.input,top_n=x.top,max_rows=x.max_rows,horizon=x.horizon)
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_scan.json"),{"mode":"Project60 multi-asset shortlist + validated forecast","top_n":x.top,"horizon_bars":x.horizon,"research_only":True,"live_orders":False})
+        print("EARLY_OPPORTUNITY_WATCH count=" + str(result.get("early_watch_count", 0)))
     elif x.cmd=="forecast-project60":
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
