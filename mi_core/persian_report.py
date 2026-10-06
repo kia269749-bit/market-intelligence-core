@@ -63,9 +63,19 @@ def render_persian(snapshot, project60=None):
     bias=str(combined.get("bias",m.get("bias","NEUTRAL"))).upper()
     confidence=_num(combined.get("confidence",m.get("confidence")),0)
     a=build_action(snapshot.get("market",{}).get("rows",[]),bias,confidence,snapshot.get("risk_policy"))
+    quality=snapshot.get("market",{}).get("data_quality") or {}
+    qstatus=str(quality.get("status","UNKNOWN")).upper()
+    qemoji={"HEALTHY":"🟢","DEGRADED":"🟡","UNSAFE":"🔴"}.get(qstatus,"⚪")
     lines=["🧠 گزارش هوش بازار",
+           "{} سلامت داده: {} | منابع موفق: {}/{}".format(qemoji,
+               {"HEALTHY":"سالم","DEGRADED":"کاهش‌یافته","UNSAFE":"ناامن"}.get(qstatus,qstatus),
+               quality.get("successful_sources",0),quality.get("expected_sources",0)),
            "📊 تصمیم ترکیبی: {} | اعتماد: {:.0f}٪".format(bias,confidence*100),
            "🌐 منابع بازار: {}".format(m.get("sources",0))]
+    if qstatus=="UNSAFE":
+        lines += ["⛔ تحلیل و ورود جدید متوقف: کیفیت داده برای تصمیم قابل اتکا کافی نیست."]
+    elif qstatus=="DEGRADED":
+        lines += ["⚠️ داده ناقص است: فقط WATCH/رصد زودهنگام مجاز است، نه تصمیم قطعی."]
     lines+=_project60_lines(project60 or snapshot.get("project60"))
     lines+=["🧭 Leader→Follower: {} رویداد تأییدشده".format(lf.get("confirmed") and len(lf.get("events",[])) or 0),
             "🧲 FOMO: {} کاندید | رصد والت: {}".format(f.get("candidates",0),"فعال" if f.get("wallet_level") else "فعلاً غیرفعال"),
