@@ -57,7 +57,12 @@ def walk_forward_forecast(bars,horizon=5,train_window=300,min_train=60,flat_band
             if f is not None and lab is not None: X.append(f); y.append(lab)
         if len(X)<min_train: continue
         p=_predict(_fit(X,y),_feat(bars,i)); pred=max(p,key=p.get); actual=_label(bars,i,horizon,flat_band)
-        preds.append({"ts":bars[i].ts,"pred":pred,"actual":actual,"actual_return_pct":round(_ret(bars[i+horizon].price,bars[i].price)*100,6) if i+horizon < len(bars) else None,"p_up":p[1],"p_flat":p[0],"p_down":p[-1]})
+        future_returns = [_ret(bars[k].price, bars[i].price) * 100.0 for k in range(i + 1, min(i + horizon + 1, len(bars)))]
+        future_max = max(future_returns) if future_returns else 0.0
+        future_min = min(future_returns) if future_returns else 0.0
+        favorable_mfe = future_max if pred == 1 else -future_min
+        adverse_mae = -future_min if pred == 1 else future_max
+        preds.append({"ts":bars[i].ts,"pred":pred,"actual":actual,"actual_return_pct":round(_ret(bars[i+horizon].price,bars[i].price)*100,6) if i+horizon < len(bars) else None,"future_max_return_pct":round(future_max,6),"future_min_return_pct":round(future_min,6),"favorable_mfe_pct":round(favorable_mfe,6),"adverse_mae_pct":round(adverse_mae,6),"p_up":p[1],"p_flat":p[0],"p_down":p[-1]})
         if actual is not None: resolved+=1; correct+=int(pred==actual)
     return {"available":bool(preds),"horizon_bars":horizon,"resolved":resolved,
             "accuracy":round(correct/resolved,6) if resolved else 0,"predictions":preds,
