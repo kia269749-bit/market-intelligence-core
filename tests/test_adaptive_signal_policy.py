@@ -24,11 +24,27 @@ class AdaptiveSignalPolicyTests(unittest.TestCase):
         self.assertFalse(result["eligible"])
         self.assertEqual(result["status"], "NO_TRADE")
 
-    def test_conflicting_sources_block(self):
+    def test_soft_conflict_can_surface_watch_only(self):
         result = policy_decision(
             0.75, "UP", regime="TREND", quality_score=1.0, agreement=0.50
         )
+        self.assertTrue(result["eligible"])
+        self.assertEqual(result["status"], "WATCH")
+        self.assertEqual(result["reason"], "soft_source_conflict_watch_only")
+
+    def test_soft_conflict_stays_blocked_when_confidence_is_weak(self):
+        result = policy_decision(
+            0.65, "UP", regime="TREND", quality_score=1.0, agreement=0.50
+        )
         self.assertFalse(result["eligible"])
+        self.assertEqual(result["status"], "NO_TRADE")
+
+    def test_soft_conflict_stays_blocked_in_range(self):
+        result = policy_decision(
+            0.85, "UP", regime="RANGE", quality_score=1.0, agreement=0.50
+        )
+        self.assertFalse(result["eligible"])
+        self.assertEqual(result["status"], "NO_TRADE")
 
     def test_economic_floor_still_applies(self):
         forecast = {
