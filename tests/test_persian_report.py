@@ -8,6 +8,7 @@ class PersianReportTests(unittest.TestCase):
         self.assertLess(r["stop"],r["price"])
         self.assertGreater(r["target2"],r["price"])
         self.assertTrue(r["gate"].approved)
+        self.assertGreaterEqual(r["gate"].modeled_net_profit_usd,10.0)
 
     def test_report_uses_combined_bias_and_project60_evidence(self):
         snapshot={"market":{"rows":[{"symbol":"BTCUSDT","price":100.0}]},
@@ -23,7 +24,8 @@ class PersianReportTests(unittest.TestCase):
         self.assertIn("تصمیم ترکیبی: BULLISH",report)
         self.assertIn("Project 60: BULLISH",report)
         self.assertIn("محدوده ورود",report)
-        self.assertIn("گیت سوددهی: PASS",report)
+        self.assertIn("گیت $10: PASS",report)
+        self.assertIn("سود خالص مدل‌شده",report)
 
     def test_weak_setup_is_blocked(self):
         r=build_action([{"symbol":"BTCUSDT","price":100.0}],"BULLISH",0.65)
