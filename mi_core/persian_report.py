@@ -85,6 +85,7 @@ def render_persian(snapshot, project60=None):
     m = e.get("market", {})
     combined = e.get("combined", {})
     f = e.get("fomo", {})
+    lf = e.get("fomo_leader_follower", {})
     bias = str(combined.get("bias", m.get("bias", "NEUTRAL"))).upper()
     confidence = _num(combined.get("confidence", m.get("confidence")), 0)
     a = build_action(snapshot.get("market", {}).get("rows", []), bias, confidence)
@@ -96,6 +97,7 @@ def render_persian(snapshot, project60=None):
     ]
     lines += _project60_lines(project60 or snapshot.get("project60"))
     lines += [
+        "🧭 Leader→Follower: {} رویداد تأییدشده".format(lf.get("confirmed") and len(lf.get("events", [])) or 0),
         "🧲 FOMO: {} کاندید | رصد والت: {}".format(
             f.get("candidates", 0),
             "فعال" if f.get("wallet_level") else "فعلاً غیرفعال",
