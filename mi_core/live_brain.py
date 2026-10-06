@@ -262,6 +262,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         capital_economics={"available":True,"approved":eco.approved,
                            "expected_move_pct":eco.expected_move_pct,
                            "required_move_pct":eco.required_move_pct,
+                           "preferred_required_move_pct":eco.preferred_required_move_pct,
                            "net_move_pct":eco.net_move_pct,
                            "modeled_profit_usd":eco.modeled_profit_usd,
                            "round_trip_cost_pct":eco.round_trip_cost_pct,
