@@ -15,7 +15,7 @@ from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
 from .paper_journal import summarize as summarize_paper_journal
-from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets
+from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -110,6 +110,7 @@ def main():
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
         result["metrics"]=score_predictions(result)
         result["capital_metrics"]=score_capital_targets(result,capital_usd=100.0,min_profit_usd=5.0,preferred_profit_usd=10.0)
+        result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
         result["forecast_now"] = _validated_forecast_from_project60(x.input,x.asset,x.max_rows)
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":100.0,"min_profit_usd":5.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
@@ -117,6 +118,7 @@ def main():
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window)
         result["metrics"]=score_predictions(result)
         result["capital_metrics"]=score_capital_targets(result,capital_usd=100.0,min_profit_usd=5.0,preferred_profit_usd=10.0)
+        result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":100.0,"min_profit_usd":5.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="live-all":
         if x.interval<10: raise ValueError("interval must be at least 10 seconds")
