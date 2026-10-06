@@ -49,4 +49,4 @@ def summarize(path,scores_path="",window_seconds=300):
     fills=read_fills(path)
     scores=load_leader_scores(scores_path)
     events=detect_leader_follower_events(fills,scores,window_seconds=window_seconds)
-    return {"available":bool(fills),"fill_count":len(fills),"leader_scores":len(scores),"events":[e.to_dict() for e in events[:10]],"confirmed":len(events)>0,"research_only":True,"live_orders":False}
+    return {"available":bool(fills),"fill_count":len(fills),"leader_scores":len(scores),"leader_score_map":scores,"events":[e.to_dict() for e in events[:10]],"confirmed":len(events)>0,"research_only":True,"live_orders":False}
