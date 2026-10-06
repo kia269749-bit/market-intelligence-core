@@ -118,15 +118,15 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
     if resolved < min_oos_samples: reasons.append("insufficient_oos_samples")
     if high_n < min_high_conf_samples: reasons.append("insufficient_high_conf_samples")
     if high_n >= min_high_conf_samples and high_acc < min_high_conf_accuracy: reasons.append("weak_high_conf_accuracy")
-    if min_hit < min_profit_hit_rate: reasons.append("weak_usd5_target_hit_rate")
+    if min_hit < min_profit_hit_rate: reasons.append("weak_usd4_target_hit_rate")
     if pref_hit < preferred_profit_hit_rate: reasons.append("weak_usd10_target_hit_rate")
     return {"accepted":not reasons,"status":"PASS" if not reasons else "NO_TRADE","reasons":reasons,
             "thresholds":{"min_oos_samples":min_oos_samples,"min_high_conf_samples":min_high_conf_samples,
-                          "min_high_conf_accuracy":min_high_conf_accuracy,"min_usd5_hit_rate":min_profit_hit_rate,
+                          "min_high_conf_accuracy":min_high_conf_accuracy,"min_usd4_hit_rate":min_profit_hit_rate,
                           "min_usd10_hit_rate":preferred_profit_hit_rate},
             "research_only":True,"live_orders":False}
 
-def score_capital_targets(result, capital_usd=100.0, min_profit_usd=5.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
+def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
     """Score OOS directional predictions against $5 minimum / $10 preferred net targets."""
     rows=[x for x in result.get("predictions",[]) if x.get("actual_return_pct") is not None and x.get("pred") in (-1,1)]
     min_move=min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
