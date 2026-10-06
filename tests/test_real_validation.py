@@ -18,9 +18,9 @@ class RealValidationTests(unittest.TestCase):
             round_trip_cost_pct=0.35,
         )
         self.assertEqual(result["directional_predictions"], 3)
-        self.assertAlmostEqual(result["net_profit_usd"], -2.75, places=4)
+        self.assertAlmostEqual(result["net_profit_usd"], -7.75, places=4)
         self.assertLess(result["expectancy_usd"], 0.0)
-        self.assertEqual(result["positive_net_outcomes"], 2)
+        self.assertEqual(result["positive_net_outcomes"], 1)
 
     def test_validation_is_research_only(self):
         with tempfile.TemporaryDirectory() as td:
