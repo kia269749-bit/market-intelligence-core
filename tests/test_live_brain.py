@@ -1,6 +1,6 @@
 import unittest
 from unittest.mock import patch
-from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment
+from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard
 
 class LiveBrainTests(unittest.TestCase):
     def test_leader_follower_evidence_shape_is_preserved(self):
@@ -79,5 +79,20 @@ class LiveBrainTests(unittest.TestCase):
         adj=_outcome_adjustment({"resolved":3,"win_rate":0.0})
         self.assertEqual(adj["status"],"INSUFFICIENT")
         self.assertEqual(adj["factor"],1.0)
+
+    def test_smart_money_score_uses_leader_scores_and_events(self):
+        result=_smart_money_score({"leader_scores":{"a":.8,"b":.7},"events":[{"x":1},{"x":2}]})
+        self.assertEqual(result["status"],"STRONG")
+        self.assertEqual(result["leaders"],2)
+        self.assertEqual(result["events"],2)
+
+    def test_no_trade_guard_blocks_unsafe_conditions(self):
+        result=_no_trade_guard(
+            {"status":"SAFE"}, {"name":"TREND"},
+            {"divergence":"CONFLICT","squeeze_risk":False},
+            {"status":"STRONG"}, {"resolved":20,"win_rate":.70}
+        )
+        self.assertTrue(result["blocked"])
+        self.assertIn("source_conflict",result["reasons"])
 
 if __name__=="__main__": unittest.main()
