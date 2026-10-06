@@ -28,7 +28,7 @@ class ShadowJournalTests(unittest.TestCase):
                     "regime": "TREND",
                 },
                 "data_quality": {"status": "HEALTHY"},
-                "forecast": {"available": True, "direction": "UP"},
+                "forecast": {"available": True, "asset": "BTC", "direction": "UP", "selected": {"current_price": 100.0, "asset": "BTC"}},
             },
         }
 
@@ -45,6 +45,14 @@ class ShadowJournalTests(unittest.TestCase):
             self.assertTrue(row["research_only"])
             self.assertFalse(row["live_orders"])
             self.assertEqual(summarize(path)["count"],1)
+
+    def test_duplicate_open_signal_is_not_appended(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=str(Path(td)/"shadow.jsonl")
+            self.assertTrue(_append_shadow_if_actionable(path,self._snapshot()))
+            self.assertFalse(_append_shadow_if_actionable(path,self._snapshot()))
+            rows=Path(path).read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(rows),1)
 
     def test_blocked_or_unapproved_signal_is_not_appended(self):
         with tempfile.TemporaryDirectory() as td:
