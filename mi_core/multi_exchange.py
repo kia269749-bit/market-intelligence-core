@@ -57,10 +57,35 @@ def fetch_snapshot(symbols=None, exchanges=None):
         prices=[x["price"] for x in items]; median=statistics.median(prices)
         spread=(max(prices)-min(prices))/median if median else 0.0
         aggregates.append({"symbol":symbol,"sources":len(items),"median_price":median,"min_price":min(prices),"max_price":max(prices),"cross_exchange_spread_pct":spread*100})
-    return {"ts_ms":int(time.time()*1000),"rows":rows,"aggregates":aggregates,"errors":errors}
+    expected=len(symbols)*len(exchanges)
+    successful=len(rows)
+    success_ratio=(successful/expected) if expected else 0.0
+    error_counts={}
+    for err in errors:
+        ex=str(err.get("exchange","unknown"))
+        error_counts[ex]=error_counts.get(ex,0)+1
+    healthy_symbols=sum(1 for a in aggregates if a.get("sources",0)>=3)
+    degraded_symbols=sum(1 for a in aggregates if a.get("sources",0)==2)
+    unsafe_symbols=sum(1 for a in aggregates if a.get("sources",0)<2)
+    if successful==0 or unsafe_symbols>len(aggregates)*0.5:
+        data_quality="UNSAFE"
+    elif successful < expected*0.75 or degraded_symbols>0:
+        data_quality="DEGRADED"
+    else:
+        data_quality="HEALTHY"
+    quality={"status":data_quality,"expected_sources":expected,"successful_sources":successful,
+             "success_ratio":success_ratio,"healthy_symbols":healthy_symbols,
+             "degraded_symbols":degraded_symbols,"unsafe_symbols":unsafe_symbols,
+             "exchange_errors":error_counts}
+    return {"ts_ms":int(time.time()*1000),"rows":rows,"aggregates":aggregates,"errors":errors,"data_quality":quality}
 
 def print_snapshot(snapshot):
     print(f"\nLIVE MARKET | ts_ms={snapshot['ts_ms']}")
+    q=snapshot.get("data_quality",{})
+    if q:
+        print("DATA QUALITY | status={} | source_success={}/{} ({:.0f}%) | healthy={} degraded={} unsafe={}".format(
+            q.get("status","UNKNOWN"),q.get("successful_sources",0),q.get("expected_sources",0),
+            q.get("success_ratio",0.0)*100,q.get("healthy_symbols",0),q.get("degraded_symbols",0),q.get("unsafe_symbols",0)))
     print("SYMBOL       MEDIAN PRICE        RANGE              SPREAD%   SOURCES")
     for a in snapshot["aggregates"]:
         print(f"{a['symbol']:<12}{a['median_price']:>18.8g}  {a['min_price']:>12.8g}..{a['max_price']:<12.8g} {a['cross_exchange_spread_pct']:>8.3f} {a['sources']:>7}")
