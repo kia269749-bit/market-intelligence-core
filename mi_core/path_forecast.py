@@ -82,88 +82,177 @@ def _regime(bars: Sequence[MarketBar]) -> str:
     return "RANGE"
 
 
-def _analog_returns(
-    bars: Sequence[MarketBar],
-    horizon: int,
-    window: int = 20,
-    lookback: int = 500,
-    min_samples: int = 40,
-) -> list[float]:
-    """Collect strictly historical forward returns.
 
-    For index i, the feature is built from bars ending at i and the label
-    starts at i+1. Thus the current forecast never consumes future data.
-    """
+_FEATURE_NAMES = ("mom5","mom20","mom50","trend20","flow5","flow20","oi5","oi20","funding","vol20","volume_z20")
+_MIN_ANALOGUES = 30
+_MAX_ANALOGUES = 80
+_LOOKBACK = 900
+_EMBARGO_MULTIPLIER = 2
+_WILSON_Z = 1.2815515655
+
+
+def _num(value, default=0.0):
+    try:
+        value = float(value)
+        return value if math.isfinite(value) else default
+    except (TypeError, ValueError):
+        return default
+
+
+def _oi_change(bars, lookback):
+    if len(bars) <= lookback:
+        return 0.0
+    now, old = _num(bars[-1].oi), _num(bars[-1-lookback].oi)
+    if now <= 0 or old <= 0:
+        return 0.0
+    return _clamp(math.log(now / old), -0.50, 0.50)
+
+
+def _volume_z(bars, window=20):
+    if len(bars) < window + 1:
+        return 0.0
+    recent = [_num(x.volume) for x in bars[-window:]]
+    baseline = [_num(x.volume) for x in bars[-min(len(bars), window*5):-window]]
+    if not baseline:
+        return 0.0
+    sd = statistics.pstdev(baseline) or 1e-12
+    return _clamp((statistics.fmean(recent)-statistics.fmean(baseline))/sd, -5.0, 5.0)
+
+
+def _feature_vector(bars):
     n = len(bars)
-    if n <= window + horizon:
+    if not n:
+        return (0.0,) * len(_FEATURE_NAMES)
+    p = [x.price for x in bars]
+    def mom(k):
+        return _ret(p[-1], p[-1-k])*100.0 if n > k else 0.0
+    flow5 = statistics.fmean(_flow(x) for x in bars[-5:]) if n >= 5 else _flow(bars[-1])
+    flow20 = statistics.fmean(_flow(x) for x in bars[-20:]) if n >= 20 else flow5
+    rs20 = [_ret(p[i], p[i-1]) for i in range(max(1,n-20),n)]
+    vol20 = statistics.pstdev(rs20)*math.sqrt(20)*100.0 if rs20 else 0.0
+    return (mom(5), mom(20), mom(50), _trend_score(bars,20), flow5, flow20,
+            _oi_change(bars,5), _oi_change(bars,20), _num(bars[-1].funding),
+            _clamp(vol20,0.0,20.0), _volume_z(bars,20))
+
+
+def _historical_feature_rows(bars, end):
+    rows=[]
+    for i in range(51, max(51,end)+1):
+        rows.append((i,_feature_vector(bars[:i+1])))
+    return rows
+
+
+def _feature_scales(rows):
+    if not rows:
+        return (1.0,)*len(_FEATURE_NAMES)
+    cols=list(zip(*(v for _,v in rows)))
+    out=[]
+    for col in cols:
+        med=statistics.median(col)
+        mad=statistics.median(abs(x-med) for x in col)
+        out.append(max(1e-6,1.4826*mad,statistics.pstdev(col) or 0.0))
+    return tuple(out)
+
+
+def _distance(a,b,scales):
+    return math.sqrt(sum(((x-y)/s)**2 for x,y,s in zip(a,b,scales))/len(a))
+
+
+def _wilson_lower(p,n):
+    if n <= 0:
+        return 0.0
+    z=_WILSON_Z
+    denom=1.0+z*z/n
+    centre=(p+z*z/(2*n))/denom
+    half=z*math.sqrt(max(0.0,p*(1-p)/n+z*z/(4*n*n)))/denom
+    return _clamp(centre-half,0.0,1.0)
+
+
+def _analog_samples(bars,horizon):
+    n=len(bars)
+    current=_feature_vector(bars)
+    start=max(51,n-_LOOKBACK)
+    end=n-horizon-1-(_EMBARGO_MULTIPLIER*horizon)
+    if end<start:
         return []
-    current_score = _trend_score(bars, window)
-    current_flow = sum(_flow(bars[i]) for i in range(n - window, n)) / window
-    start = max(window, n - lookback - horizon)
-    values: list[float] = []
-    for i in range(start, n - horizon):
-        local = bars[: i + 1]
-        score = _trend_score(local, window)
-        flow = sum(_flow(local[k]) for k in range(i - window + 1, i + 1)) / window
-        if abs(score - current_score) <= 0.75 and abs(flow - current_flow) <= 0.30:
-            values.append(_ret(bars[i + horizon].price, bars[i].price) * 100.0)
-    if len(values) >= min_samples:
-        return values
-    # Deterministic fallback: all strictly historical observations.
-    return [
-        _ret(bars[i + horizon].price, bars[i].price) * 100.0
-        for i in range(start, n - horizon)
-    ]
+    rows=_historical_feature_rows(bars,end)
+    scales=_feature_scales(rows)
+    ranked=[]
+    for i,vec in rows:
+        if i>end:
+            break
+        dist=_distance(current,vec,scales)
+        ret=_ret(bars[i+horizon].price,bars[i].price)*100.0
+        weight=1.0/(1.0+dist*dist)
+        ranked.append((dist,ret,weight))
+    ranked.sort(key=lambda x:x[0])
+    chosen=ranked[:_MAX_ANALOGUES]
+    if len(chosen)<_MIN_ANALOGUES:
+        return []
+    total=sum(x[2] for x in chosen)
+    return [(ret,w/total) for _,ret,w in chosen]
 
 
-def _forecast_one(
-    bars: Sequence[MarketBar],
-    horizon: int,
-    target_move_pct: float,
-) -> HorizonForecast:
-    rs = [_ret(bars[i].price, bars[i - 1].price) for i in range(max(1, len(bars) - 20), len(bars))]
-    vol_pct = (statistics.pstdev(rs) or 1e-8) * math.sqrt(horizon) * 100.0
-    trend = _trend_score(bars, 20)
-    vals = _analog_returns(bars, horizon)
-    if not vals:
-        vals = [trend * vol_pct / max(1.0, math.sqrt(horizon))]
+def _weighted_mean(values,weights):
+    total=sum(weights)
+    return sum(v*w for v,w in zip(values,weights))/total if total else 0.0
 
-    mean = statistics.fmean(vals)
-    med = statistics.median(vals)
-    # Blend empirical central tendency with current regime direction.
-    regime_component = _clamp(trend / 3.0, -1.0, 1.0) * vol_pct * 0.35
-    expected = 0.65 * med + 0.35 * regime_component
-    spread = statistics.pstdev(vals) if len(vals) > 1 else vol_pct
-    lower = expected - 1.0 * spread
-    upper = expected + 1.0 * spread
 
-    direction = "UP" if expected > 0 else "DOWN" if expected < 0 else "FLAT"
-    confidence = _clamp(
-        0.50
-        + min(0.22, abs(trend) * 0.08)
-        + min(0.18, abs(expected) / max(spread, 1e-6) * 0.08),
-        0.34,
-        0.90,
-    )
+def _forecast_one(bars,horizon,target_move_pct):
+    rs=[_ret(bars[i].price,bars[i-1].price) for i in range(max(1,len(bars)-20),len(bars))]
+    vol_pct=(statistics.pstdev(rs) or 1e-8)*math.sqrt(horizon)*100.0
+    samples=_analog_samples(bars,horizon)
+    if not samples:
+        return HorizonForecast(horizon,"FLAT",0.0,0.0,-round(vol_pct,4),round(vol_pct,4),0.0,round(vol_pct,4),0.0)
 
-    favorable = abs(expected)
-    adverse = max(0.0, -lower if direction == "UP" else upper if direction == "DOWN" else spread)
-    hits = sum(
-        (x >= target_move_pct if direction == "UP" else x <= -target_move_pct)
-        for x in vals
-    )
-    hit_prob = hits / len(vals) if vals and direction != "FLAT" else 0.0
+    vals=[x for x,_ in samples]
+    weights=[w for _,w in samples]
+    p_up=sum(w for x,w in samples if x>0)
+    p_down=sum(w for x,w in samples if x<0)
+    effective_n=1.0/sum(w*w for w in weights)
+    best_prob=max(p_up,p_down)
+    edge=abs(p_up-p_down)
+    lower_bound=_wilson_lower(best_prob,effective_n)
+
+    if effective_n < _MIN_ANALOGUES or best_prob < 0.55 or lower_bound <= 0.50:
+        direction="FLAT"
+    else:
+        direction="UP" if p_up>p_down else "DOWN"
+
+    if direction=="FLAT":
+        expected=0.0
+        hit_prob=0.0
+    else:
+        mask=lambda x: x>0 if direction=="UP" else x<0
+        favorable=[x for x in vals if mask(x)]
+        fw=[w for x,w in samples if mask(x)]
+        conditional=_weighted_mean(favorable,fw)
+        shrink=_clamp((effective_n-20.0)/60.0,0.15,1.0)
+        trend=_trend_score(bars,20)
+        trend_component=(max(0.0,trend) if direction=="UP" else min(0.0,trend))*vol_pct*0.04
+        expected=conditional*shrink+trend_component
+        hit_prob=sum(w for x,w in samples if (x>=target_move_pct if direction=="UP" else x<=-target_move_pct))
+
+    mean=_weighted_mean(vals,weights)
+    variance=_weighted_mean([(x-mean)**2 for x in vals],weights)
+    spread=math.sqrt(max(0.0,variance))
+    lower=expected-spread
+    upper=expected+spread
+    adverse=max(0.0,-lower if direction=="UP" else upper if direction=="DOWN" else spread)
+    confidence=_clamp(0.50+min(0.22,edge*0.80)+min(0.18,max(0.0,lower_bound-0.50)*2.0),0.34,0.90)
+    if direction=="FLAT":
+        confidence=0.0
 
     return HorizonForecast(
         horizon=horizon,
         direction=direction,
-        confidence=round(confidence, 4),
-        expected_return_pct=round(expected, 4),
-        lower_return_pct=round(lower, 4),
-        upper_return_pct=round(upper, 4),
-        favorable_target_pct=round(favorable, 4),
-        adverse_move_pct=round(adverse, 4),
-        target_hit_probability=round(hit_prob, 4),
+        confidence=round(confidence,4),
+        expected_return_pct=round(_clamp(expected,-5.0,5.0),4),
+        lower_return_pct=round(lower,4),
+        upper_return_pct=round(upper,4),
+        favorable_target_pct=round(abs(expected),4),
+        adverse_move_pct=round(adverse,4),
+        target_hit_probability=round(hit_prob,4),
     )
 
 
