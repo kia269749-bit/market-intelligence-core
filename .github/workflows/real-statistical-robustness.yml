@@ -2,6 +2,7 @@ name: Real Regime Stress + Purged Walk-Forward + Deflated Sharpe
 
 on:
   workflow_dispatch:
+  pull_request:
   push:
     branches: [main]
 
