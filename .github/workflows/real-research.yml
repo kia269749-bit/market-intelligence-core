@@ -19,6 +19,9 @@ jobs:
       - name: Download and analyze real BTCUSDT data
         run: |
           python -m mi_core.cli real             --symbol BTCUSDT             --interval 1h             --bars 5000             --out data/real/btcusdt_1h.jsonl             --report reports/real_btcusdt_1h.json
+      - name: Run real OOS economic validation
+        run: |
+          python -m mi_core.cli forecast-validate             --input data/real/btcusdt_1h.jsonl             --horizon 60             --train-window 300             --out reports/real_btcusdt_1h_forecast_validation.json
       - name: Build dashboard
         run: |
           python -m mi_core.cli dashboard             --report reports/real_btcusdt_1h.json             --out reports/real_btcusdt_1h.html
@@ -29,4 +32,5 @@ jobs:
           path: |
             reports/real_btcusdt_1h.json
             reports/real_btcusdt_1h.html
+            reports/real_btcusdt_1h_forecast_validation.json
             data/real/btcusdt_1h.jsonl
