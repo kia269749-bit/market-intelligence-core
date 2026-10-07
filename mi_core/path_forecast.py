@@ -168,15 +168,11 @@ def _wilson_lower(p,n):
     return _clamp(centre-half,0.0,1.0)
 
 
-def _analog_samples(bars,horizon):
+def _analog_samples(bars,horizon,current,rows,scales):
     n=len(bars)
-    current=_feature_vector(bars)
-    start=max(51,n-_LOOKBACK)
     end=n-horizon-1-(_EMBARGO_MULTIPLIER*horizon)
-    if end<start:
+    if end < 51:
         return []
-    rows=_historical_feature_rows(bars,end)
-    scales=_feature_scales(rows)
     ranked=[]
     for i,vec in rows:
         if i>end:
@@ -198,10 +194,10 @@ def _weighted_mean(values,weights):
     return sum(v*w for v,w in zip(values,weights))/total if total else 0.0
 
 
-def _forecast_one(bars,horizon,target_move_pct):
+def _forecast_one(bars,horizon,target_move_pct,current,rows,scales):
     rs=[_ret(bars[i].price,bars[i-1].price) for i in range(max(1,len(bars)-20),len(bars))]
     vol_pct=(statistics.pstdev(rs) or 1e-8)*math.sqrt(horizon)*100.0
-    samples=_analog_samples(bars,horizon)
+    samples=_analog_samples(bars,horizon,current,rows,scales)
     if not samples:
         return HorizonForecast(horizon,"FLAT",0.0,0.0,-round(vol_pct,4),round(vol_pct,4),0.0,round(vol_pct,4),0.0)
 
@@ -268,7 +264,10 @@ def forecast_path(
     hs = tuple(sorted({int(h) for h in horizons if int(h) > 0}))
     if not hs:
         return None
-    forecasts = tuple(_forecast_one(bars, h, target_move_pct) for h in hs)
+    current = _feature_vector(bars)
+    rows = _historical_feature_rows(bars, len(bars) - 1)
+    scales = _feature_scales(rows)
+    forecasts = tuple(_forecast_one(bars, h, target_move_pct, current, rows, scales) for h in hs)
     return PathForecast(
         symbol=bars[-1].symbol,
         ts=int(bars[-1].ts),
