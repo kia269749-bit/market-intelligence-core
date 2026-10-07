@@ -124,6 +124,63 @@ def _forecast_from_project60(path, asset="BTC", max_rows=600):
             "early_reversal":bool(reversal),"breakout_probability":round(breakout_prob,4),
             "method":"momentum+volatility probabilistic baseline","research_only":True}
 
+def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
+    """Use the multi-horizon path engine on Project60 without weakening economics."""
+    if not path:
+        return {"available":False,"reason":"no_history_path"}
+    from pathlib import Path
+    import json
+    from .models import MarketBar
+    from .path_forecast import forecast_path, path_to_economic_opportunity
+    p=Path(path)
+    if not p.exists():
+        return {"available":False,"reason":"history_not_found"}
+    bars=[]
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines()[-max_rows:]:
+            try:
+                x=json.loads(line); coins=x.get("coins",{})
+                if isinstance(coins,list):
+                    coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
+                a=coins.get(asset) or coins.get(asset.upper())
+                if not isinstance(a,dict): continue
+                price=_num(a.get("price"))
+                if price<=0: continue
+                tr=a.get("trades") or {}
+                ob=a.get("orderbook") or {}
+                bars.append(MarketBar(
+                    ts=int(_num(x.get("timestamp"))), symbol=asset, price=price,
+                    oi=_num(a.get("open_interest")) if a.get("open_interest") is not None else None,
+                    funding=_num(a.get("funding")) if a.get("funding") is not None else None,
+                    buy_volume=_num(tr.get("buy_usd")), sell_volume=_num(tr.get("sell_usd")),
+                    bid=_num(ob.get("bid_usd")), ask=_num(ob.get("ask_usd"))))
+            except (TypeError,ValueError,json.JSONDecodeError):
+                continue
+    except OSError:
+        return {"available":False,"reason":"history_read_error"}
+    path_result=forecast_path(bars, horizons=(5,10,20,50), min_history=140)
+    if path_result is None:
+        return {"available":False,"reason":"insufficient_history","samples":len(bars)}
+    economics=path_to_economic_opportunity(path_result, capital_usd=500.0,
+                                           round_trip_cost_pct=0.35,
+                                           min_profit_usd=4.0, preferred_profit_usd=10.0)
+    return {
+        "available":True, "asset":asset, "samples":len(bars),
+        "price":path_result.price, "regime":path_result.regime,
+        "trend_score":path_result.trend_score,
+        "horizons":[{
+            "horizon":x.horizon, "direction":x.direction,
+            "confidence":x.confidence, "expected_return_pct":x.expected_return_pct,
+            "lower_return_pct":x.lower_return_pct, "upper_return_pct":x.upper_return_pct,
+            "target_hit_probability":x.target_hit_probability,
+            "adverse_move_pct":x.adverse_move_pct
+        } for x in path_result.horizons],
+        "economic":economics,
+        "selected":economics.get("best") or {},
+        "method":"strictly-historical multi-horizon path forecast",
+        "research_only":True, "live_orders":False
+    }
+
 def _validated_forecast_from_project60(path, asset="BTC", max_rows=500):
     """Build MarketBars from Project60 and return walk-forward-trained forecast outputs."""
     if not path:
@@ -419,7 +476,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money,candle_evidence,market_context)
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
-        eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
+        eco=evaluate_capital_target(_num(selected.get("expected_move_pct", abs(_num(selected.get("expected_return_pct"))))),
                                     capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
         capital_economics={"available":True,"approved":eco.approved,
                            "expected_move_pct":eco.expected_move_pct,
@@ -493,11 +550,17 @@ def print_live(snapshot):
     print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}%".format(tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0))))
     fc=e.get("forecast",{})
     if fc.get("available"):
-        h=fc.get("horizons",{})
-        print("FORECAST {} | 3={} 1H={} 4H={} | reversal={} breakout_prob={:.0f}%".format(
-            fc.get("asset","BTC"), h.get("3_snapshots",{}).get("up",.5),
-            h.get("1_hour",{}).get("up",.5), h.get("4_hours",{}).get("up",.5),
-            fc.get("early_reversal",False), fc.get("breakout_probability",.5)*100))
+        if isinstance(fc.get("horizons"),list):
+            parts=" ".join("{}b={}/{:.0f}%/{:.2f}%".format(
+                h.get("horizon"),h.get("direction"),h.get("target_hit_probability",0)*100,
+                h.get("expected_return_pct",0)) for h in fc.get("horizons",[]))
+            print("PATH FORECAST {} | {}".format(fc.get("asset","BTC"),parts))
+        else:
+            h=fc.get("horizons",{})
+            print("FORECAST {} | 3={} 1H={} 4H={} | reversal={} breakout_prob={:.0f}%".format(
+                fc.get("asset","BTC"), h.get("3_snapshots",{}).get("up",.5),
+                h.get("1_hour",{}).get("up",.5), h.get("4_hours",{}).get("up",.5),
+                fc.get("early_reversal",False), fc.get("breakout_probability",.5)*100))
 
     for i,row in enumerate(e["fomo"]["top"],1):
         print("  FOMO#{} {} score={} vol={:,.0f} chg={:.2f}%".format(i,row.get("token"),row.get("fomo_score"),row.get("volume_24h_usd",0),row.get("price_change_24h_pct",0)))

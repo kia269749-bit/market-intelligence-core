@@ -10,7 +10,7 @@ from .multi_exchange import fetch_snapshot,print_snapshot,DEFAULT_SYMBOLS,EXCHAN
 from .intelligence_pipeline import analyze_market
 from .historical_validation import evaluate_historical_evidence
 from .signal_report import render_signal_report
-from .live_brain import _validated_forecast_from_project60, run_once as run_live_brain, print_live as print_live_brain, _forecast_from_project60
+from .live_brain import _path_forecast_from_project60, run_once as run_live_brain, print_live as print_live_brain, _validated_forecast_from_project60, _forecast_from_project60
 from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
@@ -206,7 +206,7 @@ def main():
             p60=summarize_project60(x.project60_file) if x.project60_file else None
             lf=summarize_fomo_leader_follower(x.fomo_fills_file,x.fomo_leader_scores) if x.fomo_fills_file else None
             outcome=summarize_paper_journal(x.outcome_journal) if x.outcome_journal else None
-            forecast=_validated_forecast_from_project60(x.project60_file, "BTC") if x.project60_file else None
+            forecast=_path_forecast_from_project60(x.project60_file, "BTC") if x.project60_file else None
             candle=analyze_candle_brain(x.project60_file, "BTC", max_rows=800, candle_span=5, lookback=200) if x.project60_file else None
             market_context=None
             if x.project60_file:
