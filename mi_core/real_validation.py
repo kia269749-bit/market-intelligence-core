@@ -73,7 +73,39 @@ def _path_excursion_metrics(result, target_levels=(1.15, 2.35), stop_levels=(0.5
         out["adverse_excursion_rates"][str(stop)] = round(hits/len(rows),6) if rows else 0.0
     return out
 
-def _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics):
+
+def _oos_integrity_metrics(result, horizon):
+    """Detect class collapse, weak baselines, and overlapping OOS windows."""
+    rows=[x for x in result.get("predictions",[]) if x.get("actual") in (-1,0,1) and x.get("pred") in (-1,0,1)]
+    actual_counts={str(k):sum(x["actual"]==k for x in rows) for k in (-1,0,1)}
+    pred_counts={str(k):sum(x["pred"]==k for x in rows) for k in (-1,0,1)}
+    n=len(rows)
+    majority=max(actual_counts.values()) if rows else 0
+    majority_class=max(actual_counts,key=actual_counts.get) if rows else None
+    majority_accuracy=majority/n if n else 0.0
+    prediction_classes=sum(v>0 for v in pred_counts.values())
+    actual_classes=sum(v>0 for v in actual_counts.values())
+    pairs=0
+    overlapping_pairs=0
+    ts=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
+    for a,b in zip(ts,ts[1:]):
+        pairs+=1
+        if b-a < int(horizon)*60_000:
+            overlapping_pairs+=1
+    overlap_rate=overlapping_pairs/pairs if pairs else 0.0
+    return {"resolved":n,"actual_class_counts":actual_counts,"prediction_class_counts":pred_counts,
+            "actual_class_count":actual_classes,"prediction_class_count":prediction_classes,
+            "majority_class":majority_class,"majority_baseline_accuracy":round(majority_accuracy,6),
+            "model_vs_majority_accuracy_lift":round(float(result.get("accuracy",0.0))-majority_accuracy,6),
+            "overlapping_adjacent_pairs":overlapping_pairs,"adjacent_pairs":pairs,
+            "overlap_rate":round(overlap_rate,6),"horizon_bars":int(horizon),
+            "class_collapse": actual_classes < 2 or prediction_classes < 2,
+            "research_only":True,"live_orders":False}
+
+
+def _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, integrity_metrics=None):
+    if integrity_metrics and integrity_metrics.get("class_collapse"):
+        return "NO_TRADE"
     if economic_metrics.get("net_profit_usd",0.0) > 0 and economic_metrics.get("expectancy_usd",0.0) > 0 and capital_metrics.get("min_target_hit_rate",0.0) >= 0.15 and prediction_metrics.get("high_conf_accuracy",0.0) >= 0.65:
         return "WATCH"
     return "NO_TRADE"
@@ -132,6 +164,7 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         economic_metrics = _directional_metrics(result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
         path_metrics = _path_excursion_metrics(result)
+        integrity_metrics = _oos_integrity_metrics(result, horizon)
         gate = forecast_acceptance_gate(prediction_metrics, capital_metrics,
                                         min_oos_samples=100, min_high_conf_samples=20,
                                         min_high_conf_accuracy=0.55,
@@ -139,11 +172,12 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                                         preferred_profit_hit_rate=0.15)
         tier = ("DIAGNOSTIC_ONLY" if not signal_eligible else
                 ("TRADE" if gate.get("accepted") else _opportunity_tier(
-                    prediction_metrics, economic_metrics, capital_metrics)))
+                    prediction_metrics, economic_metrics, capital_metrics, integrity_metrics)))
         asset_results.append({
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
+            "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
         })
     aggregate = _aggregate(asset_results)
