@@ -16,6 +16,7 @@ from .models import MarketBar
 
 
 HORIZONS = (5, 10, 20, 50)
+TARGET_LADDER_PCT = (0.20, 0.40, 0.60, 0.80, 1.00, 1.15)
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class HorizonForecast:
     favorable_target_pct: float
     adverse_move_pct: float
     target_hit_probability: float
+    target_ladder_probability: tuple[tuple[float, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -229,6 +231,10 @@ def _forecast_one(bars,horizon,target_move_pct,current,rows,scales):
         expected=conditional*shrink+trend_component
         hit_prob=sum(w for x,w in samples if (x>=target_move_pct if direction=="UP" else x<=-target_move_pct))
 
+    ladder = tuple(
+        (float(t), round(sum(w for x,w in samples if (x >= t if direction == "UP" else x <= -t)), 4))
+        for t in TARGET_LADDER_PCT
+    ) if direction != "FLAT" else ()
     mean=_weighted_mean(vals,weights)
     variance=_weighted_mean([(x-mean)**2 for x in vals],weights)
     spread=math.sqrt(max(0.0,variance))
@@ -249,6 +255,7 @@ def _forecast_one(bars,horizon,target_move_pct,current,rows,scales):
         favorable_target_pct=round(abs(expected),4),
         adverse_move_pct=round(adverse,4),
         target_hit_probability=round(hit_prob,4),
+        target_ladder_probability=ladder,
     )
 
 
@@ -295,22 +302,29 @@ def path_to_economic_opportunity(
         expected_net = abs(f.expected_return_pct) - round_trip_cost_pct
         modeled_profit = capital_usd * expected_net / 100.0
         expected_move = abs(f.expected_return_pct)
+        ladder = dict(f.target_ladder_probability)
+        eligible_targets = [(t, p) for t, p in f.target_ladder_probability if t >= min_move]
+        selected_target, selected_prob = max(
+            eligible_targets,
+            key=lambda x: (x[1] >= 0.45, x[1], x[0]),
+            default=(0.0, 0.0),
+        )
         if f.direction == "FLAT":
             tier = "REJECT"
             reject_reason = "FLAT_FORECAST"
         elif f.confidence <= 0.0:
             tier = "REJECT"
             reject_reason = "ZERO_CONFIDENCE"
-        elif f.target_hit_probability < 0.35:
+        elif selected_prob < 0.35:
             tier = "REJECT"
             reject_reason = "LOW_TARGET_HIT_PROBABILITY"
         elif expected_move < min_move:
             tier = "REJECT"
             reject_reason = "INSUFFICIENT_EXPECTED_MOVE"
-        elif f.target_hit_probability >= 0.55 and expected_move >= preferred_move:
+        elif selected_prob >= 0.55 and expected_move >= preferred_move:
             tier = "STRONG"
             reject_reason = ""
-        elif f.target_hit_probability >= 0.45:
+        elif selected_prob >= 0.45:
             tier = "VIABLE"
             reject_reason = ""
         else:
@@ -323,6 +337,9 @@ def path_to_economic_opportunity(
             "expected_return_pct": f.expected_return_pct,
             "expected_move_pct": expected_move,
             "target_hit_probability": f.target_hit_probability,
+            "target_ladder_probability": {str(k): v for k, v in ladder.items()},
+            "selected_target_pct": selected_target,
+            "selected_target_hit_probability": selected_prob,
             "modeled_net_profit_usd": round(modeled_profit, 2),
             "tier": tier,
             "reject_reason": reject_reason,
