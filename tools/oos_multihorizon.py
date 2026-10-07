@@ -216,6 +216,15 @@ def main():
     }
 
     for symbol, bars in data.items():
+        if len(bars) > 1:
+            deltas = [bars[i].ts - bars[i-1].ts for i in range(1, len(bars))]
+            report.setdefault("sampling", {})[symbol] = {
+                "median_seconds": sorted(deltas)[len(deltas)//2],
+                "mean_seconds": sum(deltas) / len(deltas),
+                "min_seconds": min(deltas),
+                "max_seconds": max(deltas),
+                "horizons_are_bars_not_minutes": True,
+            }
         if len(bars) < args.min_history + max(HORIZONS):
             report["assets"][symbol] = {"status": "insufficient_data", "bars": len(bars)}
             continue
