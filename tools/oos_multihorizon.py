@@ -195,7 +195,7 @@ def main():
     ap.add_argument("--project60-file", required=True)
     ap.add_argument("--symbols", default="BTC,ETH")
     ap.add_argument("--capital", type=float, default=500.0)
-    ap.add_argument("--cost-pct", type=float, default=0.35)
+    ap.add_argument("--cost-pct", type=float, default=0.0, help="Execution cost for economic stress tests; 0 = signal-quality mode.")
     ap.add_argument("--step", type=int, default=10, help="Evaluate every N Project-60 bars.")
     ap.add_argument("--min-history", type=int, default=140)
     ap.add_argument("--max-rows", type=int, default=0, help="0 = all rows")
