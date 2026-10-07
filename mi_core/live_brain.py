@@ -67,6 +67,35 @@ def _microstructure(project60, market_bias):
     return {"flow_bullish":bullish,"flow_bearish":bearish,"divergence":signal,
             "details":divergences,"squeeze_risk":bool(squeeze)}
 
+def _leader_follower_vote(fomo_leader_evidence):
+    """Turn confirmed leader/follower events into bounded directional evidence.
+
+    Events are evidence, not standalone triggers. Conflicting event directions
+    cancel out rather than forcing a trade bias.
+    """
+    lf=fomo_leader_evidence or {}
+    events=lf.get("events") or []
+    bull=[]; bear=[]
+    for event in events:
+        direction=str(event.get("direction","")).upper()
+        confidence=max(0.0,min(1.0,_num(event.get("confidence"),0.0)))
+        if direction=="BUY" and confidence>0: bull.append(confidence)
+        elif direction=="SELL" and confidence>0: bear.append(confidence)
+    if not bull and not bear:
+        return {"direction":"UNKNOWN","confidence":0.0,"events":0,"confirmed":False}
+    bull_score=sum(bull); bear_score=sum(bear); total=bull_score+bear_score
+    if bull_score==bear_score:
+        return {"direction":"UNKNOWN","confidence":0.0,"events":len(events),"confirmed":False}
+    direction="BULLISH" if bull_score>bear_score else "BEARISH"
+    winning=max(bull_score,bear_score)
+    agreement=winning/total if total else 0.0
+    confidence=min(0.75,(winning/max(1,len(events)))*agreement)
+    confirmed=agreement>=0.60 and confidence>=0.40
+    if not confirmed:
+        direction="UNKNOWN"
+        confidence=0.0
+    return {"direction":direction,"confidence":round(confidence,4),"events":len(events),"confirmed":confirmed}
+
 def _smart_money_score(fomo_leader_evidence):
     lf=fomo_leader_evidence or {}
     scores=[]
@@ -135,10 +164,10 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     votes=[(raw_bias,raw_conf)]
     if p60_bias in ("BULLISH","BEARISH"): votes.append((p60_bias,p60_conf))
     lf=fomo_leader_evidence or {}
+    lf_vote=_leader_follower_vote(lf)
     smart_money=_smart_money_score(lf)
-    if lf.get("confirmed"):
-        direction=str(lf.get("direction","")).upper()
-        if direction in ("BULLISH","BEARISH"): votes.append((direction,min(1.0,_num(lf.get("confidence"),0.0))))
+    if lf_vote.get("confirmed"):
+        votes.append((lf_vote["direction"],lf_vote["confidence"]))
     top=fomo.get("candidates",[])[:3]
     if top:
         avg_change=sum(_num(x.get("price_change_24h_pct")) for x in top)/len(top)
