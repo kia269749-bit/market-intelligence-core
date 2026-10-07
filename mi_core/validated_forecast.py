@@ -190,6 +190,7 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         favorable_mfe = future_max if pred == 1 else -future_min
         adverse_mae = -future_min if pred == 1 else future_max
         preds.append({
+            "_index": i,
             "ts": bars[i].ts,
             "pred": pred,
             "actual": actual,
