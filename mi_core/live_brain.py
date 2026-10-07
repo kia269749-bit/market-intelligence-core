@@ -427,7 +427,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
           "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
-        "architecture":"Project60 + FOMO + SmartMoney -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
+        "architecture":"Project60 + FOMO + SmartMoney + CandleMicrostructure -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
 def print_live(snapshot):
@@ -436,9 +436,11 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
-    print("microstructure={} squeeze_risk={} | smart_money={} | outcome_memory={} | fomo_candidates={} wallet_level={}".format(
+    candle=e.get("candle_evidence",{})
+    cadj=e.get("combined",{}).get("candle_adjustment",{})
+    print("microstructure={} squeeze_risk={} | candle={} pattern={} candle_status={} | smart_money={} | outcome_memory={} | fomo_candidates={} wallet_level={}".format(
         e.get("microstructure",{}).get("divergence","NONE"),e.get("microstructure",{}).get("squeeze_risk",False),
-        e.get("smart_money",{}).get("status","NONE"),e.get("outcome_memory",{}).get("win_rate",0.0),e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
+        candle.get("bias","NONE"),candle.get("best_pattern",{}).get("pattern","NONE") if isinstance(candle.get("best_pattern"),dict) else "NONE",cadj.get("status","NONE"),e.get("smart_money",{}).get("status","NONE"),e.get("outcome_memory",{}).get("win_rate",0.0),e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
     if e.get("no_trade",{}).get("blocked"): print("NO_TRADE_GUARD=BLOCK | reasons=" + ",".join(e["no_trade"].get("reasons",[])))
     ce=e.get("capital_economics",{})
     if ce.get("available"):
