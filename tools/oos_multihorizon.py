@@ -173,6 +173,7 @@ def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
                 "direction": direction,
                 "expected_return_pct": f["expected_return_pct"],
                 "target_hit_probability": f["target_hit_probability"],
+                "reject_reason": f.get("reject_reason", ""),
                 "tier": f["tier"],
                 "realized_return_pct": realized,
                 "directional_move_pct": directional,
