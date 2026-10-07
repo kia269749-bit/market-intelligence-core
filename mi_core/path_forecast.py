@@ -294,23 +294,38 @@ def path_to_economic_opportunity(
     for f in path.horizons:
         expected_net = abs(f.expected_return_pct) - round_trip_cost_pct
         modeled_profit = capital_usd * expected_net / 100.0
-        if f.target_hit_probability >= 0.55 and abs(f.expected_return_pct) >= preferred_move:
-            tier = "STRONG"
-        elif f.target_hit_probability >= 0.45 and abs(f.expected_return_pct) >= min_move:
-            tier = "VIABLE"
-        elif f.target_hit_probability >= 0.35 and abs(f.expected_return_pct) >= min_move:
-            tier = "WATCH"
-        else:
+        expected_move = abs(f.expected_return_pct)
+        if f.direction == "FLAT":
             tier = "REJECT"
+            reject_reason = "FLAT_FORECAST"
+        elif f.confidence <= 0.0:
+            tier = "REJECT"
+            reject_reason = "ZERO_CONFIDENCE"
+        elif f.target_hit_probability < 0.35:
+            tier = "REJECT"
+            reject_reason = "LOW_TARGET_HIT_PROBABILITY"
+        elif expected_move < min_move:
+            tier = "REJECT"
+            reject_reason = "INSUFFICIENT_EXPECTED_MOVE"
+        elif f.target_hit_probability >= 0.55 and expected_move >= preferred_move:
+            tier = "STRONG"
+            reject_reason = ""
+        elif f.target_hit_probability >= 0.45:
+            tier = "VIABLE"
+            reject_reason = ""
+        else:
+            tier = "WATCH"
+            reject_reason = "WATCH_ONLY"
         rows.append({
             "horizon": f.horizon,
             "direction": f.direction,
             "confidence": f.confidence,
             "expected_return_pct": f.expected_return_pct,
-            "expected_move_pct": abs(f.expected_return_pct),
+            "expected_move_pct": expected_move,
             "target_hit_probability": f.target_hit_probability,
             "modeled_net_profit_usd": round(modeled_profit, 2),
             "tier": tier,
+            "reject_reason": reject_reason,
         })
 
     best = max(
