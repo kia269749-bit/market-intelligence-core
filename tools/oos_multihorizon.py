@@ -134,6 +134,15 @@ def _tier_metrics(rows):
     return counts
 
 
+def _reject_reason_metrics(rows):
+    counts = {}
+    for r in rows:
+        reason = r.get("reject_reason") or ""
+        if reason:
+            counts[reason] = counts.get(reason, 0) + 1
+    return counts
+
+
 def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
     results = {h: {"all_forecasts": [], "viable": []} for h in HORIZONS}
     start = max(min_history - 1, 0)
@@ -177,6 +186,7 @@ def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
         str(h): {
             "directional_metrics": _directional_metrics(v["all_forecasts"]),
             "tier_counts": _tier_metrics(v["all_forecasts"]),
+            "reject_reason_counts": _reject_reason_metrics(v["all_forecasts"]),
             "economic_metrics": _metrics(v["viable"], capital),
             "forecast_count": len(v["all_forecasts"]),
             "economic_trade_count": len(v["viable"]),
