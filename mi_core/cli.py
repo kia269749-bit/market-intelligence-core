@@ -20,6 +20,7 @@ from .validated_forecast import walk_forward_forecast, score_predictions, score_
 from .multi_asset_forecast import scan_project60, load_project60_assets
 from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
+from .economic_edge import diagnose_economic_edge
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -192,8 +193,9 @@ def main():
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
         bars=load_input(x.input)
-        result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window)
+        result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window,fit_every=10)
         result["metrics"]=score_predictions(result)
+        result["economic_edge"]=diagnose_economic_edge(result)
         result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
