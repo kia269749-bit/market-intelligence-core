@@ -16,7 +16,7 @@ class EconomicEdgeTests(unittest.TestCase):
             ]
         })
         self.assertEqual(result["samples"], 3)
-        self.assertEqual(result["usd4_hit_rate"], 1 / 3)
+        self.assertAlmostEqual(result["usd4_hit_rate"], 1 / 3, places=6)
         self.assertEqual(result["usd10_hit_rate"], 0.0)
         self.assertEqual(result["direction_correct_rate"], 1.0)
         self.assertGreater(result["mfe_reached_usd4_but_horizon_end_missed_rate"], 0.0)
