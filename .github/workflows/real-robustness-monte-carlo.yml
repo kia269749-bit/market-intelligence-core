@@ -1,0 +1,116 @@
+name: Real Robustness OOS + Monte Carlo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  robustness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Download real market data
+        run: |
+          mkdir -p data/real reports/robustness
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1h --bars 5000 --out data/real/${{ matrix.symbol }}_1h.jsonl --report reports/${{ matrix.symbol }}_1h.json
+      - name: Multi-window OOS validation
+        run: |
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 24 --train-window 300 --out reports/robustness/${{ matrix.symbol }}_h24_t300.json
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --out reports/robustness/${{ matrix.symbol }}_h60_t300.json
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 120 --train-window 600 --out reports/robustness/${{ matrix.symbol }}_h120_t600.json
+      - name: Monte Carlo robustness
+        run: |
+          python - <<'PY'
+          import json, random
+          from pathlib import Path
+          symbol = "${{ matrix.symbol }}"
+          configs = [("h24_t300",24,300),("h60_t300",60,300),("h120_t600",120,600)]
+          out={"symbol":symbol,"research_only":True,"live_orders":False,"windows":[]}
+          def pct(v,p):
+              if not v: return 0.0
+              v=sorted(v); k=(len(v)-1)*p; f=int(k); c=min(f+1,len(v)-1)
+              return v[f] if f==c else v[f]+(v[c]-v[f])*(k-f)
+          for label,horizon,train in configs:
+              x=json.loads(Path(f"reports/robustness/{symbol}_{label}.json").read_text())
+              edge=x.get("economic_edge",{}); metrics=x.get("metrics",{})
+              vals=[]; cost=float(edge.get("thresholds",{}).get("round_trip_cost_pct",0.35)); capital=float(edge.get("thresholds",{}).get("capital_usd",500))
+              for row in x.get("predictions",[]):
+                  if row.get("pred") not in (-1,1) or row.get("actual_return_pct") is None: continue
+                  actual=float(row["actual_return_pct"]); pred=int(row["pred"]); favorable=actual if pred==1 else -actual
+                  vals.append(capital*(favorable-cost)/100.0)
+              rng=random.Random(20261007+horizon+train); n=len(vals); ex=[]; pf=[]; pos=0
+              if n:
+                  for _ in range(5000):
+                      sample=[vals[rng.randrange(n)] for _ in range(n)]; profit=sum(sample)
+                      pf.append(profit); ex.append(profit/n); pos += profit>0
+              out["windows"].append({
+                  "label":label,"horizon":horizon,"train_window":train,"samples":edge.get("samples"),
+                  "accuracy":metrics.get("accuracy"),"high_conf_accuracy":metrics.get("high_conf_accuracy"),
+                  "positive_net_rate":edge.get("positive_net_rate"),"expectancy_usd":edge.get("expectancy_usd"),
+                  "net_profit_usd":edge.get("net_profit_usd"),"usd4_hit_rate":edge.get("usd4_hit_rate"),
+                  "usd10_hit_rate":edge.get("usd10_hit_rate"),"adverse_0_50_rate":edge.get("adverse_0_50_rate"),
+                  "accepted":x.get("acceptance_gate",{}).get("accepted"),
+                  "monte_carlo":{"iterations":5000,"prob_profit_gt_0":round(pos/5000,6) if n else 0.0,
+                    "expectancy_p05":round(pct(ex,.05),4) if n else 0.0,"expectancy_p50":round(pct(ex,.5),4) if n else 0.0,
+                    "expectancy_p95":round(pct(ex,.95),4) if n else 0.0,"profit_p05":round(pct(pf,.05),2) if n else 0.0,
+                    "profit_p50":round(pct(pf,.5),2) if n else 0.0,"profit_p95":round(pct(pf,.95),2) if n else 0.0}
+              })
+          exps=[w["expectancy_usd"] for w in out["windows"]]
+          out["robustness"]={"positive_windows":sum(bool(w["net_profit_usd"]>0 and w["accepted"]) for w in out["windows"]),
+            "total_windows":len(out["windows"]),"worst_expectancy_usd":min(exps,default=0.0),
+            "median_expectancy_usd":sorted(exps)[len(exps)//2] if exps else 0.0,
+            "all_monte_carlo_profit_probability_gt_0":min((w["monte_carlo"]["prob_profit_gt_0"] for w in out["windows"]),default=0.0)}
+          Path(f"reports/robustness/{symbol}_robustness.json").write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps(out["robustness"],sort_keys=True))
+          PY
+      - name: Publish robustness artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-${{ matrix.symbol }}-robustness
+          path: |
+            data/real/${{ matrix.symbol }}_1h.jsonl
+            reports/robustness/${{ matrix.symbol }}_*.json
+
+  aggregate:
+    needs: robustness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: market-intelligence-*-robustness
+          path: collected
+      - name: Build cross-asset robustness report
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows=[]
+          for path in Path("collected").glob("*/reports/robustness/*_robustness.json"):
+              x=json.loads(path.read_text()); r=x["robustness"]
+              rows.append({"symbol":x["symbol"],"positive_windows":r["positive_windows"],"total_windows":r["total_windows"],
+                "worst_expectancy_usd":r["worst_expectancy_usd"],"median_expectancy_usd":r["median_expectancy_usd"],
+                "min_mc_profit_probability_gt_0":r["all_monte_carlo_profit_probability_gt_0"]})
+          rows.sort(key=lambda x:(-x["positive_windows"],-x["median_expectancy_usd"],-x["min_mc_profit_probability_gt_0"]))
+          report={"research_only":True,"live_orders":False,"window_count_per_asset":3,"assets":rows,
+            "interpretation":{"strongest":rows[0]["symbol"] if rows else None,
+              "rule":"Prefer assets positive across all windows with positive Monte Carlo lower-tail expectancy and high probability of profit."}}
+          Path("robustness-summary.json").write_text(json.dumps(report,indent=2,sort_keys=True))
+          print(json.dumps(report,indent=2,sort_keys=True))
+          PY
+      - name: Publish cross-asset summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-robustness-summary
+          path: robustness-summary.json
