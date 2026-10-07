@@ -1,0 +1,63 @@
+name: Real Multi-Asset OOS Research
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Download real market data
+        run: |
+          mkdir -p data/real reports
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1h --bars 5000 --out data/real/${{ matrix.symbol }}_1h.jsonl --report reports/${{ matrix.symbol }}_1h.json
+      - name: Run walk-forward OOS validation
+        run: |
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --out reports/${{ matrix.symbol }}_1h_forecast_validation.json
+      - name: Print comparable metrics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path("reports/${{ matrix.symbol }}_1h_forecast_validation.json").read_text())
+          edge=x.get("economic_edge",{})
+          metrics=x.get("metrics",{})
+          gate=x.get("acceptance_gate",{})
+          print(json.dumps({
+            "symbol":"${{ matrix.symbol }}",
+            "accuracy":metrics.get("accuracy"),
+            "high_conf_accuracy":metrics.get("high_conf_accuracy"),
+            "samples":edge.get("samples"),
+            "direction_correct_rate":edge.get("direction_correct_rate"),
+            "positive_net_rate":edge.get("positive_net_rate"),
+            "expectancy_usd":edge.get("expectancy_usd"),
+            "net_profit_usd":edge.get("net_profit_usd"),
+            "usd4_hit_rate":edge.get("usd4_hit_rate"),
+            "usd10_hit_rate":edge.get("usd10_hit_rate"),
+            "adverse_0_50_rate":edge.get("adverse_0_50_rate"),
+            "accepted":gate.get("accepted"),
+            "research_only":x.get("research_only"),
+            "live_orders":x.get("live_orders")
+          },sort_keys=True))
+          PY
+      - name: Publish validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-${{ matrix.symbol }}-oos
+          path: |
+            data/real/${{ matrix.symbol }}_1h.jsonl
+            reports/${{ matrix.symbol }}_1h.json
+            reports/${{ matrix.symbol }}_1h_forecast_validation.json
