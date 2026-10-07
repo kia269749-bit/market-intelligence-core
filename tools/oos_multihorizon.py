@@ -188,6 +188,10 @@ def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
             "directional_metrics": _directional_metrics(v["all_forecasts"]),
             "tier_counts": _tier_metrics(v["all_forecasts"]),
             "reject_reason_counts": _reject_reason_metrics(v["all_forecasts"]),
+            "rejection_diagnostics": {
+                "total_rejected": sum(_reject_reason_metrics(v["all_forecasts"]).values()),
+                "reason_counts": _reject_reason_metrics(v["all_forecasts"]),
+            },
             "economic_metrics": _metrics(v["viable"], capital),
             "forecast_count": len(v["all_forecasts"]),
             "economic_trade_count": len(v["viable"]),
@@ -223,6 +227,7 @@ def main():
         "step_bars": args.step,
         "min_history": args.min_history,
         "horizons": list(HORIZONS),
+        "diagnostics_version": "reject-reasons-v2",
         "assets": {},
     }
 
