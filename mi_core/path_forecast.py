@@ -109,7 +109,6 @@ def _analog_returns(
             values.append(_ret(bars[i + horizon].price, bars[i].price) * 100.0)
     if len(values) >= min_samples:
         return values
-    # Deterministic fallback: all strictly historical observations.
     return [
         _ret(bars[i + horizon].price, bars[i].price) * 100.0
         for i in range(start, n - horizon)
@@ -130,29 +129,59 @@ def _forecast_one(
 
     mean = statistics.fmean(vals)
     med = statistics.median(vals)
-    # Blend empirical central tendency with current regime direction.
-    regime_component = _clamp(trend / 3.0, -1.0, 1.0) * vol_pct * 0.35
-    expected = 0.65 * med + 0.35 * regime_component
     spread = statistics.pstdev(vals) if len(vals) > 1 else vol_pct
-    lower = expected - 1.0 * spread
-    upper = expected + 1.0 * spread
 
-    direction = "UP" if expected > 0 else "DOWN" if expected < 0 else "FLAT"
+    # Direction is now calibrated from the empirical sign probability rather
+    # than the sign of a near-zero median. This prevents a tiny numerical
+    # drift from turning a range market into a directional trade.
+    up_prob = sum(x > 0 for x in vals) / len(vals)
+    down_prob = sum(x < 0 for x in vals) / len(vals)
+    directional_edge = abs(up_prob - down_prob)
+
+    # Require a real directional edge before emitting UP/DOWN. When the
+    # analogue distribution is balanced, remain FLAT rather than manufacturing
+    # a trade direction from noise.
+    if up_prob >= 0.55 and up_prob > down_prob:
+        direction = "UP"
+        favorable_vals = [x for x in vals if x > 0]
+        conditional_mean = statistics.fmean(favorable_vals) if favorable_vals else 0.0
+        trend_component = max(0.0, trend / 3.0) * vol_pct * 0.20
+        expected = 0.80 * conditional_mean + 0.20 * trend_component
+        hit_prob = sum(x >= target_move_pct for x in vals) / len(vals)
+    elif down_prob >= 0.55 and down_prob > up_prob:
+        direction = "DOWN"
+        favorable_vals = [x for x in vals if x < 0]
+        conditional_mean = statistics.fmean(favorable_vals) if favorable_vals else 0.0
+        trend_component = min(0.0, trend / 3.0) * vol_pct * 0.20
+        expected = 0.80 * conditional_mean + 0.20 * trend_component
+        hit_prob = sum(x <= -target_move_pct for x in vals) / len(vals)
+    else:
+        direction = "FLAT"
+        expected = 0.0
+        hit_prob = 0.0
+
+    # Keep the expected move conservative. A directional probability edge
+    # alone is not enough to claim a large return.
+    if direction != "FLAT":
+        expected = _clamp(expected, -max(5.0, 3.0 * spread), max(5.0, 3.0 * spread))
+
+    lower = expected - spread
+    upper = expected + spread
+    favorable = abs(expected)
+    adverse = max(
+        0.0,
+        -lower if direction == "UP" else upper if direction == "DOWN" else spread,
+    )
+
     confidence = _clamp(
         0.50
-        + min(0.22, abs(trend) * 0.08)
-        + min(0.18, abs(expected) / max(spread, 1e-6) * 0.08),
+        + min(0.25, directional_edge * 0.70)
+        + min(0.15, abs(trend) * 0.05),
         0.34,
         0.90,
     )
-
-    favorable = abs(expected)
-    adverse = max(0.0, -lower if direction == "UP" else upper if direction == "DOWN" else spread)
-    hits = sum(
-        (x >= target_move_pct if direction == "UP" else x <= -target_move_pct)
-        for x in vals
-    )
-    hit_prob = hits / len(vals) if vals and direction != "FLAT" else 0.0
+    if direction == "FLAT":
+        confidence = min(confidence, 0.50)
 
     return HorizonForecast(
         horizon=horizon,
@@ -206,7 +235,9 @@ def path_to_economic_opportunity(
     for f in path.horizons:
         expected_net = abs(f.expected_return_pct) - round_trip_cost_pct
         modeled_profit = capital_usd * expected_net / 100.0
-        if f.target_hit_probability >= 0.55 and abs(f.expected_return_pct) >= preferred_move:
+        if f.direction == "FLAT":
+            tier = "REJECT"
+        elif f.target_hit_probability >= 0.55 and abs(f.expected_return_pct) >= preferred_move:
             tier = "STRONG"
         elif f.target_hit_probability >= 0.45 and abs(f.expected_return_pct) >= min_move:
             tier = "VIABLE"
