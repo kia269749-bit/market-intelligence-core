@@ -137,8 +137,9 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                                         min_high_conf_accuracy=0.55,
                                         min_profit_hit_rate=0.30,
                                         preferred_profit_hit_rate=0.15)
-        tier = "TRADE" if gate.get("accepted") else _opportunity_tier(
-            prediction_metrics, economic_metrics, capital_metrics)
+        tier = ("DIAGNOSTIC_ONLY" if not signal_eligible else
+                ("TRADE" if gate.get("accepted") else _opportunity_tier(
+                    prediction_metrics, economic_metrics, capital_metrics)))
         asset_results.append({
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
@@ -148,7 +149,8 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
     aggregate = _aggregate(asset_results)
     return {
         "horizon_bars": horizon, "validated_assets": len(asset_results),
-        "accepted_assets": sum(bool(x["acceptance_gate"].get("accepted")) for x in asset_results),
+        "signal_eligible": signal_eligible,
+        "accepted_assets": sum(bool(x["acceptance_gate"].get("accepted")) and signal_eligible for x in asset_results),
         "aggregate": aggregate, "assets": asset_results,
     }
 
