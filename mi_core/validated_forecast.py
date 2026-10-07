@@ -143,7 +143,7 @@ def _predict(m, x):
     return {cls[k]: p[k] for k in range(3)}
 
 
-def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_band=.0015, fit_every=1):
+def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_band=.0015, fit_every=1, purge_bars=0):
     if len(bars) < min_train + 25 + horizon:
         return {"available": False, "reason": "insufficient_history", "samples": len(bars)}
 
@@ -154,12 +154,14 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
     model = None
     next_fit_i = None
     fit_every = max(1, int(fit_every))
+    purge_bars = max(0, int(purge_bars))
 
     for i in range(max(20, min_train), len(bars) - horizon):
         lo = max(20, i - train_window)
+        train_end = max(lo, i - purge_bars)
         X = []
         y = []
-        for j in range(lo, i):
+        for j in range(lo, train_end):
             f = feature_cache[j]
             lab = label_cache[j]
             if f is not None and lab is not None:
@@ -212,6 +214,7 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         "accuracy": round(correct / resolved, 6) if resolved else 0,
         "predictions": preds,
         "model_version": "wf-logit-v2",
+        "purge_bars": purge_bars,
         "research_only": True,
         "live_orders": False,
     }
