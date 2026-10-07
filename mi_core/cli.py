@@ -17,7 +17,8 @@ from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follow
 from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals
 from .shadow_performance import summarize_performance, format_performance_line
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
-from .multi_asset_forecast import scan_project60
+from .multi_asset_forecast import scan_project60, load_project60_assets
+from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 
 def demo(out):
@@ -205,7 +206,14 @@ def main():
             outcome=summarize_paper_journal(x.outcome_journal) if x.outcome_journal else None
             forecast=_validated_forecast_from_project60(x.project60_file, "BTC") if x.project60_file else None
             candle=analyze_candle_brain(x.project60_file, "BTC", max_rows=800, candle_span=5, lookback=200) if x.project60_file else None
-            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle)
+            market_context=None
+            if x.project60_file:
+                try:
+                    context_series=load_project60_assets(x.project60_file, max_rows=120)
+                    market_context=analyze_market_context(context_series, reference="BTC", window=120)
+                except Exception:
+                    market_context={"available":False,"reason":"context_error","research_only":True,"live_orders":False}
+            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context)
             if x.outcome_journal:
                 fc=snap.get("evidence",{}).get("forecast",{})
                 selected=fc.get("selected") if isinstance(fc,dict) else {}
