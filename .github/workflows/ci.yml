@@ -1,7 +1,7 @@
 name: Market Intelligence CI
 on:
   push:
-    branches: [main, "feat/**"]
+    branches: [main, "feat/**", "integration/**"]
   pull_request:
   workflow_dispatch:
 jobs:
