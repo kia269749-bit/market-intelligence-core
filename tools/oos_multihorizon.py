@@ -173,6 +173,9 @@ def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
                 "direction": direction,
                 "expected_return_pct": f["expected_return_pct"],
                 "target_hit_probability": f["target_hit_probability"],
+                "selected_target_pct": f.get("selected_target_pct", 0.0),
+                "selected_target_hit_probability": f.get("selected_target_hit_probability", 0.0),
+                "target_ladder_probability": f.get("target_ladder_probability", {}),
                 "reject_reason": f.get("reject_reason", ""),
                 "tier": f["tier"],
                 "realized_return_pct": realized,
@@ -227,7 +230,7 @@ def main():
         "step_bars": args.step,
         "min_history": args.min_history,
         "horizons": list(HORIZONS),
-        "diagnostics_version": "reject-reasons-v2",
+        "diagnostics_version": "reject-reasons-v3-target-ladder",
         "assets": {},
     }
 
