@@ -97,7 +97,7 @@ def _metrics(rows, capital):
         "gross_loss_usd": gross_loss,
         "net_profit_usd": sum(pnls),
         "expectancy_usd": sum(pnls) / len(pnls) if pnls else 0.0,
-        "profit_factor": gross_profit / gross_loss if gross_loss else (math.inf if gross_profit else 0.0),
+        "profit_factor": (gross_profit / gross_loss) if gross_loss else (None if gross_profit else 0.0),
         "max_drawdown": max_dd,
         "avg_realized_directional_move_pct": (
             sum(r["directional_move_pct"] for r in rows) / len(rows) if rows else 0.0
