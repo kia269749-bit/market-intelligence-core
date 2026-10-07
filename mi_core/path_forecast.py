@@ -219,6 +219,7 @@ def path_to_economic_opportunity(
             "direction": f.direction,
             "confidence": f.confidence,
             "expected_return_pct": f.expected_return_pct,
+            "expected_move_pct": abs(f.expected_return_pct),
             "target_hit_probability": f.target_hit_probability,
             "modeled_net_profit_usd": round(modeled_profit, 2),
             "tier": tier,
