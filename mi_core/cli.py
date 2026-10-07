@@ -18,6 +18,7 @@ from .paper_journal import summarize as summarize_paper_journal, append_signal a
 from .shadow_performance import summarize_performance, format_performance_line
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 from .multi_asset_forecast import scan_project60
+from .candle_brain import analyze_project60 as analyze_candle_brain
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -203,7 +204,8 @@ def main():
             lf=summarize_fomo_leader_follower(x.fomo_fills_file,x.fomo_leader_scores) if x.fomo_fills_file else None
             outcome=summarize_paper_journal(x.outcome_journal) if x.outcome_journal else None
             forecast=_validated_forecast_from_project60(x.project60_file, "BTC") if x.project60_file else None
-            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast)
+            candle=analyze_candle_brain(x.project60_file, "BTC", max_rows=800, candle_span=5, lookback=200) if x.project60_file else None
+            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle)
             if x.outcome_journal:
                 fc=snap.get("evidence",{}).get("forecast",{})
                 selected=fc.get("selected") if isinstance(fc,dict) else {}

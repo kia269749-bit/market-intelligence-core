@@ -303,9 +303,22 @@ def _outcome_adjustment(outcome_memory, regime=None, direction=None):
         "context_used": context_used,
     }
 
-def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None):
+def _candle_adjustment(candle_evidence, bias):
+    """Bounded candle/microstructure confidence enhancement only."""
+    e=candle_evidence or {}
+    if not e.get("available") or bias not in ("BULLISH","BEARISH"):
+        return {"factor":1.0,"status":"NONE","reason":"no_candle_evidence"}
+    cb=str(e.get("bias","NEUTRAL")).upper()
+    q=max(0.0,min(1.0,_num(e.get("confidence"),0.0)))
+    if cb==bias and q>=0.60:
+        return {"factor":round(min(1.08,1.0+0.08*q),4),"status":"ALIGNED","reason":"candle_pattern_supports_signal"}
+    if cb in ("BULLISH","BEARISH") and cb!=bias and q>=0.70:
+        return {"factor":round(max(0.92,1.0-0.06*q),4),"status":"CONTRARY","reason":"candle_pattern_warns_of_conflict"}
+    return {"factor":1.0,"status":"NEUTRAL","reason":"candle_evidence_not_decisive"}
+
+def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None, candle_evidence=None):
     smart_money=smart_money or {"score":0.0,"status":"NONE"}
-    # Smart-money evidence is a confidence modifier, never a standalone trade trigger.
+    # Smart-money and candle evidence are confidence modifiers, never standalone triggers.
 
     usable=[(b,max(0,min(1,c))) for b,c in votes if b in ("BULLISH","BEARISH") and c>0]
     if not usable: return {"bias":"NEUTRAL","confidence":0.0,"agreement":0.0,"actionable":False}
@@ -321,12 +334,15 @@ def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None):
     confidence*=outcome["factor"]
     if smart_money.get("status")=="STRONG": confidence*=1.05
     elif smart_money.get("status")=="WEAK": confidence*=0.90
+    candle=_candle_adjustment(candle_evidence,bias)
+    confidence*=candle["factor"]
     actionable=(bias!="NEUTRAL" and agreement>=.60 and confidence>=.60 and quality>=.55 and regime_name!="HIGH_VOLATILITY")
     return {"bias":bias,"confidence":round(min(1,confidence),4),"agreement":round(agreement,4),
-            "actionable":actionable,"regime":regime_name,"outcome_memory":outcome}
+            "actionable":actionable,"regime":regime_name,"outcome_memory":outcome,
+            "candle_adjustment":candle}
 
 def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None,
-             fomo_leader_evidence=None, outcome_memory=None, forecast=None):
+             fomo_leader_evidence=None, outcome_memory=None, forecast=None, candle_evidence=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
@@ -356,7 +372,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     top=fomo.get("candidates",[])[:3]
     capital_economics={"available":False,"reason":"no_forecast"}
     timing={"state":"WAIT","reason":"no_forecast","research_only":True,"live_orders":False}
-    combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money)
+    combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money,candle_evidence)
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
         eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
@@ -409,9 +425,9 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False,"candidate_signal":fomo_candidate_signal},
           "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
-          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"no_trade":no_trade,"forecast":forecast or {"available":False},"capital_economics":capital_economics,"timing":timing},
+          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
-        "architecture":"Project60 + FOMO + SmartMoney -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
+        "architecture":"Project60 + FOMO + SmartMoney + CandleMicrostructure -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
 def print_live(snapshot):
@@ -420,9 +436,11 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
-    print("microstructure={} squeeze_risk={} | smart_money={} | outcome_memory={} | fomo_candidates={} wallet_level={}".format(
+    candle=e.get("candle_evidence",{})
+    cadj=e.get("combined",{}).get("candle_adjustment",{})
+    print("microstructure={} squeeze_risk={} | candle={} pattern={} candle_status={} | smart_money={} | outcome_memory={} | fomo_candidates={} wallet_level={}".format(
         e.get("microstructure",{}).get("divergence","NONE"),e.get("microstructure",{}).get("squeeze_risk",False),
-        e.get("smart_money",{}).get("status","NONE"),e.get("outcome_memory",{}).get("win_rate",0.0),e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
+        candle.get("bias","NONE"),candle.get("best_pattern",{}).get("pattern","NONE") if isinstance(candle.get("best_pattern"),dict) else "NONE",cadj.get("status","NONE"),e.get("smart_money",{}).get("status","NONE"),e.get("outcome_memory",{}).get("win_rate",0.0),e["fomo"]["candidates"],e["fomo"]["wallet_level"]))
     if e.get("no_trade",{}).get("blocked"): print("NO_TRADE_GUARD=BLOCK | reasons=" + ",".join(e["no_trade"].get("reasons",[])))
     ce=e.get("capital_economics",{})
     if ce.get("available"):
