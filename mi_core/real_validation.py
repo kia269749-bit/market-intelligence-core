@@ -205,8 +205,7 @@ def main(argv=None):
     if args.out:
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(payload + "
-", encoding="utf-8")
+        out.write_text(payload + "\n", encoding="utf-8")
         print(out)
     else:
         print(payload)
