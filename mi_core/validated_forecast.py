@@ -47,16 +47,20 @@ def _predict(m,x):
     mx=max(q); e=[math.exp(max(-20,min(20,v-mx))) for v in q]; s=sum(e)
     p=[v/s for v in e]; return {cls[k]:p[k] for k in range(3)}
 
-def walk_forward_forecast(bars,horizon=5,train_window=300,min_train=60,flat_band=.0015):
+def walk_forward_forecast(bars,horizon=5,train_window=300,min_train=60,flat_band=.0015,fit_every=1):
     if len(bars)<min_train+25+horizon: return {"available":False,"reason":"insufficient_history","samples":len(bars)}
-    preds=[]; correct=resolved=0
+    preds=[]; correct=resolved=0; model=None; next_fit_i=None
+    fit_every=max(1,int(fit_every))
     for i in range(max(20,min_train),len(bars)-horizon):
         lo=max(20,i-train_window); X=[]; y=[]
         for j in range(lo,i):
             f=_feat(bars,j); lab=_label(bars,j,horizon,flat_band)
             if f is not None and lab is not None: X.append(f); y.append(lab)
         if len(X)<min_train: continue
-        p=_predict(_fit(X,y),_feat(bars,i)); pred=max(p,key=p.get); actual=_label(bars,i,horizon,flat_band)
+        if model is None or next_fit_i is None or i >= next_fit_i:
+            model=_fit(X,y)
+            next_fit_i=i+fit_every
+        p=_predict(model,_feat(bars,i)); pred=max(p,key=p.get); actual=_label(bars,i,horizon,flat_band)
         future_returns = [_ret(bars[k].price, bars[i].price) * 100.0 for k in range(i + 1, min(i + horizon + 1, len(bars)))]
         future_max = max(future_returns) if future_returns else 0.0
         future_min = min(future_returns) if future_returns else 0.0

@@ -153,8 +153,14 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         bars = series[item["symbol"]]
         result = walk_forward_forecast(bars, horizon=horizon,
                                        train_window=min(300, max(60, len(bars) - horizon - 1)),
-                                       min_train=60)
+                                       min_train=60, fit_every=10)
         if not result.get("available"):
+            asset_results.append({
+                "asset": item["symbol"], "samples": len(bars), "ranking": item,
+                "validation_status": "SKIPPED",
+                "validation_reason": result.get("reason", "unavailable"),
+                "research_only": True, "live_orders": False,
+            })
             continue
         prediction_metrics = score_predictions(result)
         capital_metrics = score_capital_targets(result, capital_usd=capital_usd,
@@ -212,10 +218,11 @@ def validate_project60(
         "available": bool(primary["assets"]),
         "mode": "project60_real_market_walk_forward_oos",
         "assets_seen": len(series), "eligible_assets": len(ranked),
+        "selected_assets": [x["symbol"] for x in ranked[:max(1, int(top_n))]],
         "validated_assets": primary["validated_assets"],
         "accepted_assets": primary["accepted_assets"],
         "aggregate": primary["aggregate"], "assets": primary["assets"],
-        "horizon_results": results if len(results) > 1 else [],
+        "horizon_results": results,
         "signal_horizon_policy": {"minimum_signal_horizon_bars": SHORT_HORIZON_SIGNAL_CUTOFF, "shorter_horizons": "diagnostic_only"},
         "policy": {"capital_usd": capital_usd, "min_profit_usd": min_profit_usd,
                    "preferred_profit_usd": preferred_profit_usd,
