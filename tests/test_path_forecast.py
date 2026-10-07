@@ -29,11 +29,19 @@ class TestPathForecast(unittest.TestCase):
         self.assertIsNotNone(p)
         self.assertEqual(tuple(x.horizon for x in p.horizons), (5, 10, 20, 50))
         for x in p.horizons:
-            self.assertLessEqual(0.34, x.confidence)
+            self.assertGreaterEqual(x.confidence, 0.0)
             self.assertLessEqual(x.confidence, 0.90)
             self.assertLessEqual(-100.0, x.lower_return_pct)
             self.assertLessEqual(x.lower_return_pct, x.upper_return_pct)
             self.assertLessEqual(x.target_hit_probability, 1.0)
+
+    def test_weak_forecast_is_flat_not_fabricated(self):
+        p = forecast_path(self._bars())
+        self.assertIsNotNone(p)
+        for x in p.horizons:
+            if x.confidence == 0.0:
+                self.assertEqual(x.direction, "FLAT")
+                self.assertEqual(x.target_hit_probability, 0.0)
 
     def test_economic_layer_does_not_override_forecast(self):
         p = forecast_path(self._bars())
