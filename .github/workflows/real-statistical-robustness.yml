@@ -1,0 +1,142 @@
+name: Real Regime Stress + Purged Walk-Forward + Deflated Sharpe
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  stress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Download real market data
+        run: |
+          mkdir -p data/real reports/statistical
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1h --bars 5000 --out data/real/${{ matrix.symbol }}_1h.jsonl --report reports/${{ matrix.symbol }}_1h.json
+      - name: Purged chronological OOS validation
+        run: |
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 24 --train-window 300 --purge-bars 24 --out reports/statistical/${{ matrix.symbol }}_h24_p24.json
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --purge-bars 60 --out reports/statistical/${{ matrix.symbol }}_h60_p60.json
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 120 --train-window 600 --purge-bars 120 --out reports/statistical/${{ matrix.symbol }}_h120_p120.json
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --purge-bars 0 --out reports/statistical/${{ matrix.symbol }}_h60_unpurged.json
+      - name: Regime stress and statistical anti-overfit diagnostics
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from mi_core.robustness import regime_stress, deflated_sharpe_ratio, overfit_diagnostic
+
+          symbol="${{ matrix.symbol }}"
+          prices=[]
+          for line in Path(f"data/real/{symbol}_1h.jsonl").read_text().splitlines():
+              try:
+                  x=json.loads(line)
+                  p=x.get("price", x.get("close"))
+                  if p is not None: prices.append(float(p))
+              except Exception:
+                  pass
+
+          configs=[("h24_p24",24,300),("h60_p60",60,300),("h120_p120",120,600)]
+          windows=[]
+          for label,horizon,train in configs:
+              x=json.loads(Path(f"reports/statistical/{symbol}_{label}.json").read_text())
+              vals=[]
+              for row in x.get("predictions",[]):
+                  if row.get("pred") not in (-1,1) or row.get("actual_return_pct") is None: continue
+                  r=float(row["actual_return_pct"])
+                  favorable=r if int(row["pred"])==1 else -r
+                  vals.append((favorable-0.35)/100.0)
+              dsr=deflated_sharpe_ratio(vals,trials=3)
+              stress=regime_stress(x.get("predictions",[]),prices,min_samples=50)
+              windows.append({"label":label,"horizon":horizon,"train_window":train,
+                  "resolved":x.get("metrics",{}).get("resolved"),"accuracy":x.get("metrics",{}).get("accuracy"),
+                  "high_conf_accuracy":x.get("metrics",{}).get("high_conf_accuracy"),
+                  "positive_net_rate":x.get("economic_edge",{}).get("positive_net_rate"),
+                  "expectancy_usd":x.get("economic_edge",{}).get("expectancy_usd"),
+                  "net_profit_usd":x.get("economic_edge",{}).get("net_profit_usd"),
+                  "deflated_sharpe":dsr,"regime_stress":stress})
+
+          def net_return(report):
+              vals=[]
+              for row in report.get("predictions",[]):
+                  if row.get("pred") not in (-1,1) or row.get("actual_return_pct") is None: continue
+                  r=float(row["actual_return_pct"])
+                  favorable=r if int(row["pred"])==1 else -r
+                  vals.append((favorable-0.35)/100.0)
+              return sum(vals)
+
+          purged_report=json.loads(Path(f"reports/statistical/{symbol}_h60_p60.json").read_text())
+          unpurged=json.loads(Path(f"reports/statistical/{symbol}_h60_unpurged.json").read_text())
+          comparison=overfit_diagnostic(net_return(unpurged),net_return(purged_report),variants_tested=4)
+
+          out={"symbol":symbol,"windows":windows,"purged_vs_unpurged":comparison,
+              "controls":{"round_trip_cost_pct":0.35,
+                "purge_rule":"exclude training labels whose forward horizon reaches the test boundary",
+                "deflated_sharpe_trials":3,"regime_min_samples":50},
+              "research_only":True,"live_orders":False}
+          Path(f"reports/statistical/{symbol}_statistical_robustness.json").write_text(json.dumps(out,indent=2,sort_keys=True))
+          print(json.dumps({"symbol":symbol,
+              "purged_h60_expectancy":windows[1]["expectancy_usd"],
+              "deflated_sharpe_probability_h60":windows[1]["deflated_sharpe"]["deflated_sharpe_probability"],
+              "regime_all_qualified_pass_h60":windows[1]["regime_stress"]["all_qualified_pass"],
+              "purged_vs_unpurged_decay":comparison["train_oos_decay"]},indent=2))
+          PY
+      - name: Publish statistical artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-${{ matrix.symbol }}-statistical-robustness
+          path: |
+            data/real/${{ matrix.symbol }}_1h.jsonl
+            reports/statistical/${{ matrix.symbol }}_*.json
+
+  aggregate:
+    needs: stress
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: market-intelligence-*-statistical-robustness
+          path: collected
+      - name: Build statistical robustness summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows=[]
+          for p in Path("collected").glob("*/reports/statistical/*_statistical_robustness.json"):
+              x=json.loads(p.read_text())
+              h60=next((w for w in x["windows"] if w["label"]=="h60_p60"),{})
+              rows.append({"symbol":x["symbol"],
+                  "purged_h60_expectancy_usd":h60.get("expectancy_usd",0),
+                  "purged_h60_accuracy":h60.get("accuracy",0),
+                  "deflated_sharpe_probability":h60.get("deflated_sharpe",{}).get("deflated_sharpe_probability",0),
+                  "deflated_sharpe_pass_95pct":h60.get("deflated_sharpe",{}).get("pass_95pct",False),
+                  "regime_all_qualified_pass":h60.get("regime_stress",{}).get("all_qualified_pass",False),
+                  "regime_qualified_count":h60.get("regime_stress",{}).get("sample_qualified_regimes",0),
+                  "purged_vs_unpurged_decay":x.get("purged_vs_unpurged",{}).get("train_oos_decay",0),
+                  "purged_vs_unpurged_oos_positive":x.get("purged_vs_unpurged",{}).get("oos_positive",False)})
+          rows.sort(key=lambda r:(-int(r["deflated_sharpe_pass_95pct"]),-int(r["regime_all_qualified_pass"]),-r["deflated_sharpe_probability"],-r["purged_h60_expectancy_usd"]))
+          report={"research_only":True,"live_orders":False,"assets":rows,
+              "interpretation":{"purpose":"reject fragile edges before any live consideration",
+              "strongest":rows[0]["symbol"] if rows else None,
+              "priority":"purged OOS + regime stability + deflated Sharpe outrank raw backtest profit"}}
+          Path("statistical-robustness-summary.json").write_text(json.dumps(report,indent=2,sort_keys=True))
+          print(json.dumps(report,indent=2))
+          PY
+      - name: Publish summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-statistical-robustness-summary
+          path: statistical-robustness-summary.json
