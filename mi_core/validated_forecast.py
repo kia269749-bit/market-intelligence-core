@@ -221,17 +221,19 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
     if len(bars) < 100:
         return {"available": False, "reason": "insufficient_history", "samples": len(bars)}
     i = len(bars) - 1
+    feature_cache = _feature_cache(bars)
+    label_cache = _labels_cache(bars, horizon, flat_band)
     X = []
     y = []
     for j in range(max(20, i - train_window), i):
-        f = _feat(bars, j)
-        lab = _label(bars, j, horizon, flat_band)
+        f = feature_cache[j]
+        lab = label_cache[j]
         if f is not None and lab is not None:
             X.append(f)
             y.append(lab)
-    if len(X) < 60:
+    if len(X) < 60 or feature_cache[i] is None:
         return {"available": False, "reason": "insufficient_training_samples", "samples": len(X)}
-    p = _predict(_fit(X, y), _feat(bars, i))
+    p = _predict(_fit(X, y), feature_cache[i])
     direction = {1: "UP", 0: "FLAT", -1: "DOWN"}[max(p, key=p.get)]
     rs = [_ret(bars[k].price, bars[k - 1].price) for k in range(max(1, i - 19), i + 1)]
     vol = statistics.pstdev(rs) or 1e-8
