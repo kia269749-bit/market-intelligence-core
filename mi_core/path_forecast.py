@@ -306,9 +306,20 @@ def path_to_economic_opportunity(
         eligible_targets = [(t, p) for t, p in f.target_ladder_probability if t >= min_move]
         selected_target, selected_prob = max(
             eligible_targets,
-            key=lambda x: (x[1] >= 0.45, x[1], x[0]),
+            key=lambda x: (x[1], x[0]),
             default=(0.0, 0.0),
         )
+
+        # Economic diagnostics are deliberately separate from the trade gate.
+        # They answer the conditional dollar outcome if the selected target
+        # is actually reached, after round-trip costs.
+        target_net_pct = max(0.0, selected_target - round_trip_cost_pct)
+        target_net_profit_usd = capital_usd * target_net_pct / 100.0
+        break_even_target_probability = (
+            round_trip_cost_pct / selected_target
+            if selected_target > 0.0 else 1.0
+        )
+
         if f.direction == "FLAT":
             tier = "REJECT"
             reject_reason = "FLAT_FORECAST"
@@ -340,6 +351,15 @@ def path_to_economic_opportunity(
             "target_ladder_probability": {str(k): v for k, v in ladder.items()},
             "selected_target_pct": selected_target,
             "selected_target_hit_probability": selected_prob,
+            "selected_target_gross_profit_usd": round(
+                capital_usd * selected_target / 100.0, 2
+            ),
+            "selected_target_net_profit_if_hit_usd": round(
+                target_net_profit_usd, 2
+            ),
+            "selected_target_break_even_probability": round(
+                break_even_target_probability, 4
+            ),
             "modeled_net_profit_usd": round(modeled_profit, 2),
             "tier": tier,
             "reject_reason": reject_reason,
@@ -357,6 +377,12 @@ def path_to_economic_opportunity(
         "preferred_required_move_pct": round(preferred_move, 4),
         "capital_usd": capital_usd,
         "round_trip_cost_pct": round_trip_cost_pct,
+        "economic_diagnostics_version": "target-net-payoff-v1",
+        "economic_diagnostic_note": (
+            "selected_target_net_profit_if_hit_usd is conditional on target "
+            "being reached; it is not an expected profit or backtest result. "
+            "Do not use it as a trade gate without OOS target/stop validation."
+        ),
         "research_only": True,
         "live_orders": False,
     }
