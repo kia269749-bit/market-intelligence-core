@@ -476,7 +476,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money,candle_evidence,market_context)
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
-        eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
+        eco=evaluate_capital_target(_num(selected.get("expected_move_pct", abs(_num(selected.get("expected_return_pct"))))),
                                     capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
         capital_economics={"available":True,"approved":eco.approved,
                            "expected_move_pct":eco.expected_move_pct,
