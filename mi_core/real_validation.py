@@ -153,7 +153,7 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         bars = series[item["symbol"]]
         result = walk_forward_forecast(bars, horizon=horizon,
                                        train_window=min(300, max(60, len(bars) - horizon - 1)),
-                                       min_train=60)
+                                       min_train=60, fit_every=10)
         if not result.get("available"):
             continue
         prediction_metrics = score_predictions(result)
