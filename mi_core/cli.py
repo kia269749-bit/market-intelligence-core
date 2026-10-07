@@ -167,7 +167,7 @@ def main():
     l=sp.add_parser("live"); l.add_argument("--exchanges",default=",".join(EXCHANGES)); l.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); l.add_argument("--interval",type=int,default=20); l.add_argument("--cycles",type=int,default=0)
     q=sp.add_parser("intelligence"); q.add_argument("--input",required=True); q.add_argument("--out"); q.add_argument("--pretty",action="store_true",help="print the concise manual-review signal report")
     h=sp.add_parser("dashboard"); h.add_argument("--report",required=True); h.add_argument("--out",default="reports/dashboard.html")
-    v=sp.add_parser("forecast-validate"); v.add_argument("--input",required=True); v.add_argument("--horizon",type=int,default=60); v.add_argument("--train-window",type=int,default=300); v.add_argument("--out")
+    v=sp.add_parser("forecast-validate"); v.add_argument("--input",required=True); v.add_argument("--horizon",type=int,default=60); v.add_argument("--train-window",type=int,default=300); v.add_argument("--purge-bars",type=int,default=0); v.add_argument("--out")
     pv=sp.add_parser("forecast-project60"); pv.add_argument("--input",required=True); pv.add_argument("--asset",default="BTC"); pv.add_argument("--horizon",type=int,default=60); pv.add_argument("--max-rows",type=int,default=800); pv.add_argument("--out")
     ms=sp.add_parser("forecast-scan"); ms.add_argument("--input",required=True); ms.add_argument("--top",type=int,default=5); ms.add_argument("--horizon",type=int,default=60); ms.add_argument("--max-rows",type=int,default=800); ms.add_argument("--out")
     sr=sp.add_parser("shadow-report"); sr.add_argument("--journal",required=True)
@@ -193,7 +193,7 @@ def main():
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
         bars=load_input(x.input)
-        result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window,fit_every=10)
+        result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window,fit_every=10,purge_bars=x.purge_bars)
         result["metrics"]=score_predictions(result)
         result["economic_edge"]=diagnose_economic_edge(result)
         result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
