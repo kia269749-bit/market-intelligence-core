@@ -3,7 +3,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mi_core.real_validation import _directional_metrics, _path_excursion_metrics, _opportunity_tier, validate_project60
+from mi_core.real_validation import (
+    _directional_metrics,
+    _oos_integrity_metrics,
+    _path_excursion_metrics,
+    _opportunity_tier,
+    validate_project60,
+)
 
 
 class RealValidationTests(unittest.TestCase):
@@ -38,6 +44,48 @@ class RealValidationTests(unittest.TestCase):
             {"min_target_hit_rate": 0.20},
         )
         self.assertEqual(tier, "WATCH")
+
+
+    def test_oos_integrity_detects_class_collapse_and_majority_baseline(self):
+        result = {
+            "accuracy": 1.0,
+            "predictions": [
+                {"ts": i * 60_000, "pred": -1, "actual": -1}
+                for i in range(10)
+            ],
+        }
+        metrics = _oos_integrity_metrics(result, 120)
+        self.assertTrue(metrics["class_collapse"])
+        self.assertEqual(metrics["actual_class_count"], 1)
+        self.assertEqual(metrics["prediction_class_count"], 1)
+        self.assertEqual(metrics["majority_baseline_accuracy"], 1.0)
+        self.assertEqual(metrics["model_vs_majority_accuracy_lift"], 0.0)
+        self.assertEqual(metrics["overlap_rate"], 1.0)
+
+    def test_oos_integrity_shows_real_accuracy_lift_without_collapse(self):
+        result = {
+            "accuracy": 0.75,
+            "predictions": [
+                {"ts": 0, "pred": -1, "actual": -1},
+                {"ts": 120 * 60_000, "pred": 1, "actual": 1},
+                {"ts": 240 * 60_000, "pred": -1, "actual": 1},
+                {"ts": 360 * 60_000, "pred": 1, "actual": -1},
+            ],
+        }
+        metrics = _oos_integrity_metrics(result, 120)
+        self.assertFalse(metrics["class_collapse"])
+        self.assertEqual(metrics["majority_baseline_accuracy"], 0.5)
+        self.assertEqual(metrics["model_vs_majority_accuracy_lift"], 0.25)
+        self.assertEqual(metrics["overlap_rate"], 0.0)
+
+    def test_class_collapse_blocks_watch(self):
+        tier = _opportunity_tier(
+            {"high_conf_accuracy": 1.0},
+            {"net_profit_usd": 100.0, "expectancy_usd": 1.0},
+            {"min_target_hit_rate": 0.50},
+            {"class_collapse": True},
+        )
+        self.assertEqual(tier, "NO_TRADE")
 
     def test_validation_is_research_only(self):
         with tempfile.TemporaryDirectory() as td:
