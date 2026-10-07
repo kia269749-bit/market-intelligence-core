@@ -61,3 +61,5 @@ jobs:
             data/real/${{ matrix.symbol }}_1h.jsonl
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
+
+# research matrix trigger
