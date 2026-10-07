@@ -22,6 +22,27 @@ jobs:
       - name: Run real OOS economic validation
         run: |
           python -m mi_core.cli forecast-validate             --input data/real/btcusdt_1h.jsonl             --horizon 60             --train-window 300             --out reports/real_btcusdt_1h_forecast_validation.json
+      - name: Print OOS economic summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("reports/real_btcusdt_1h_forecast_validation.json")
+          x=json.loads(p.read_text())
+          print(json.dumps({
+              "metadata": x.get("metadata", {}),
+              "prediction_metrics": x.get("prediction_metrics", {}),
+              "capital_metrics": x.get("capital_metrics", {}),
+              "economic_metrics": x.get("economic_metrics", {}),
+              "path_metrics": x.get("path_metrics", {}),
+              "edge_diagnostic": x.get("edge_diagnostic", {}),
+              "integrity_metrics": x.get("integrity_metrics", {}),
+              "gate": x.get("gate", {}),
+              "tier": x.get("tier"),
+              "research_only": x.get("research_only"),
+              "live_orders": x.get("live_orders")
+          }, indent=2, sort_keys=True))
+          PY
       - name: Build dashboard
         run: |
           python -m mi_core.cli dashboard             --report reports/real_btcusdt_1h.json             --out reports/real_btcusdt_1h.html
