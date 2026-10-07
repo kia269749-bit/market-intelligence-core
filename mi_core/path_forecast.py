@@ -223,7 +223,7 @@ def forecast_path(
 def path_to_economic_opportunity(
     path: PathForecast,
     capital_usd: float = 500.0,
-    round_trip_cost_pct: float = 0.35,
+    round_trip_cost_pct: float = 0.0,
     min_profit_usd: float = 4.0,
     preferred_profit_usd: float = 10.0,
 ) -> dict:
