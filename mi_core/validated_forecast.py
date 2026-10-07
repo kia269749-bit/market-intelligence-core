@@ -47,7 +47,7 @@ def _predict(m,x):
     mx=max(q); e=[math.exp(max(-20,min(20,v-mx))) for v in q]; s=sum(e)
     p=[v/s for v in e]; return {cls[k]:p[k] for k in range(3)}
 
-def walk_forward_forecast(bars,horizon=5,train_window=300,min_train=60,flat_band=.0015):
+def walk_forward_forecast(bars,horizon=5,train_window=300,min_train=60,flat_band=.0015,fit_every=1):
     if len(bars)<min_train+25+horizon: return {"available":False,"reason":"insufficient_history","samples":len(bars)}
     preds=[]; correct=resolved=0
     for i in range(max(20,min_train),len(bars)-horizon):
