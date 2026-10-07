@@ -105,8 +105,37 @@ def _metrics(rows, capital):
     }
 
 
+def _directional_metrics(rows):
+    forecasts = [r for r in rows if r["direction"] in ("UP", "DOWN")]
+    correct = [r for r in forecasts if r["directional_move_pct"] > 0]
+    up = [r for r in forecasts if r["direction"] == "UP"]
+    down = [r for r in forecasts if r["direction"] == "DOWN"]
+    flat = [r for r in rows if r["direction"] == "FLAT"]
+    return {
+        "forecast_points": len(rows),
+        "directional_forecasts": len(forecasts),
+        "flat_forecasts": len(flat),
+        "up_forecasts": len(up),
+        "down_forecasts": len(down),
+        "direction_correct": len(correct),
+        "direction_accuracy": len(correct) / len(forecasts) if forecasts else 0.0,
+        "avg_directional_move_pct": (
+            sum(r["directional_move_pct"] for r in forecasts) / len(forecasts)
+            if forecasts else 0.0
+        ),
+    }
+
+
+def _tier_metrics(rows):
+    counts = {}
+    for r in rows:
+        tier = r["tier"]
+        counts[tier] = counts.get(tier, 0) + 1
+    return counts
+
+
 def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
-    results = {h: {"all_candidates": [], "viable": []} for h in HORIZONS}
+    results = {h: {"all_forecasts": [], "viable": []} for h in HORIZONS}
     start = max(min_history - 1, 0)
     end = min(len(bars) - max(HORIZONS) - 1, start + max_eval) if max_eval > 0 else len(bars) - max(HORIZONS) - 1
     for i in range(start, max(start, end) + 1, max(1, step)):
@@ -123,9 +152,11 @@ def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
                 continue
             realized = math.log(bars[j].price / bars[i].price) * 100.0
             direction = f["direction"]
-            if direction not in ("UP", "DOWN"):
-                continue
-            directional = realized if direction == "UP" else -realized
+            directional = (
+                realized if direction == "UP"
+                else -realized if direction == "DOWN"
+                else 0.0
+            )
             net_pnl = capital * (directional - cost_pct) / 100.0
             row = {
                 "ts": bars[i].ts,
@@ -138,16 +169,22 @@ def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
                 "directional_move_pct": directional,
                 "net_pnl_usd": net_pnl,
             }
-            results[h]["all_candidates"].append(row)
+            results[h]["all_forecasts"].append(row)
             if f["tier"] in ("VIABLE", "STRONG"):
                 results[h]["viable"].append(row)
 
     return {
         str(h): {
-            "candidate_metrics": _metrics(v["all_candidates"], capital),
+            "directional_metrics": _directional_metrics(v["all_forecasts"]),
+            "tier_counts": _tier_metrics(v["all_forecasts"]),
             "economic_metrics": _metrics(v["viable"], capital),
-            "candidate_count": len(v["all_candidates"]),
+            "forecast_count": len(v["all_forecasts"]),
             "economic_trade_count": len(v["viable"]),
+            "note": (
+                "directional_metrics evaluate forecast direction only; "
+                "economic_metrics include only VIABLE/STRONG setups after costs. "
+                "No rejected forecast is counted as a trade."
+            ),
         }
         for h, v in results.items()
     }
