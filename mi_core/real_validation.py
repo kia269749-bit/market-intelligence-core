@@ -170,9 +170,14 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                                         min_high_conf_accuracy=0.55,
                                         min_profit_hit_rate=0.30,
                                         preferred_profit_hit_rate=0.15)
-        tier = ("DIAGNOSTIC_ONLY" if not signal_eligible else
-                ("TRADE" if gate.get("accepted") else _opportunity_tier(
-                    prediction_metrics, economic_metrics, capital_metrics, integrity_metrics)))
+        if not signal_eligible:
+            tier = "DIAGNOSTIC_ONLY"
+        elif integrity_metrics.get("class_collapse"):
+            tier = "NO_TRADE"
+        elif gate.get("accepted"):
+            tier = "TRADE"
+        else:
+            tier = _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, integrity_metrics)
         asset_results.append({
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
