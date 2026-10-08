@@ -14,7 +14,20 @@ def _stats(values, wins):
         return {"trades": 0, "net_return_pct": 0.0, "expectancy_pct": 0.0, "win_rate": 0.0, "profit_factor": 0.0}
     gains = sum(v for v in values if v > 0)
     losses = -sum(v for v in values if v < 0)
-    return {"trades": n, "net_return_pct": round(sum(values), 6), "expectancy_pct": round(sum(values) / n, 6), "win_rate": round(wins / n, 6), "profit_factor": round(gains / losses, 6) if losses else float("inf")}
+    equity = peak = 0.0
+    max_drawdown = 0.0
+    for value in values:
+        equity += value
+        peak = max(peak, equity)
+        max_drawdown = max(max_drawdown, peak - equity)
+    return {
+        "trades": n,
+        "net_return_pct": round(sum(values), 6),
+        "expectancy_pct": round(sum(values) / n, 6),
+        "win_rate": round(wins / n, 6),
+        "profit_factor": round(gains / losses, 6) if losses else float("inf"),
+        "max_drawdown_pct": round(max_drawdown, 6),
+    }
 
 def evaluate_order_flow_rows(rows: Iterable[Mapping], *, score_key="flow_score", return_key="future_return_pct", base_key="base_return_pct", threshold=0.20, round_trip_cost_pct=0.35, require_flow_agreement=False):
     """Compare base, flow-only, and base+flow agreement economics after costs."""
