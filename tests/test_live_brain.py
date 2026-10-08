@@ -48,6 +48,20 @@ class LiveBrainTests(unittest.TestCase):
         self.assertIn("dir=UP conf=0.67 expected=1.23%", forecast_line)
         self.assertNotIn("3=0.5", forecast_line)
 
+    def test_forecast_training_excludes_labels_that_reach_prediction_time(self):
+        from mi_core.validated_forecast import _training_indices
+        indices=list(_training_indices(i=100,horizon=5,train_window=30))
+        self.assertEqual(indices[0],70)
+        self.assertEqual(indices[-1],94)
+        self.assertLess(max(indices)+5,100)
+
+    def test_long_horizon_keeps_only_pre_prediction_training_labels(self):
+        from mi_core.validated_forecast import _training_indices
+        indices=list(_training_indices(i=499,horizon=240,train_window=300))
+        self.assertEqual(indices[0],199)
+        self.assertEqual(indices[-1],258)
+        self.assertLess(max(indices)+240,499)
+
     def test_fomo_failure_does_not_fail_cycle(self):
         market={"rows":[{"change_24h_pct":0.0,"price":100}]}
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", side_effect=TimeoutError("fomo timeout")):
