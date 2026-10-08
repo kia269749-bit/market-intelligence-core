@@ -36,9 +36,19 @@ class TestPathForecast(unittest.TestCase):
             self.assertLessEqual(x.target_hit_probability, 1.0)
 
     def test_clock_horizons_handle_irregular_sampling(self):
-        bars = self._bars()
-        for i, bar in enumerate(bars):
-            bar.ts = i * (60 if i % 17 else 180)
+        source = self._bars()
+        bars = [
+            MarketBar(
+                ts=i * (60 if i % 17 else 180),
+                symbol=bar.symbol,
+                price=bar.price,
+                buy_volume=bar.buy_volume,
+                sell_volume=bar.sell_volume,
+                oi=bar.oi,
+                funding=bar.funding,
+            )
+            for i, bar in enumerate(source)
+        ]
         self.assertGreater(time_horizon_bars(bars, 60), 0)
         p = forecast_time_path(bars, minutes=(15, 60, 120))
         self.assertIsNotNone(p)
