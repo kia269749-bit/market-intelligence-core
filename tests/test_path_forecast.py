@@ -1,7 +1,7 @@
 import unittest
 
 from mi_core.models import MarketBar
-from mi_core.path_forecast import forecast_path, path_to_economic_opportunity
+from mi_core.path_forecast import forecast_path, forecast_time_path, path_to_economic_opportunity, time_horizon_bars
 
 
 class TestPathForecast(unittest.TestCase):
@@ -35,6 +35,15 @@ class TestPathForecast(unittest.TestCase):
             self.assertLessEqual(x.lower_return_pct, x.upper_return_pct)
             self.assertLessEqual(x.target_hit_probability, 1.0)
 
+    def test_clock_horizons_handle_irregular_sampling(self):
+        bars = self._bars()
+        for i, bar in enumerate(bars):
+            bar.ts = i * (60 if i % 17 else 180)
+        self.assertGreater(time_horizon_bars(bars, 60), 0)
+        p = forecast_time_path(bars, minutes=(15, 60, 120))
+        self.assertIsNotNone(p)
+        self.assertGreaterEqual(len(p.horizons), 1)
+
     def test_weak_forecast_is_flat_not_fabricated(self):
         p = forecast_path(self._bars())
         self.assertIsNotNone(p)
@@ -52,6 +61,9 @@ class TestPathForecast(unittest.TestCase):
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
         self.assertTrue(all(r["tier"] in {"STRONG", "VIABLE", "WATCH", "REJECT"} for r in result["horizons"]))
+        for r in result["horizons"]:
+            self.assertIn("selected_target_expected_value_pct", r)
+            self.assertIn("selected_target_risk_proxy_pct", r)
 
 
 if __name__ == "__main__":
