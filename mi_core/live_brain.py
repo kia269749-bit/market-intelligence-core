@@ -5,6 +5,7 @@ from .fomo_live import scan_boosted
 from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
 from .trade_economics import evaluate_capital_target
 from .timing_engine import evaluate_entry_timing
+from .order_flow_signal_adapter import build_order_flow_evidence
 
 def _num(v, d=0.0):
     try: return float(v)
@@ -377,6 +378,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     regime=_regime(market)
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
+    order_flow=build_order_flow_evidence(project60, raw_bias)
     votes=[(raw_bias,raw_conf)]
     if p60_bias in ("BULLISH","BEARISH"): votes.append((p60_bias,p60_conf))
     lf=fomo_leader_evidence or {}
@@ -437,7 +439,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     return {"ts":int(time.time()),"market":market,"fomo":fomo,
         "evidence":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
           "project60":{"available":bool(project60 and project60.get("available")),"bias":p60_bias,"confidence":round(p60_conf,4)},
-          "data_quality":quality,"market_data_gate":quality_status,"regime":regime,"microstructure":micro,"combined":combined,
+          "data_quality":quality,"market_data_gate":quality_status,"regime":regime,"microstructure":micro,"order_flow":order_flow,"combined":combined,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False,"candidate_signal":fomo_candidate_signal},
           "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},

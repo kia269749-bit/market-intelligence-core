@@ -1,0 +1,32 @@
+import unittest
+from mi_core.order_flow_economic import evaluate_order_flow_rows, threshold_stability
+
+class OrderFlowEconomicTests(unittest.TestCase):
+    def test_flow_can_show_incremental_edge_after_costs(self):
+        rows = [
+            {"flow_score": 0.8, "base_return_pct": 0.4, "future_return_pct": 0.9},
+            {"flow_score": -0.8, "base_return_pct": 0.2, "future_return_pct": -0.7},
+        ]
+        result = evaluate_order_flow_rows(rows, round_trip_cost_pct=0.35)
+        self.assertEqual(result["flow"]["trades"], 2)
+        self.assertGreater(result["incremental_net_return_pct"], 0.0)
+
+    def test_opportunity_capture_prevents_fake_edge_from_silencing_signals(self):
+        rows = [
+            {"flow_score": 0.8, "base_return_pct": 0.4, "future_return_pct": 0.9},
+            {"flow_score": 0.05, "base_return_pct": 0.4, "future_return_pct": 0.9},
+        ]
+        result = evaluate_order_flow_rows(rows, round_trip_cost_pct=0.10, require_flow_agreement=True)
+        self.assertAlmostEqual(result["opportunity_capture"], 0.5)
+        self.assertFalse(result["recommended"])
+
+    def test_threshold_stability_requires_positive_folds_and_capture(self):
+        rows = [
+            {"flow_score": 0.8, "base_return_pct": 0.4, "future_return_pct": 0.9},
+            {"flow_score": -0.8, "base_return_pct": 0.4, "future_return_pct": -0.9},
+        ]
+        result = threshold_stability([{"rows": rows}, {"rows": rows}, {"rows": rows}])
+        self.assertTrue(result["thresholds"]["0.2"]["stable"])
+
+if __name__ == "__main__":
+    unittest.main()
