@@ -109,3 +109,4 @@ jobs:
           path: reports/multi_asset_oos_summary.json
 
 # research matrix trigger
+# validation trigger: run real multi-asset OOS on branch pushes
