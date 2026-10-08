@@ -414,6 +414,7 @@ def path_to_economic_opportunity(
             "selected_target_pct": selected_target,
             "selected_target_hit_probability": selected_prob,
             "selected_target_net_pct_if_hit": round(target_net_pct, 4),
+            "adverse_move_pct": round(f.adverse_move_pct, 4),
             "selected_target_risk_proxy_pct": round(risk_proxy, 4),
             "selected_target_expected_value_pct": round(selected_target_ev_pct, 4),
             "selected_target_break_even_probability": round(
@@ -426,15 +427,16 @@ def path_to_economic_opportunity(
     best = max(
         rows,
         key=lambda r: (
-            r["expected_net_return_pct"],
+            r["selected_target_expected_value_pct"],
             r["selected_target_hit_probability"],
+            r["selected_target_pct"],
         ),
         default=None,
     )
     long_term = [r for r in rows if r["horizon"] >= 60 and r["tier"] in ("STRONG", "VIABLE", "WATCH")]
     long_best = max(
         long_term,
-        key=lambda r: (r["expected_net_return_pct"], r["selected_target_hit_probability"]),
+        key=lambda r: (r["selected_target_expected_value_pct"], r["selected_target_hit_probability"], r["selected_target_pct"]),
         default=None,
     )
     return {
