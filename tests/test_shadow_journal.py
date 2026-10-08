@@ -58,8 +58,11 @@ class ShadowJournalTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path=str(Path(td)/"shadow.jsonl")
             self.assertFalse(_append_shadow_if_actionable(path,self._snapshot(actionable=False)))
-            self.assertFalse(_append_shadow_if_actionable(path,self._snapshot(approved=False)))
-            self.assertFalse(Path(path).exists())
+            # Capital approval is reporting-only after the capital-independent
+            # edge refactor. A valid forecast must not be strangled by a
+            # dollar-target gate.
+            self.assertTrue(_append_shadow_if_actionable(path,self._snapshot(approved=False)))
+            self.assertEqual(len(Path(path).read_text(encoding="utf-8").splitlines()), 1)
 
     def test_neutral_signal_is_not_appended(self):
         with tempfile.TemporaryDirectory() as td:
