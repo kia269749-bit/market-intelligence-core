@@ -152,7 +152,7 @@ def evaluate(bars, *, capital, cost_pct, step, min_history, max_eval):
         path = forecast_path(history, min_history=min_history)
         if path is None:
             continue
-        econ = path_to_economic_opportunity(path, capital_usd=capital, round_trip_cost_pct=cost_pct)
+        econ = path_to_economic_opportunity(path, round_trip_cost_pct=cost_pct)
         by_h = {x["horizon"]: x for x in econ["horizons"]}
         for h in HORIZONS:
             f = by_h[h]
@@ -225,12 +225,12 @@ def main():
     report = {
         "research_only": True,
         "live_orders": False,
-        "capital_usd": args.capital,
+        "reporting_capital_usd": args.capital,
         "round_trip_cost_pct": args.cost_pct,
         "step_bars": args.step,
         "min_history": args.min_history,
         "horizons": list(HORIZONS),
-        "diagnostics_version": "reject-reasons-v3-target-ladder",
+        "diagnostics_version": "reject-reasons-v4-capital-independent-edge",
         "assets": {},
     }
 
