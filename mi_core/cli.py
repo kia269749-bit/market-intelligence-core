@@ -142,13 +142,26 @@ def _append_shadow_if_actionable(journal_path, snapshot):
                     return False
     except OSError:
         pass
+    target_pct=max(0.0,_num(edge.get("selected_target_pct",0.0)))
+    adverse_pct=max(0.0,_num(selected.get("adverse_move_pct",0.0)))
+    if target_pct<=0.0:
+        return False
+    stop_pct=max(0.10,min(5.0,adverse_pct if adverse_pct>0 else target_pct*0.75))
+    target_price=entry_price*(1.0+target_pct/100.0) if bias=="BULLISH" else entry_price*(1.0-target_pct/100.0)
+    stop_price=entry_price*(1.0-stop_pct/100.0) if bias=="BULLISH" else entry_price*(1.0+stop_pct/100.0)
     signal={
         "signal_id":signal_id,
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
+        "target":target_price,
+        "stop":stop_price,
+        "target_pct":target_pct,
+        "stop_pct":stop_pct,
+        "round_trip_cost_pct":0.35,
+        "capital_usd":500.0,
         "expected_move_pct":edge.get("expected_return_pct",edge.get("expected_move_pct")),
-        "selected_target_pct":edge.get("selected_target_pct"),
+        "selected_target_pct":target_pct,
         "selected_target_hit_probability":edge.get("selected_target_hit_probability"),
         "expected_net_return_pct":edge.get("expected_net_return_pct"),
         "capital_reporting":economics,
