@@ -419,7 +419,8 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     elif quality_status == "UNSAFE":
         combined["actionable"]=False
         no_trade["blocked"]=True
-        if "unsafe_data" not in no_trade.get("reasons",[]):\n            no_trade["reasons"]=list(no_trade.get("reasons",[]))+["unsafe_data"]
+        if "unsafe_data" not in no_trade.get("reasons",[]):
+            no_trade["reasons"]=list(no_trade.get("reasons",[]))+["unsafe_data"]
     if no_trade["blocked"]: combined["actionable"]=False
     if capital_economics.get("available") and not capital_economics.get("approved"):
         combined["actionable"]=False
