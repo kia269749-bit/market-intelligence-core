@@ -288,36 +288,35 @@ def forecast_path(
 
 def path_to_economic_opportunity(
     path: PathForecast,
-    capital_usd: float = 500.0,
     round_trip_cost_pct: float = 0.35,
-    min_profit_usd: float = 4.0,
-    preferred_profit_usd: float = 10.0,
 ) -> dict:
-    """Translate forecast paths into economic opportunity, without forcing a trade."""
-    min_move = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
-    preferred_move = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
+    """Classify market opportunity independently of account capital.
 
+    Capital and dollar-profit targets belong to position sizing/reporting, not
+    to the market-edge gate. The only account-independent economic hurdle here
+    is transaction cost.
+    """
+    cost_pct = max(0.0, float(round_trip_cost_pct))
     rows = []
+
     for f in path.horizons:
-        expected_net = abs(f.expected_return_pct) - round_trip_cost_pct
-        modeled_profit = capital_usd * expected_net / 100.0
         expected_move = abs(f.expected_return_pct)
+        expected_net_pct = expected_move - cost_pct
         ladder = dict(f.target_ladder_probability)
-        eligible_targets = [(t, p) for t, p in f.target_ladder_probability if t >= min_move]
+
+        # A target must clear round-trip cost to represent positive net payoff.
+        eligible_targets = [
+            (t, p) for t, p in f.target_ladder_probability
+            if t > cost_pct
+        ]
         selected_target, selected_prob = max(
             eligible_targets,
             key=lambda x: (x[1], x[0]),
             default=(0.0, 0.0),
         )
-
-        # Economic diagnostics are deliberately separate from the trade gate.
-        # They answer the conditional dollar outcome if the selected target
-        # is actually reached, after round-trip costs.
-        target_net_pct = max(0.0, selected_target - round_trip_cost_pct)
-        target_net_profit_usd = capital_usd * target_net_pct / 100.0
+        target_net_pct = max(0.0, selected_target - cost_pct)
         break_even_target_probability = (
-            round_trip_cost_pct / selected_target
-            if selected_target > 0.0 else 1.0
+            cost_pct / selected_target if selected_target > 0.0 else 1.0
         )
 
         if f.direction == "FLAT":
@@ -329,10 +328,10 @@ def path_to_economic_opportunity(
         elif selected_prob < 0.35:
             tier = "REJECT"
             reject_reason = "LOW_TARGET_HIT_PROBABILITY"
-        elif expected_move < min_move:
+        elif expected_net_pct <= 0.0:
             tier = "REJECT"
-            reject_reason = "INSUFFICIENT_EXPECTED_MOVE"
-        elif selected_prob >= 0.55 and expected_move >= preferred_move:
+            reject_reason = "INSUFFICIENT_NET_EXPECTED_MOVE"
+        elif selected_prob >= 0.55:
             tier = "STRONG"
             reject_reason = ""
         elif selected_prob >= 0.45:
@@ -341,48 +340,47 @@ def path_to_economic_opportunity(
         else:
             tier = "WATCH"
             reject_reason = "WATCH_ONLY"
+
         rows.append({
             "horizon": f.horizon,
             "direction": f.direction,
             "confidence": f.confidence,
             "expected_return_pct": f.expected_return_pct,
             "expected_move_pct": expected_move,
+            "expected_net_return_pct": round(expected_net_pct, 4),
             "target_hit_probability": f.target_hit_probability,
             "target_ladder_probability": {str(k): v for k, v in ladder.items()},
             "selected_target_pct": selected_target,
             "selected_target_hit_probability": selected_prob,
-            "selected_target_gross_profit_usd": round(
-                capital_usd * selected_target / 100.0, 2
-            ),
-            "selected_target_net_profit_if_hit_usd": round(
-                target_net_profit_usd, 2
-            ),
+            "selected_target_net_pct_if_hit": round(target_net_pct, 4),
             "selected_target_break_even_probability": round(
                 break_even_target_probability, 4
             ),
-            "modeled_net_profit_usd": round(modeled_profit, 2),
             "tier": tier,
             "reject_reason": reject_reason,
         })
 
     best = max(
         rows,
-        key=lambda r: (r["modeled_net_profit_usd"], r["target_hit_probability"]),
+        key=lambda r: (
+            r["expected_net_return_pct"],
+            r["selected_target_hit_probability"],
+        ),
         default=None,
     )
     return {
         "best": best,
         "horizons": rows,
-        "minimum_required_move_pct": round(min_move, 4),
-        "preferred_required_move_pct": round(preferred_move, 4),
-        "capital_usd": capital_usd,
-        "round_trip_cost_pct": round_trip_cost_pct,
-        "economic_diagnostics_version": "target-net-payoff-v1",
+        "minimum_required_net_move_pct": round(cost_pct, 4),
+        "round_trip_cost_pct": round(cost_pct, 4),
+        "economic_diagnostics_version": "target-net-payoff-v2-capital-independent",
         "economic_diagnostic_note": (
-            "selected_target_net_profit_if_hit_usd is conditional on target "
-            "being reached; it is not an expected profit or backtest result. "
-            "Do not use it as a trade gate without OOS target/stop validation."
+            "Opportunity classification is independent of account capital and "
+            "dollar-profit targets. Dollar PnL belongs to position sizing/OOS "
+            "reporting. selected_target_net_pct_if_hit is conditional on the "
+            "target being reached and is not an expected profit."
         ),
         "research_only": True,
         "live_orders": False,
     }
+
