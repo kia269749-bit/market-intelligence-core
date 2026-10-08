@@ -64,4 +64,32 @@ jobs:
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
 
+  rank_opportunities:
+    name: Cross-asset economic opportunity ranking
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download OOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: market-intelligence-*-oos
+          merge-multiple: true
+          path: artifact-data
+      - name: Rank real opportunities
+        run: |
+          python tools/real_opportunity_scan.py \
+            --files "BTCUSDT=artifact-data/data/real/BTCUSDT_1h.jsonl,ETHUSDT=artifact-data/data/real/ETHUSDT_1h.jsonl,SOLUSDT=artifact-data/data/real/SOLUSDT_1h.jsonl,BNBUSDT=artifact-data/data/real/BNBUSDT_1h.jsonl,XRPUSDT=artifact-data/data/real/XRPUSDT_1h.jsonl" \
+            --cost-pct 0.35 \
+            --top 5 | tee opportunity_scan.json
+      - name: Upload cross-asset opportunity report
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-opportunity-ranking
+          path: opportunity_scan.json
+
 # research matrix trigger
