@@ -98,17 +98,21 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         return False
     combined=(snapshot.get("evidence") or {}).get("combined") or {}
     economics=snapshot.get("capital_economics") or {}
-    if not combined.get("actionable") or not economics.get("approved"):
+    forecast=(snapshot.get("evidence") or {}).get("forecast") or {}
+    selected=forecast.get("selected") if isinstance(forecast,dict) else {}
+    path_economics=(forecast.get("economic") or {}) if isinstance(forecast,dict) else {}
+    edge=path_economics.get("best") or selected or {}
+    if not combined.get("actionable"):
+        return False
+    if str(edge.get("tier","REJECT")) not in ("STRONG","VIABLE"):
         return False
     bias=str(combined.get("bias","")).upper()
     if bias not in ("BULLISH","BEARISH"):
         return False
-    forecast=(snapshot.get("evidence") or {}).get("forecast") or {}
-    selected=forecast.get("selected") if isinstance(forecast,dict) else {}
     if not isinstance(selected,dict):
         selected={}
-    entry_price=selected.get("current_price")
-    asset=str(forecast.get("asset") or selected.get("asset") or "MARKET")
+    entry_price=forecast.get("current_price") or selected.get("current_price") or edge.get("current_price")
+    asset=str(forecast.get("asset") or selected.get("asset") or edge.get("asset") or "MARKET")
     try:
         entry_price=float(entry_price)
     except (TypeError,ValueError):
@@ -143,10 +147,11 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
-        "expected_move_pct":economics.get("expected_move_pct"),
-        "required_move_pct":economics.get("required_move_pct"),
-        "preferred_required_move_pct":economics.get("preferred_required_move_pct"),
-        "modeled_profit_usd":economics.get("modeled_profit_usd"),
+        "expected_move_pct":edge.get("expected_return_pct",edge.get("expected_move_pct")),
+        "selected_target_pct":edge.get("selected_target_pct"),
+        "selected_target_hit_probability":edge.get("selected_target_hit_probability"),
+        "expected_net_return_pct":edge.get("expected_net_return_pct"),
+        "capital_reporting":economics,
         "confidence":combined.get("confidence"),
         "agreement":combined.get("agreement"),
         "regime":combined.get("regime"),
