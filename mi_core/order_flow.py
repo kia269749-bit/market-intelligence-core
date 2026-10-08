@@ -209,3 +209,177 @@ def flow_regime_features(book: Mapping, trades: Mapping, price_change_bps: float
     if b * t < 0 and abs(b) >= 0.20 and abs(t) >= 0.20:
         return {"regime": "FLOW_CONFLICT"}
     return {"regime": "NEUTRAL_FLOW"}
+
+
+def sweep_features(
+    book: Mapping,
+    trades: Iterable[Mapping],
+    min_levels: int = 2,
+) -> dict:
+    """Detect an executed sweep proxy across multiple displayed price levels.
+
+    This is deliberately conservative: without a full event stream it cannot
+    prove that one actor swept the book. It only detects trades spanning
+    multiple current displayed levels.
+    """
+    if not book.get("valid"):
+        return {"valid": False, "state": "UNKNOWN"}
+
+    if min_levels < 2:
+        raise ValueError("min_levels must be >= 2")
+
+    best_bid = float(book.get("best_bid", 0.0))
+    best_ask = float(book.get("best_ask", 0.0))
+    buy_prices = []
+    sell_prices = []
+
+    for trade in trades or []:
+        try:
+            price = float(trade.get("price", 0.0))
+            qty = float(trade.get("qty", 0.0))
+        except (TypeError, ValueError):
+            continue
+        if price <= 0 or qty <= 0 or not math.isfinite(price) or not math.isfinite(qty):
+            continue
+        side = str(trade.get("side", "")).lower()
+        if not side and "is_buyer_maker" in trade:
+            side = "sell" if bool(trade.get("is_buyer_maker")) else "buy"
+        if side == "buy" and price >= best_ask:
+            buy_prices.append(price)
+        elif side == "sell" and price <= best_bid:
+            sell_prices.append(price)
+
+    buy_levels = len(set(buy_prices))
+    sell_levels = len(set(sell_prices))
+    if buy_levels >= min_levels and buy_levels > sell_levels:
+        state = "BUY_SWEEP_CANDIDATE"
+    elif sell_levels >= min_levels and sell_levels > buy_levels:
+        state = "SELL_SWEEP_CANDIDATE"
+    elif buy_levels >= min_levels and sell_levels >= min_levels:
+        state = "TWO_SIDED_SWEEP_CANDIDATE"
+    else:
+        state = "NONE"
+
+    return {
+        "valid": True,
+        "state": state,
+        "buy_levels": buy_levels,
+        "sell_levels": sell_levels,
+    }
+
+
+def pull_vacuum_proxy(
+    previous: Mapping,
+    current: Mapping,
+    trades: Mapping,
+    threshold: float = 0.35,
+) -> dict:
+    """Estimate displayed-liquidity pulling without claiming true cancellations.
+
+    A large depth loss with little executed volume is a pulling/vacuum proxy.
+    """
+    if not previous.get("valid") or not current.get("valid"):
+        return {"valid": False, "state": "UNKNOWN"}
+
+    if not 0 < threshold < 1:
+        raise ValueError("threshold must be in (0, 1)")
+
+    def change(now: float, old: float) -> float:
+        return (now - old) / old if old > 0 else 0.0
+
+    bid_change = change(
+        float(current.get("bid_depth", 0.0)),
+        float(previous.get("bid_depth", 0.0)),
+    )
+    ask_change = change(
+        float(current.get("ask_depth", 0.0)),
+        float(previous.get("ask_depth", 0.0)),
+    )
+    executed = abs(float(trades.get("trade_imbalance", 0.0)))
+    # Imbalance alone is not volume. Keep this proxy conservative when the
+    # caller only supplies normalized flow and cannot provide notional volume.
+    low_execution_evidence = executed < 0.20
+
+    if low_execution_evidence and bid_change <= -threshold and ask_change > -threshold:
+        state = "BID_PULLING_PROXY"
+    elif low_execution_evidence and ask_change <= -threshold and bid_change > -threshold:
+        state = "ASK_PULLING_PROXY"
+    elif low_execution_evidence and bid_change <= -threshold and ask_change <= -threshold:
+        state = "TWO_SIDED_PULLING_PROXY"
+    else:
+        state = "NONE"
+
+    return {
+        "valid": True,
+        "state": state,
+        "bid_depth_change": bid_change,
+        "ask_depth_change": ask_change,
+        "low_execution_evidence": low_execution_evidence,
+    }
+
+
+def wall_persistence_features(
+    snapshots: Sequence[Mapping],
+    side: str = "bid",
+    wall_multiple: float = 3.0,
+) -> dict:
+    """Measure persistence of unusually large displayed depth across snapshots.
+
+    The function uses the largest level quantity relative to the median level
+    quantity. It is a displayed-liquidity persistence signal, not proof of
+    intent, spoofing, or cancellation.
+    """
+    if side not in {"bid", "ask"}:
+        raise ValueError("side must be bid or ask")
+    if wall_multiple <= 1:
+        raise ValueError("wall_multiple must be > 1")
+
+    hits = 0
+    valid = 0
+    for snapshot in snapshots or []:
+        levels = snapshot.get(f"{side}s") if isinstance(snapshot, Mapping) else None
+        clean = _levels(levels or [])
+        if not clean:
+            continue
+        quantities = sorted(qty for _, qty in clean)
+        median = quantities[len(quantities) // 2]
+        if median <= 0:
+            continue
+        valid += 1
+        if max(quantities) >= median * wall_multiple:
+            hits += 1
+
+    persistence = hits / valid if valid else 0.0
+    state = "PERSISTENT_WALL" if persistence >= 0.60 and valid >= 3 else "NO_PERSISTENT_WALL"
+    return {
+        "valid": valid > 0,
+        "state": state,
+        "valid_snapshots": valid,
+        "wall_hits": hits,
+        "persistence": persistence,
+    }
+
+
+def flow_price_divergence(
+    trade_imbalance: float,
+    price_change_bps: float,
+    threshold: float = 0.30,
+) -> dict:
+    """Flag disagreement between executed flow direction and price movement."""
+    if threshold <= 0:
+        raise ValueError("threshold must be > 0")
+
+    flow = float(trade_imbalance)
+    move = float(price_change_bps)
+    if abs(flow) < threshold or abs(move) < threshold:
+        return {"state": "NONE", "strength": 0.0}
+
+    opposite = (flow > 0 and move < 0) or (flow < 0 and move > 0)
+    if not opposite:
+        return {"state": "ALIGNED", "strength": min(1.0, abs(flow))}
+
+    strength = min(1.0, abs(flow) * abs(move) / (threshold * max(threshold, 3.0)))
+    return {
+        "state": "BUY_FLOW_PRICE_DOWN" if flow > 0 else "SELL_FLOW_PRICE_UP",
+        "strength": strength,
+    }
