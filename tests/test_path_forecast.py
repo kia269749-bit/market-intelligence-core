@@ -45,9 +45,10 @@ class TestPathForecast(unittest.TestCase):
 
     def test_economic_layer_does_not_override_forecast(self):
         p = forecast_path(self._bars())
-        result = path_to_economic_opportunity(p, capital_usd=500.0)
+        result = path_to_economic_opportunity(p, round_trip_cost_pct=0.35)
         self.assertIn("best", result)
-        self.assertEqual(result["capital_usd"], 500.0)
+        self.assertNotIn("capital_usd", result)
+        self.assertNotIn("minimum_required_move_pct", result)
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
         self.assertTrue(all(r["tier"] in {"STRONG", "VIABLE", "WATCH", "REJECT"} for r in result["horizons"]))
