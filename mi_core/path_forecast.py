@@ -19,6 +19,7 @@ from .models import MarketBar
 # horizons. The long horizons are deliberately still validated OOS before they
 # can become actionable.
 HORIZONS = (5, 10, 20, 50, 60, 120)
+TIME_HORIZONS_MINUTES = (15, 30, 60, 120, 240, 480)
 # A longer ladder lets the engine describe TP1/TP2/TP3 rather than forcing every
 # good move into a tiny 1.15% target.
 TARGET_LADDER_PCT = (0.20, 0.40, 0.60, 0.80, 1.00, 1.15, 1.50, 2.00, 3.00, 4.00, 5.00)
@@ -264,6 +265,31 @@ def _forecast_one(bars,horizon,target_move_pct,current,rows,scales):
     )
 
 
+def _recent_median_spacing_seconds(bars: Sequence[MarketBar], window: int = 120) -> float:
+    if len(bars) < 3:
+        return 60.0
+    tail = bars[-window:]
+    deltas = [max(1.0, float(tail[i].ts - tail[i - 1].ts))
+              for i in range(1, len(tail)) if tail[i].ts > tail[i - 1].ts]
+    return statistics.median(deltas) if deltas else 60.0
+
+
+def time_horizon_bars(bars: Sequence[MarketBar], minutes: int) -> int:
+    spacing = _recent_median_spacing_seconds(bars)
+    return max(1, int(round((float(minutes) * 60.0) / spacing)))
+
+
+def forecast_time_path(
+    bars: Sequence[MarketBar],
+    minutes: Iterable[int] = TIME_HORIZONS_MINUTES,
+    min_history: int = 140,
+    target_move_pct: float = 1.15,
+) -> PathForecast | None:
+    """Forecast real-clock horizons despite irregular Project60 sampling."""
+    hs = tuple(sorted({time_horizon_bars(bars, int(m)) for m in minutes if int(m) > 0}))
+    return forecast_path(bars, horizons=hs, min_history=min_history, target_move_pct=target_move_pct)
+
+
 def forecast_path(
     bars: Sequence[MarketBar],
     horizons: Iterable[int] = HORIZONS,
@@ -314,14 +340,21 @@ def path_to_economic_opportunity(
             (t, p) for t, p in f.target_ladder_probability
             if t > cost_pct
         ]
-        selected_target, selected_prob = max(
-            eligible_targets,
-            key=lambda x: (x[1], x[0]),
-            default=(0.0, 0.0),
+        candidates = []
+        for target, prob in eligible_targets:
+            target_net = max(0.0, target - cost_pct)
+            risk_proxy = max(cost_pct, f.adverse_move_pct + cost_pct)
+            ev = prob * target_net - (1.0 - prob) * risk_proxy
+            candidates.append((ev, prob, target, target_net, risk_proxy))
+        _, selected_prob, selected_target, target_net_pct, risk_proxy = max(
+            candidates,
+            key=lambda x: (x[0], x[1], x[2]),
+            default=(0.0, 0.0, 0.0, 0.0, 0.0),
         )
-        target_net_pct = max(0.0, selected_target - cost_pct)
+        selected_target_ev_pct = selected_prob * target_net_pct - (1.0 - selected_prob) * risk_proxy
         break_even_target_probability = (
-            cost_pct / selected_target if selected_target > 0.0 else 1.0
+            risk_proxy / (selected_target + risk_proxy)
+            if selected_target > 0.0 else 1.0
         )
 
         if f.direction == "FLAT":
@@ -333,9 +366,9 @@ def path_to_economic_opportunity(
         elif selected_prob < 0.35:
             tier = "REJECT"
             reject_reason = "LOW_TARGET_HIT_PROBABILITY"
-        elif expected_net_pct <= 0.0:
+        elif selected_target_ev_pct <= 0.0:
             tier = "REJECT"
-            reject_reason = "INSUFFICIENT_NET_EXPECTED_MOVE"
+            reject_reason = "NEGATIVE_TARGET_EXPECTANCY"
         elif selected_prob >= 0.55:
             tier = "STRONG"
             reject_reason = ""
@@ -381,6 +414,8 @@ def path_to_economic_opportunity(
             "selected_target_pct": selected_target,
             "selected_target_hit_probability": selected_prob,
             "selected_target_net_pct_if_hit": round(target_net_pct, 4),
+            "selected_target_risk_proxy_pct": round(risk_proxy, 4),
+            "selected_target_expected_value_pct": round(selected_target_ev_pct, 4),
             "selected_target_break_even_probability": round(
                 break_even_target_probability, 4
             ),
@@ -408,7 +443,7 @@ def path_to_economic_opportunity(
         "horizons": rows,
         "minimum_required_net_move_pct": round(cost_pct, 4),
         "round_trip_cost_pct": round(cost_pct, 4),
-        "economic_diagnostics_version": "target-net-payoff-v2-capital-independent",
+        "economic_diagnostics_version": "target-ev-v3-capital-independent",
         "economic_diagnostic_note": (
             "Opportunity classification is independent of account capital and "
             "dollar-profit targets. Dollar PnL belongs to position sizing/OOS "
