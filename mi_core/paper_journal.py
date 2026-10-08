@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from pathlib import Path
+from .order_flow_journal import attach_order_flow
 
 def append_signal(path: str, signal: dict) -> bool:
     p=Path(path); p.parent.mkdir(parents=True, exist_ok=True)
@@ -19,6 +20,8 @@ def append_signal(path: str, signal: dict) -> bool:
         except OSError:
             return False
     record={"ts":int(time.time()),"status":"OPEN",**signal}
+    if isinstance(signal.get("order_flow"), dict):
+        record=attach_order_flow(record, signal["order_flow"])
     with p.open("a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False)+"\n")
     return True
