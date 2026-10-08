@@ -15,7 +15,7 @@ class MultiExchangeTests(unittest.TestCase):
         self.assertIn("ETHUSDT",DEFAULT_SYMBOLS)
 
     def test_supported_exchanges(self):
-        self.assertEqual(set(EXCHANGES),{"binance","coinbase","kraken","okx"})
+        self.assertEqual(set(EXCHANGES),{"binance","coinbase","kraken","okx","lbank"})
 
     def test_quality_counts_sources_per_symbol_not_total_rows(self):
         symbols=["BTCUSDT","ETHUSDT"]
