@@ -15,8 +15,13 @@ from typing import Iterable, Sequence
 from .models import MarketBar
 
 
-HORIZONS = (5, 10, 20, 50)
-TARGET_LADDER_PCT = (0.20, 0.40, 0.60, 0.80, 1.00, 1.15)
+# Short horizons are for entry timing; 60/120 bars are the position-management
+# horizons. The long horizons are deliberately still validated OOS before they
+# can become actionable.
+HORIZONS = (5, 10, 20, 50, 60, 120)
+# A longer ladder lets the engine describe TP1/TP2/TP3 rather than forcing every
+# good move into a tiny 1.15% target.
+TARGET_LADDER_PCT = (0.20, 0.40, 0.60, 0.80, 1.00, 1.15, 1.50, 2.00, 3.00, 4.00, 5.00)
 
 
 @dataclass(frozen=True)
@@ -341,6 +346,28 @@ def path_to_economic_opportunity(
             tier = "WATCH"
             reject_reason = "WATCH_ONLY"
 
+        profit_ladder = []
+        if f.direction != "FLAT":
+            ordered_targets = sorted(ladder.items(), key=lambda item: float(item[0]))
+            for idx, (target, probability) in enumerate(ordered_targets, 1):
+                target_value = float(target)
+                if target_value <= cost_pct:
+                    continue
+                if probability >= 0.60:
+                    action = "HOLD_FOR_NEXT_LEVEL" if idx > 1 else "TP1_CANDIDATE"
+                elif probability >= 0.45:
+                    action = "TP_PARTIAL_OR_TRAIL"
+                elif probability >= 0.35:
+                    action = "WATCH_LEVEL"
+                else:
+                    action = "LOW_PROBABILITY"
+                profit_ladder.append({
+                    "level": idx,
+                    "target_pct": target_value,
+                    "hit_probability": probability,
+                    "action": action,
+                })
+
         rows.append({
             "horizon": f.horizon,
             "direction": f.direction,
@@ -350,6 +377,7 @@ def path_to_economic_opportunity(
             "expected_net_return_pct": round(expected_net_pct, 4),
             "target_hit_probability": f.target_hit_probability,
             "target_ladder_probability": {str(k): v for k, v in ladder.items()},
+            "profit_ladder": profit_ladder,
             "selected_target_pct": selected_target,
             "selected_target_hit_probability": selected_prob,
             "selected_target_net_pct_if_hit": round(target_net_pct, 4),
@@ -368,8 +396,15 @@ def path_to_economic_opportunity(
         ),
         default=None,
     )
+    long_term = [r for r in rows if r["horizon"] >= 60 and r["tier"] in ("STRONG", "VIABLE", "WATCH")]
+    long_best = max(
+        long_term,
+        key=lambda r: (r["expected_net_return_pct"], r["selected_target_hit_probability"]),
+        default=None,
+    )
     return {
         "best": best,
+        "long_term_best": long_best,
         "horizons": rows,
         "minimum_required_net_move_pct": round(cost_pct, 4),
         "round_trip_cost_pct": round(cost_pct, 4),
