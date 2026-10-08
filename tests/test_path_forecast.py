@@ -27,7 +27,7 @@ class TestPathForecast(unittest.TestCase):
     def test_multihorizon_is_available_and_bounded(self):
         p = forecast_path(self._bars())
         self.assertIsNotNone(p)
-        self.assertEqual(tuple(x.horizon for x in p.horizons), (5, 10, 20, 50))
+        self.assertEqual(tuple(x.horizon for x in p.horizons), (5, 10, 20, 50, 60, 120))
         for x in p.horizons:
             self.assertGreaterEqual(x.confidence, 0.0)
             self.assertLessEqual(x.confidence, 0.90)
