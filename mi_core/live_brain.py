@@ -468,10 +468,20 @@ def print_live(snapshot):
     fc=e.get("forecast",{})
     if fc.get("available"):
         h=fc.get("horizons",{})
-        print("FORECAST {} | 3={} 1H={} 4H={} | reversal={} breakout_prob={:.0f}%".format(
-            fc.get("asset","BTC"), h.get("3_snapshots",{}).get("up",.5),
-            h.get("1_hour",{}).get("up",.5), h.get("4_hours",{}).get("up",.5),
-            fc.get("early_reversal",False), fc.get("breakout_probability",.5)*100))
+        # Validated forecast uses 5/15/60/240 keys and p_up/p_down.
+        # Keep legacy momentum+volatility output compatible as a fallback.
+        f5=h.get("5") or h.get("3_snapshots") or {}
+        f60=h.get("60") or h.get("1_hour") or {}
+        f240=h.get("240") or h.get("4_hours") or {}
+        selected=fc.get("selected") or {}
+        p5=f5.get("p_up",f5.get("up",.5))
+        p60=f60.get("p_up",f60.get("up",.5))
+        p240=f240.get("p_up",f240.get("up",.5))
+        print("FORECAST {} | 5={} 1H={} 4H={} | dir={} conf={:.2f} expected={:.2f}% | reversal={} breakout_prob={:.0f}%".format(
+            fc.get("asset","BTC"), p5, p60, p240,
+            selected.get("direction","UNKNOWN"), _num(selected.get("confidence"),0.0),
+            _num(selected.get("expected_return_pct"),0.0),
+            fc.get("early_reversal",False), _num(fc.get("breakout_probability"),.5)*100))
 
     for i,row in enumerate(e["fomo"]["top"],1):
         print("  FOMO#{} {} score={} vol={:,.0f} chg={:.2f}%".format(i,row.get("token"),row.get("fomo_score"),row.get("volume_24h_usd",0),row.get("price_change_24h_pct",0)))
