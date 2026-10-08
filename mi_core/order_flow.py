@@ -202,12 +202,14 @@ def flow_regime_features(book: Mapping, trades: Mapping, price_change_bps: float
     t = float(trades.get("trade_imbalance", 0.0))
     p = float(price_change_bps)
 
+    # Opposing displayed depth and executed flow is a conflict even when
+    # price has not moved far enough to qualify as a trend.
+    if b * t < 0 and abs(b) >= 0.20 and abs(t) >= 0.20:
+        return {"regime": "FLOW_CONFLICT"}
     if abs(t) >= 0.45 and abs(p) <= 3.0:
         return {"regime": "ABSORPTION_CANDIDATE"}
     if abs(b) >= 0.25 and abs(t) >= 0.25 and b * t > 0 and abs(p) >= 3.0:
         return {"regime": "FLOW_TREND"}
-    if b * t < 0 and abs(b) >= 0.20 and abs(t) >= 0.20:
-        return {"regime": "FLOW_CONFLICT"}
     return {"regime": "NEUTRAL_FLOW"}
 
 
