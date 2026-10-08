@@ -5,7 +5,7 @@ def test_empty_is_safe():
     out = build_order_flow_evidence()
     assert out["available"] is False
     assert out["score"] == 0.0
-    assert out["used_as_vote"] is None if "used_as_vote" in out else True
+    assert "used_as_vote" not in out
 
 
 def test_project60_flow_is_bounded_and_not_a_vote():
