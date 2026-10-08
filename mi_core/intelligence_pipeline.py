@@ -62,8 +62,11 @@ def analyze_market(bars:Sequence,*,volume_history:Sequence[float]|None=None,trad
         edge_over_cost=None, named_reason=named_reason,
         regime=(macro_report or {}).get("regime", "UNKNOWN") if isinstance(macro_report, dict) else "UNKNOWN",
     )
+    # Do NOT hard-gate the signal on Arena evidence. Its live/paper results are
+    # regime- and model-dependent, so this remains advisory until our own OOS
+    # tests prove incremental net edge after costs.
     gate["arena_discipline"] = arena_discipline
-    gate["eligible"] = bool(gate["eligible"] and arena_discipline["eligible"])
+    gate["arena_advisory"] = arena_discipline["eligible"]
     meme_report=None
     if meme is not None:
       meme_report=asdict(score_meme_candidate(meme.get("token",bar.symbol),liquidity_usd=float(meme["liquidity_usd"]),volume_24h_usd=float(meme["volume_24h_usd"]),
