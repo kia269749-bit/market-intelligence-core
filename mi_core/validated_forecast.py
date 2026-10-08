@@ -219,7 +219,7 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         "resolved": resolved,
         "accuracy": round(correct / resolved, 6) if resolved else 0,
         "predictions": preds,
-        "model_version": "wf-logit-v2",
+        "model_version": "wf-logit-v3-no-leak",
         "research_only": True,
         "live_orders": False,
     }
@@ -265,7 +265,7 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
         "reversal_warning": reversal,
         "breakout_probability": round(breakout, 4),
         "current_move_pct": round(current_move_pct, 4),
-        "model_version": "wf-logit-v2",
+        "model_version": "wf-logit-v3-no-leak",
         "research_only": True,
         "live_orders": False,
     }
