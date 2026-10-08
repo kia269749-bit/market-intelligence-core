@@ -161,9 +161,10 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
     path_result=forecast_path(bars, horizons=(5,10,20,50), min_history=140)
     if path_result is None:
         return {"available":False,"reason":"insufficient_history","samples":len(bars)}
-    economics=path_to_economic_opportunity(path_result, capital_usd=500.0,
-                                           round_trip_cost_pct=0.35,
-                                           min_profit_usd=4.0, preferred_profit_usd=10.0)
+    economics=path_to_economic_opportunity(
+        path_result,
+        round_trip_cost_pct=0.35,
+    )
     return {
         "available":True, "asset":asset, "samples":len(bars),
         "price":path_result.price, "regime":path_result.regime,
