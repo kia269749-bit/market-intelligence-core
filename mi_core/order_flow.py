@@ -135,3 +135,77 @@ def flow_confluence(book: Mapping, trades: Mapping) -> dict:
         "direction": direction,
         "quality": "CONFIRMED" if abs(b) >= 0.15 and abs(t) >= 0.15 and b * t > 0 else "MIXED",
     }
+def liquidity_event_features(
+    previous: Mapping,
+    current: Mapping,
+    trades: Mapping,
+    price_change_bps: float | None = None,
+) -> dict:
+    """Detect simple absorption/vacuum states from consecutive L2 snapshots.
+
+    These are evidence features only. They do not emit orders.
+    """
+    if not previous.get("valid") or not current.get("valid"):
+        return {"valid": False, "state": "UNKNOWN"}
+
+    bid_prev = max(float(previous.get("bid_depth", 0.0)), 0.0)
+    ask_prev = max(float(previous.get("ask_depth", 0.0)), 0.0)
+    bid_now = max(float(current.get("bid_depth", 0.0)), 0.0)
+    ask_now = max(float(current.get("ask_depth", 0.0)), 0.0)
+
+    def pct_change(now: float, old: float) -> float:
+        return (now - old) / old if old > 0 else 0.0
+
+    bid_delta = pct_change(bid_now, bid_prev)
+    ask_delta = pct_change(ask_now, ask_prev)
+    flow = float(trades.get("trade_imbalance", 0.0))
+    move = float(price_change_bps or 0.0)
+
+    # Large aggressive flow with little price movement is a useful absorption
+    # candidate, not proof of hidden liquidity.
+    buy_absorption = flow >= 0.45 and abs(move) <= 3.0 and bid_now > 0
+    sell_absorption = flow <= -0.45 and abs(move) <= 3.0 and ask_now > 0
+
+    # A sharp loss of displayed depth is a liquidity-vacuum candidate.
+    bid_vacuum = bid_delta <= -0.35
+    ask_vacuum = ask_delta <= -0.35
+
+    if buy_absorption:
+        state = "BUY_ABSORPTION"
+    elif sell_absorption:
+        state = "SELL_ABSORPTION"
+    elif bid_vacuum and ask_vacuum:
+        state = "TWO_SIDED_VACUUM"
+    elif bid_vacuum:
+        state = "BID_VACUUM"
+    elif ask_vacuum:
+        state = "ASK_VACUUM"
+    else:
+        state = "NORMAL"
+
+    return {
+        "valid": True,
+        "state": state,
+        "bid_depth_change": bid_delta,
+        "ask_depth_change": ask_delta,
+        "price_change_bps": move,
+        "trade_imbalance": flow,
+    }
+
+
+def flow_regime_features(book: Mapping, trades: Mapping, price_change_bps: float) -> dict:
+    """Classify flow as trend/absorption/conflict/liquidity-neutral evidence."""
+    if not book.get("valid"):
+        return {"regime": "UNKNOWN"}
+
+    b = float(book.get("depth_imbalance", 0.0))
+    t = float(trades.get("trade_imbalance", 0.0))
+    p = float(price_change_bps)
+
+    if abs(t) >= 0.45 and abs(p) <= 3.0:
+        return {"regime": "ABSORPTION_CANDIDATE"}
+    if abs(b) >= 0.25 and abs(t) >= 0.25 and b * t > 0 and abs(p) >= 3.0:
+        return {"regime": "FLOW_TREND"}
+    if b * t < 0 and abs(b) >= 0.20 and abs(t) >= 0.20:
+        return {"regime": "FLOW_CONFLICT"}
+    return {"regime": "NEUTRAL_FLOW"}
