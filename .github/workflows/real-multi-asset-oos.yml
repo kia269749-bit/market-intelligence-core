@@ -3,7 +3,7 @@ name: Real Multi-Asset OOS Research
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'feat/opportunity-preserving-profit-gate']
 
 jobs:
   validate:
