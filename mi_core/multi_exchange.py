@@ -5,7 +5,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 DEFAULT_SYMBOLS = ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","AVAXUSDT","LINKUSDT","TRXUSDT"]
-EXCHANGES = ("binance","coinbase","kraken","okx")
+EXCHANGES = ("binance","coinbase","kraken","okx","lbank")
 MIN_SOURCES_PER_SYMBOL = 2
 
 def _get_json(url, params=None, timeout=8):
@@ -40,6 +40,14 @@ def _kraken(symbol):
     row=next(iter(data["result"].values()))
     return {"exchange":"kraken","symbol":symbol.upper(),"price":float(row["c"][0]),"volume_24h":float(row["v"][1]),"change_24h_pct":None,"timestamp":time.time()}
 
+def _lbank(symbol):
+    base=_base(symbol).lower()
+    data=_get_json("https://api.lbkex.com/v2/ticker.do", {"symbol":f"{base}_usdt"})
+    if not isinstance(data,list) or not data: raise RuntimeError("LBank empty ticker response")
+    row=data[0].get("ticker",{})
+    if not row or "latest" not in row: raise RuntimeError("LBank invalid ticker response")
+    return {"exchange":"lbank","symbol":symbol.upper(),"price":float(row["latest"]),"volume_24h":float(row.get("vol",0.0)),"change_24h_pct":None,"timestamp":time.time()}
+
 def _okx(symbol):
     base=_base(symbol)
     data=_get_json("https://www.okx.com/api/v5/market/ticker", {"instId":f"{base}-USDT"})
@@ -47,7 +55,7 @@ def _okx(symbol):
     row=data["data"][0]
     return {"exchange":"okx","symbol":symbol.upper(),"price":float(row["last"]),"volume_24h":float(row.get("vol24h",0.0)),"change_24h_pct":None,"timestamp":time.time()}
 
-FETCHERS={"binance":_binance,"coinbase":_coinbase,"kraken":_kraken,"okx":_okx}
+FETCHERS={"binance":_binance,"coinbase":_coinbase,"kraken":_kraken,"okx":_okx,"lbank":_lbank}
 
 def _build_quality(symbols, exchanges, rows, errors):
     expected=len(symbols)*len(exchanges)
