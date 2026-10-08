@@ -178,6 +178,8 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
         } for x in path_result.horizons],
         "economic":economics,
         "selected":economics.get("best") or {},
+        "long_term_selected":economics.get("long_term_best") or {},
+        "profit_ladder":(economics.get("best") or {}).get("profit_ladder", []),
         "current_price":path_result.price,
         "method":"strictly-historical multi-horizon path forecast",
         "research_only":True, "live_orders":False
