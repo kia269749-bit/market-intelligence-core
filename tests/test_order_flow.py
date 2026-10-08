@@ -46,3 +46,19 @@ class OrderFlowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_absorption_candidate(self):
+        prev = order_book_features([[100, 10]], [[101, 10]])
+        cur = order_book_features([[100, 11]], [[101, 10]])
+        trades = trade_flow_features([{"qty": 9, "side": "buy"}, {"qty": 1, "side": "sell"}])
+        from mi_core.order_flow import liquidity_event_features
+        result = liquidity_event_features(prev, cur, trades, price_change_bps=1.0)
+        self.assertEqual(result["state"], "BUY_ABSORPTION")
+
+    def test_flow_conflict_regime(self):
+        from mi_core.order_flow import flow_regime_features
+        book = order_book_features([[100, 1]], [[101, 4]])
+        trades = trade_flow_features([{"qty": 5, "side": "buy"}, {"qty": 1, "side": "sell"}])
+        result = flow_regime_features(book, trades, price_change_bps=0.5)
+        self.assertEqual(result["regime"], "FLOW_CONFLICT")
