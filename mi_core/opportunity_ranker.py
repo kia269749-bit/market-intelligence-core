@@ -31,7 +31,8 @@ def score_opportunity(candidate: dict, *, cost_pct: float = 0.35) -> dict:
     adverse = max(0.0, _f(c.get("adverse_move_pct")))
     expected = _f(c.get("expected_return_pct", c.get("expected_move_pct")))
     confidence = max(0.0, min(1.0, _f(c.get("confidence"))))
-    agreement = max(0.0, min(1.0, _f(c.get("agreement"))))
+    agreement_raw = c.get("agreement", None)
+    agreement = 0.50 if agreement_raw is None else max(0.0, min(1.0, _f(agreement_raw)))
     quality = max(0.0, min(1.0, _f(c.get("data_quality", c.get("quality")) or 0.0)))
     if quality == 0.0 and c.get("quality_status") in ("SAFE", "HEALTHY"):
         quality = 1.0
@@ -55,7 +56,7 @@ def score_opportunity(candidate: dict, *, cost_pct: float = 0.35) -> dict:
                 "risk_proxy_pct": round(risk_proxy, 4)}
 
     regime = str(c.get("regime", "")).upper()
-    regime_factor = 0.85 if regime == "HIGH_VOLATILITY" else 0.93 if regime == "MIXED" else 1.0
+    regime_factor = 0.85 if regime in ("HIGH_VOLATILITY", "HIGH_VOL") else 0.93 if regime == "MIXED" else 1.0
     evidence_factor = 0.60 + 0.40 * ((confidence + agreement + quality) / 3.0)
     risk_factor = 1.0 / (1.0 + max(0.0, adverse) / max(target, 0.10))
     score = max(0.0, ev) * evidence_factor * regime_factor * risk_factor
