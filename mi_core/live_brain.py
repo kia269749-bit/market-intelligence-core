@@ -158,7 +158,7 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
                 continue
     except OSError:
         return {"available":False,"reason":"history_read_error"}
-    path_result=forecast_path(bars, horizons=(5,10,20,50), min_history=140)
+    path_result=forecast_path(bars, horizons=(5,10,20,50,60,120), min_history=140)
     if path_result is None:
         return {"available":False,"reason":"insufficient_history","samples":len(bars)}
     economics=path_to_economic_opportunity(
