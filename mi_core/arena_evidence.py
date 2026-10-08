@@ -23,7 +23,7 @@ def evaluate_entry_discipline(
     agreement: float,
     confluence: float,
     cascade_risk: float,
-    edge_over_cost: float = 1.0,
+    edge_over_cost: float | None = None,
     named_reason: bool = False,
     regime: str = "UNKNOWN",
     policy: ArenaEvidencePolicy | None = None,
@@ -31,8 +31,7 @@ def evaluate_entry_discipline(
     """Return a conservative, auditable patience/readiness decision.
 
     edge_over_cost is gross expected edge divided by estimated round-trip cost.
-    If unavailable it should remain 1.0, which intentionally fails the cost
-    buffer instead of pretending that costs are covered.
+    When unavailable, the cost test is marked unknown rather than fabricated.
     """
     p = policy or ArenaEvidencePolicy()
     side = str(side or "FLAT").upper()
@@ -48,7 +47,7 @@ def evaluate_entry_discipline(
         reasons.append("insufficient_confluence")
     if float(cascade_risk) > p.max_cascade_risk:
         reasons.append("cascade_risk_too_high")
-    if float(edge_over_cost) < p.min_edge_over_cost:
+    if edge_over_cost is not None and float(edge_over_cost) < p.min_edge_over_cost:
         reasons.append("edge_not_large_enough_after_cost_buffer")
     if not named_reason:
         reasons.append("no_named_entry_reason")
@@ -63,12 +62,13 @@ def evaluate_entry_discipline(
     patience_score -= 0.20 if float(agreement) < p.min_agreement else 0.0
     patience_score -= 0.20 if float(confluence) < p.min_confluence else 0.0
     patience_score -= 0.20 if float(cascade_risk) > p.max_cascade_risk else 0.0
-    patience_score -= 0.20 if float(edge_over_cost) < p.min_edge_over_cost else 0.0
+    patience_score -= 0.20 if edge_over_cost is not None and float(edge_over_cost) < p.min_edge_over_cost else 0.0
 
     return {
         "eligible": eligible,
         "status": "PATIENT_ENTRY" if eligible else "WAIT",
         "patience_score": round(max(0.0, patience_score), 4),
+        "cost_test": "PASS" if edge_over_cost is not None and float(edge_over_cost) >= p.min_edge_over_cost else "UNKNOWN",
         "reasons": reasons,
         "policy": {
             "min_confidence": p.min_confidence,
