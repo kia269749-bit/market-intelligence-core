@@ -28,7 +28,7 @@ class ShadowJournalTests(unittest.TestCase):
                     "regime": "TREND",
                 },
                 "data_quality": {"status": "HEALTHY"},
-                "forecast": {"available": True, "asset": "BTC", "direction": "UP", "selected": {"current_price": 100.0, "asset": "BTC"}},
+                "forecast": {"available": True, "asset": "BTC", "direction": "UP", "current_price": 100.0, "economic": {"best": {"tier": "STRONG", "direction": "UP", "expected_return_pct": 2.5, "selected_target_pct": 1.15, "selected_target_hit_probability": 0.80, "expected_net_return_pct": 2.15}}, "selected": {"current_price": 100.0, "asset": "BTC", "direction": "UP", "confidence": 0.80, "adverse_move_pct": 0.5}},
             },
         }
 
