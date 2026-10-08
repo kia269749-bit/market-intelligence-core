@@ -22,6 +22,13 @@ from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
 
+def _num(value, default=0.0):
+    try:
+        value=float(value)
+        return value if math.isfinite(value) else default
+    except (TypeError, ValueError):
+        return default
+
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
     for i in range(240):
