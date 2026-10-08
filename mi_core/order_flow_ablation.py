@@ -58,12 +58,17 @@ def evaluate_oos_ablation(
                 "incremental_expectancy_pct": result["filter_incremental_expectancy_pct"],
                 "opportunity_capture": result["opportunity_capture"],
             })
-        valid = [x for x in fold_results if x["base_trades"] and x["filtered_trades"]]
+        valid = [x for x in fold_results if x["base_trades"]]
         positive = [x for x in valid if x["incremental_expectancy_pct"] > 0]
         capture = sum(x["opportunity_capture"] for x in valid) / len(valid) if valid else 0.0
         inc = sum(x["incremental_expectancy_pct"] for x in valid) / len(valid) if valid else 0.0
+        base_trades = sum(x["base_trades"] for x in valid)
+        filtered_trades = sum(x["filtered_trades"] for x in valid)
+        base_net = sum(x["base_net_return_pct"] for x in valid)
+        filtered_net = sum(x["filtered_net_return_pct"] for x in valid)
         stable = bool(
             len(valid) >= 3
+            and filtered_trades > 0
             and len(positive) / len(valid) >= 0.60
             and inc > 0
             and capture >= min_opportunity_capture
@@ -71,6 +76,10 @@ def evaluate_oos_ablation(
         out[str(threshold)] = {
             "folds": fold_results,
             "evaluated_folds": len(valid),
+            "base_trades_total": base_trades,
+            "filtered_trades_total": filtered_trades,
+            "base_net_return_pct_total": round(base_net, 6),
+            "filtered_net_return_pct_total": round(filtered_net, 6),
             "positive_fold_rate": round(len(positive) / len(valid), 6) if valid else 0.0,
             "mean_incremental_expectancy_pct": round(inc, 6),
             "mean_opportunity_capture": round(capture, 6),
