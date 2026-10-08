@@ -1,7 +1,35 @@
 {
-  "costs": {"fee_bps": 5.0, "slippage_bps": 3.0, "latency_bars": 1},
-  "risk": {"max_position": 0.25, "max_drawdown": 0.15, "kill_switch_drawdown": 0.20},
-  "validation": {"min_trades": 30, "min_profit_factor": 1.10, "min_expectancy": 0.0},
-  "signals": {"entry_threshold": 0.60, "adaptive_window": 100},
-  "regimes": {"trend_window": 20, "vol_window": 20}
+  "costs": {
+    "fee_bps": 5,
+    "slippage_bps": 3,
+    "latency_bars": 1
+  },
+  "risk": {
+    "max_position": 0.25,
+    "max_drawdown": 0.15,
+    "kill_switch_drawdown": 0.2
+  },
+  "validation": {
+    "min_trades": 30,
+    "min_profit_factor": 1.1,
+    "min_expectancy": 0
+  },
+  "signals": {
+    "entry_threshold": 0.6,
+    "adaptive_window": 100
+  },
+  "regimes": {
+    "trend_window": 20,
+    "vol_window": 20
+  },
+  "opportunity_selection": {
+    "min_direction_confidence": 0.52,
+    "min_data_quality": 0.6,
+    "cost_safety_multiplier": 1.15,
+    "strong_score": 0.78,
+    "good_score": 0.66,
+    "watch_score": 0.54,
+    "live_orders": false,
+    "research_only": true
+  }
 }

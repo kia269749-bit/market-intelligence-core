@@ -3,7 +3,7 @@ name: Real Multi-Asset OOS Research
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'feat/opportunity-preserving-profit-gate']
 
 jobs:
   validate:
@@ -62,4 +62,51 @@ jobs:
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
 
+  aggregate-oos:
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download all OOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: market-intelligence-*-oos
+          path: oos-artifacts
+      - name: Aggregate comparable OOS metrics
+        run: |
+          mkdir -p reports
+          files=$(find oos-artifacts -type f -name '*_1h_forecast_validation.json' | sort)
+          test -n "$files"
+          python -m mi_core.oos_aggregate reports/multi_asset_oos_summary.json $files
+      - name: Print final research summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path("reports/multi_asset_oos_summary.json").read_text())
+          print(json.dumps({
+            "assets":x["assets"],
+            "total_samples":x["total_samples"],
+            "weighted_direction_correct_rate":x["weighted_direction_correct_rate"],
+            "weighted_high_conf_accuracy":x["weighted_high_conf_accuracy"],
+            "weighted_expectancy_usd":x["weighted_expectancy_usd"],
+            "total_net_profit_usd":x["total_net_profit_usd"],
+            "weighted_usd4_hit_rate":x["weighted_usd4_hit_rate"],
+            "weighted_usd10_hit_rate":x["weighted_usd10_hit_rate"],
+            "accepted_assets":x["accepted_assets"],
+            "research_only":x["all_research_only"],
+            "live_orders":x["live_orders"]
+          },sort_keys=True))
+          PY
+      - name: Publish aggregate report
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-multi-asset-oos-summary
+          path: reports/multi_asset_oos_summary.json
+
 # research matrix trigger
+# validation trigger: run real multi-asset OOS on branch pushes

@@ -19,6 +19,7 @@ from .shadow_performance import summarize_performance, format_performance_line
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 from .multi_asset_forecast import scan_project60, load_project60_assets
 from .context_brain import analyze_market_context
+from .monte_carlo import monte_carlo_bootstrap
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
 
@@ -196,6 +197,17 @@ def main():
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window,fit_every=10)
         result["metrics"]=score_predictions(result)
         result["economic_edge"]=diagnose_economic_edge(result)
+        # Diagnostic only: stress the directional OOS return population. It is not an executable trade backtest.
+        directional_returns=[]
+        for row in result.get("predictions",[]):
+            if row.get("pred") in (-1,1) and row.get("actual_return_pct") is not None:
+                r=float(row["actual_return_pct"])/100.0
+                directional_returns.append(r if row["pred"]==1 else -r)
+        if directional_returns:
+            mc=monte_carlo_bootstrap(directional_returns,simulations=2000,seed=42)
+            result["monte_carlo_diagnostic"]={"simulations":mc.simulations,"seed":mc.seed,"mean_return":round(mc.mean_return,6),"p05_return":round(mc.p05_return,6),"median_return":round(mc.median_return,6),"p95_return":round(mc.p95_return,6),"probability_of_loss":round(mc.probability_of_loss,6),"probability_of_positive":round(mc.probability_of_positive,6),"p95_max_drawdown":round(mc.p95_max_drawdown,6),"diagnostic_only":True}
+        else:
+            result["monte_carlo_diagnostic"]={"available":False,"reason":"no_directional_oos_returns","diagnostic_only":True}
         result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})

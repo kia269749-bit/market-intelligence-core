@@ -30,12 +30,16 @@ def _percentile(values: Sequence[float], q: float) -> float:
     return ordered[lo] + (ordered[hi] - ordered[lo]) * (pos - lo)
 
 def _path_metrics(returns: Sequence[float]) -> tuple[float, float]:
+    # Use simple additive trade returns, not compounded hourly-bar returns.
+    # Compounding thousands of forecast-bar returns can create meaningless
+    # astronomical diagnostics that are not comparable with the OOS economics.
     equity = peak = 1.0
     max_dd = 0.0
     for r in returns:
-        equity *= 1.0 + r
+        equity += r
         peak = max(peak, equity)
-        max_dd = max(max_dd, (peak - equity) / peak)
+        if peak > 0:
+            max_dd = max(max_dd, (peak - equity) / peak)
     return equity - 1.0, max_dd
 
 def monte_carlo_bootstrap(trade_returns: Sequence[float], *, simulations: int = 2000, seed: int = 42) -> MonteCarloResult:
