@@ -63,3 +63,4 @@ jobs:
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
 
 # research matrix trigger
+# validation trigger: real multi-asset OOS run
