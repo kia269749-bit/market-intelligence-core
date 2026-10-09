@@ -87,6 +87,15 @@ jobs:
                 --out "reports/${{ matrix.symbol }}_strategy_screen_h${horizon}_c${cost_tag}.json"
             done
           done
+      - name: Screen ATR stop-target exits on training-selected entry families
+        run: |
+          for cost in 0.35 0.50; do
+            cost_tag=$(printf '%s' "${cost}" | tr '.' 'p')
+            PYTHONPATH=. python tools/regime_exit_tournament.py \
+              --input data/real/${{ matrix.symbol }}_1h.jsonl \
+              --horizon 24 --cost-pct "${cost}" --holdout-bars 1000 \
+              --out "reports/${{ matrix.symbol }}_exit_screen_h24_c${cost_tag}.json"
+          done
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -123,6 +132,7 @@ jobs:
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
             reports/${{ matrix.symbol }}_adaptive_selector_oos.json
             reports/${{ matrix.symbol }}_strategy_screen_h*.json
+            reports/${{ matrix.symbol }}_exit_screen_h*.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
