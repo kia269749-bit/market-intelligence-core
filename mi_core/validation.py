@@ -2,6 +2,7 @@
 from __future__ import annotations
 import math
 import random
+from dataclasses import asdict
 from typing import Sequence
 
 def metrics(result):
