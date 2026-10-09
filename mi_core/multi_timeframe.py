@@ -164,7 +164,7 @@ def fetch_multi_timeframe(symbol="BTCUSDT", intervals=("5m", "1h", "4h"), limit=
         return interval, rows_to_bars(raw, symbol)
     with ThreadPoolExecutor(max_workers=min(3, len(intervals))) as pool:
         futures = {pool.submit(fetch_one, interval): interval for interval in intervals}
-        for future in as_completed(futures, timeout=timeout + 1.0):
+        for future in as_completed(futures):
             interval = futures[future]
             try:
                 name, bars = future.result()
@@ -177,5 +177,6 @@ def fetch_multi_timeframe(symbol="BTCUSDT", intervals=("5m", "1h", "4h"), limit=
     result["cache_ttl_seconds"] = _CACHE_TTL_SECONDS
     result["research_only"] = True
     result["live_orders"] = False
-    _CACHE[key] = (time.monotonic(), result)
+    cache_time = time.monotonic()
+    _CACHE[key] = (cache_time if result.get("available") else cache_time - (_CACHE_TTL_SECONDS - 15.0), result)
     return result
