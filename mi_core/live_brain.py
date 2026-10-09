@@ -201,6 +201,11 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
     path_result=forecast_path(bars, horizons=(5,10,20,50), min_history=140)
     if path_result is None:
         return {"available":False,"reason":"insufficient_history","samples":len(bars)}
+    from .adaptive_selector import evaluate_adaptive_selection
+    adaptive=evaluate_adaptive_selection(
+        bars, horizon=20, cost_pct=0.35,
+        train_window=min(600,max(120,len(bars)//2)),
+        min_train_trades=12, min_oos_trades=12)
     economics=path_to_economic_opportunity(path_result, capital_usd=500.0,
                                            round_trip_cost_pct=0.35,
                                            min_profit_usd=4.0, preferred_profit_usd=10.0)
@@ -218,7 +223,8 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
         } for x in path_result.horizons],
         "economic":economics,
         "selected":economics.get("best") or {},
-        "method":"strictly-historical multi-horizon path forecast",
+        "adaptive_validation":adaptive,
+        "method":"strictly-historical multi-horizon path forecast + cost-aware rolling strategy tournament",
         "research_only":True, "live_orders":False
     }
 
@@ -498,6 +504,16 @@ def _forecast_alignment_gate(forecast, market_bias):
     if direction != bias:
         result.update(state="CONFLICT",reason="forecast_direction_conflict")
         return result
+    adaptive=forecast.get("adaptive_validation")
+    if isinstance(adaptive,dict):
+        if not adaptive.get("accepted"):
+            reasons=adaptive.get("reasons") or ["walk_forward_edge_not_proven"]
+            result.update(state="EDGE_UNPROVEN",reason="adaptive_edge_not_proven:"+str(reasons[0]))
+            return result
+        adaptive_direction=str(adaptive.get("direction","")).upper()
+        if adaptive_direction not in (direction,""):
+            result.update(state="ADAPTIVE_CONFLICT",reason="adaptive_strategy_direction_conflict")
+            return result
     if tier not in ("STRONG","VIABLE"):
         result.update(state="TIER_REJECT",reason="forecast_tier_not_actionable")
         return result
