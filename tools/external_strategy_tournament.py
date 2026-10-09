@@ -153,7 +153,10 @@ def _metrics(rows, positions, cost_pct, capital_usd, start_index, end_index):
         if not (math.isfinite(opens[i]) and math.isfinite(opens[i - 1]) and opens[i - 1] > 0):
             continue
         pos = positions[i]
-        prev_pos = positions[i - 1]
+        # Each reported segment starts with fresh capital and no open position.
+        # Do not inherit development exposure into the independently scored OOS
+        # account, or the first holdout entry can escape its entry cost.
+        prev_pos = 0.0 if i == max(1, start_index) else positions[i - 1]
         gross = pos * (opens[i] / opens[i - 1] - 1.0) * 100.0
         # A round-trip cost applies to a 0 -> 1 -> 0 cycle. Reversing from
         # +1 to -1 incurs one full round-trip cost at the reversal.
@@ -183,7 +186,10 @@ def _metrics(rows, positions, cost_pct, capital_usd, start_index, end_index):
         "annualized_sharpe_approx": round(daily_mean / daily_sd * math.sqrt(252), 4) if daily_sd else None,
         "max_drawdown_pct": round(max_dd, 4),
         "exposure_pct": round(sum(active) / n * 100.0, 2) if n else 0.0,
-        "position_changes": sum(1 for i in range(max(1, start_index), min(end_index, len(positions))) if positions[i] != positions[i - 1]),
+        "position_changes": sum(
+            1 for i in range(max(1, start_index), min(end_index, len(positions)))
+            if positions[i] != (0.0 if i == max(1, start_index) else positions[i - 1])
+        ),
         "ending_equity_usd": round(equity, 4),
     }
 
