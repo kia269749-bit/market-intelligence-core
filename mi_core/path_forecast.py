@@ -22,7 +22,7 @@ HORIZONS = (5, 10, 20, 50)
 TIME_HORIZONS_MINUTES = (15, 30, 60, 120, 240, 480)
 # A longer ladder lets the engine describe TP1/TP2/TP3 rather than forcing every
 # good move into a tiny 1.15% target.
-TARGET_LADDER_PCT = (0.20, 0.40, 0.60, 0.80, 1.00, 1.15, 1.50, 2.00, 3.00, 4.00, 5.00)
+TARGET_LADDER_PCT = (0.20, 0.40, 0.60, 0.80, 1.00, 1.15, 1.50, 2.00, 2.35, 3.00, 4.00, 5.00)
 
 
 @dataclass(frozen=True)
