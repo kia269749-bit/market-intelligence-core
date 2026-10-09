@@ -565,7 +565,8 @@ def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None, ca
             "candle_adjustment":candle,"market_context_adjustment":context}
 
 def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None,
-             fomo_leader_evidence=None, outcome_memory=None, forecast=None, candle_evidence=None, market_context=None):
+             fomo_leader_evidence=None, outcome_memory=None, forecast=None, candle_evidence=None, market_context=None,
+             multi_timeframe=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
@@ -590,6 +591,11 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
     votes=[(raw_bias,raw_conf)]
     if p60_bias in ("BULLISH","BEARISH"): votes.append((p60_bias,p60_conf))
+    mtf=multi_timeframe or {}
+    mtf_bias=str(mtf.get("bias","NEUTRAL")).upper()
+    mtf_conf=_num(mtf.get("confidence_score"),0.0)
+    if mtf.get("available") and mtf_bias in ("BULLISH","BEARISH") and mtf_conf>=0.45:
+        votes.append((mtf_bias,min(0.80,mtf_conf)))
     lf=fomo_leader_evidence or {}
     lf_vote=_leader_follower_vote(lf)
     smart_money=_smart_money_score(lf)
@@ -658,10 +664,11 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "data_quality":quality,"market_data_gate":quality_status,"regime":regime,"microstructure":micro,"combined":combined,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False,"candidate_signal":fomo_candidate_signal},
-          "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
+          "multi_timeframe":mtf or {"available":False,"reason":"not_requested","research_only":True,"live_orders":False},
+          "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"multi_timeframe":{"available":bool(mtf.get("available")),"bias":mtf_bias,"confidence_score":round(mtf_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
           "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
-        "architecture":"Project60 + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
+        "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
 def print_live(snapshot):
@@ -670,6 +677,20 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
+    mtf=e.get("multi_timeframe",{}) or {}
+    if mtf.get("available"):
+        parts=[]
+        for interval in ("5m","1h","4h"):
+            row=(mtf.get("timeframes") or {}).get(interval) or {}
+            if row.get("available"):
+                parts.append("{}:{} RSI={} ATR={} support={} resistance={} breakout={} candle={}".format(
+                    interval,row.get("direction","UNKNOWN"),row.get("rsi14","?"),row.get("atr14_pct","?"),
+                    row.get("support50","?"),row.get("resistance50","?"),row.get("breakout","?"),row.get("candle_pattern","?")))
+        print("MULTI_TIMEFRAME bias={} score={:.2f} agreement={:.2f} target_ref={} | {}".format(
+            mtf.get("bias","UNKNOWN"),_num(mtf.get("score")), _num(mtf.get("agreement")),
+            mtf.get("structural_target_reference","?")," | ".join(parts)))
+    else:
+        print("MULTI_TIMEFRAME unavailable | {}".format(mtf.get("reason","not_requested")))
     candle=e.get("candle_evidence",{})
     cadj=e.get("combined",{}).get("candle_adjustment",{})
     print("microstructure={} squeeze_risk={} | candle={} pattern={} candle_status={} | smart_money={} | outcome_memory={} | fomo_candidates={} wallet_level={}".format(
