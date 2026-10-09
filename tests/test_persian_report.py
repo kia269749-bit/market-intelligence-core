@@ -23,9 +23,48 @@ class PersianReportTests(unittest.TestCase):
         report=render_persian(snapshot,project60)
         self.assertIn("تصمیم ترکیبی: BULLISH",report)
         self.assertIn("Project 60: BULLISH",report)
-        self.assertIn("محدوده ورود",report)
-        self.assertIn("گیت $10: PASS",report)
-        self.assertIn("سود خالص مدل‌شده",report)
+        self.assertIn("فعلاً ورود تأیید نمی‌شود",report)
+        self.assertNotIn("نامزد خرید، آماده‌ی ورود پژوهشی",report)
+        self.assertIn("گیت اقتصادی عبور نکرده",report)
+
+    def test_report_uses_validated_forecast_levels_not_hardcoded_targets(self):
+        snapshot={
+            "market":{"rows":[{"symbol":"BTCUSDT","price":100.0}],
+                      "data_quality":{"status":"HEALTHY","successful_sources":4,"expected_sources":4}},
+            "capital_economics":{"available":True,"approved":True,"expected_move_pct":2.5,
+                                 "required_move_pct":1.15,"modeled_profit_usd":10.75,"round_trip_cost_pct":0.35},
+            "evidence":{
+                "market":{"bias":"BULLISH","confidence":0.8,"sources":4},
+                "combined":{"bias":"BULLISH","confidence":0.8,"actionable":True},
+                "execution_ready":True,
+                "forecast_alignment":{"approved":True,"direction":"BULLISH","state":"ALIGNED","reason":"all gates passed"},
+                "no_trade":{"blocked":False,"reasons":[]},
+                "timing":{"state":"EARLY","reason":"entry timing passed","remaining_move_pct":2.5},
+                "forecast":{"available":True,"asset":"BTC","price":100.0,
+                    "selected":{"direction":"UP","expected_return_pct":2.5,"expected_move_pct":2.5,
+                                "target_hit_probability":0.7,"horizon":20},
+                    "adaptive_validation":{"available":True,"accepted":True,"selected_strategy":"ema_trend",
+                        "walk_forward_oos":{"trades":20,"net_profit_pct":12.0,"profit_factor":1.4}}},
+                "multi_timeframe":{"available":True,"bias":"BULLISH","score":0.8,"agreement":1.0,
+                    "aligned_timeframes":3,"timeframes":{},"structural_target_reference":105.0},
+                "fomo":{"candidates":0,"wallet_level":False,"top":[]},
+            }
+        }
+        report=render_persian(snapshot)
+        self.assertIn("نامزد خرید، آماده‌ی ورود پژوهشی",report)
+        self.assertIn("حد ضرر مدل: 98.7500",report)
+        self.assertIn("هدف مدل: 102.5000",report)
+        self.assertIn("انتخاب‌گر پویا: EDGE",report)
+        self.assertIn("هیچ سفارش واقعی ارسال نمی‌شود",report)
+
+    def test_report_never_suggests_entry_when_data_is_unsafe(self):
+        snapshot={"market":{"rows":[{"symbol":"BTCUSDT","price":100.0}],
+                            "data_quality":{"status":"UNSAFE"}},
+                  "evidence":{"combined":{"bias":"BULLISH","confidence":0.9,"actionable":True},
+                              "fomo":{"candidates":0,"wallet_level":False,"top":[]}}}
+        report=render_persian(snapshot)
+        self.assertIn("کیفیت داده ناامن است",report)
+        self.assertNotIn("نامزد خرید، آماده‌ی ورود پژوهشی",report)
 
     def test_weak_setup_is_blocked(self):
         r=build_action([{"symbol":"BTCUSDT","price":100.0}],"BULLISH",0.65)
