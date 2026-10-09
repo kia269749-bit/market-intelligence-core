@@ -1,4 +1,4 @@
-"""Research-only Arena-inspired crypto backtest.
+"""Research-only Arena-inspired crypto backtest with next-bar-open entries.
 
 Inspired by public AI trading-arena findings: patience/fewer trades, named
 multi-signal reasons, fixed risk sizing, ATR-style stops/targets, regime-aware
@@ -90,7 +90,7 @@ def backtest(rows, capital=500.0, cost_rt=0.0035, max_hold=36, cooldown=12):
         vol_mult=0.5 if atrp>0.025 else 0.75 if atrp>0.015 else 1.0
         stop_dist=max(0.035,1.5*atrp); target_dist=max(0.075,2.2*stop_dist)
         risk=equity*0.01*vol_mult; notional=min(equity*0.20,risk/stop_dist)
-        entry=c[i+1]; stop=entry*(1-stop_dist) if direction==1 else entry*(1+stop_dist)
+        entry=rows[i+1]["o"]; stop=entry*(1-stop_dist) if direction==1 else entry*(1+stop_dist)
         target=entry*(1+target_dist) if direction==1 else entry*(1-target_dist)
         pos={"i":i+1,"dir":direction,"entry":entry,"stop":stop,"target":target,"notional":notional,
              "reason":"trend+breakout" if ((trend_up if direction==1 else trend_dn) and (breakout_up if direction==1 else breakout_dn)) else "trend+mean_reversion" if ((trend_up if direction==1 else trend_dn) and (mr_up if direction==1 else mr_dn)) else "breakout+mean_reversion"}
@@ -108,7 +108,7 @@ def backtest(rows, capital=500.0, cost_rt=0.0035, max_hold=36, cooldown=12):
 
 def main():
     symbols=sys.argv[1:] or ["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT"]
-    out={"strategy":"arena_inspired_v1","assets":{},"research_only":True,"live_orders":False}
+    out={"strategy":"arena_inspired_v1_next_open_entry","assets":{},"research_only":True,"live_orders":False}
     for s in symbols:
         rows=fetch(s,"1h",8000); r=backtest(rows); out["assets"][s]=r
         print(s,json.dumps({k:r[k] for k in ("final","net_profit","return_pct","trades","win_rate","profit_factor","max_drawdown_pct","avg_trade")},sort_keys=True))
