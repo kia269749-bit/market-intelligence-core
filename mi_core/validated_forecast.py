@@ -111,7 +111,9 @@ def _labels_cache(bars, horizon, flat_band):
 
 def _training_indices(i, horizon, train_window, min_index=20):
     """Return training indices whose labels are fully known before prediction time."""
-    lo = max(min_index, i - train_window)
+    # train_window counts eligible labeled rows, not raw bars. Leave the
+    # final horizon bars out so every training label is known at prediction time.
+    lo = max(min_index, i - horizon - train_window)
     hi = i - horizon
     if hi <= lo:
         return range(0, 0)

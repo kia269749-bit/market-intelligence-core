@@ -15,7 +15,6 @@ def _clamp(value: float, low: float = -1.0, high: float = 1.0) -> float:
 def _ratio_score(value: float | None) -> float:
     if value is None or value <= 0:
         return 0.0
-    # Long/short ratio: 1.0 is neutral, with logarithmic compression.
     import math
     return _clamp(math.tanh(math.log(value)))
 
@@ -25,6 +24,14 @@ def _signed_pressure(long_value: float | None, short_value: float | None) -> flo
     short_value = float(short_value or 0.0)
     total = long_value + short_value
     return 0.0 if total <= 0 else _clamp((short_value - long_value) / total)
+
+
+def _taker_pressure(buy_value: float | None, sell_value: float | None) -> float:
+    """Positive means aggressive buyers dominate; negative means sellers dominate."""
+    buy_value = float(buy_value or 0.0)
+    sell_value = float(sell_value or 0.0)
+    total = buy_value + sell_value
+    return 0.0 if total <= 0 else _clamp((buy_value - sell_value) / total)
 
 
 def analyze_positioning(data: Mapping[str, float | int | None]) -> dict:
@@ -48,7 +55,7 @@ def analyze_positioning(data: Mapping[str, float | int | None]) -> dict:
     oi_score = _clamp(math.tanh(oi_change / 5.0))
     funding_score = _clamp(-funding / 0.001 * 0.25)
     ls_score = _ratio_score(float(long_short)) if long_short is not None else 0.0
-    taker_score = _signed_pressure(float(taker_buy), float(taker_sell))
+    taker_score = _taker_pressure(float(taker_buy), float(taker_sell))
     basis_score = _clamp(-basis / 1.0)
     positioning_score = _clamp(
         0.25 * oi_score + 0.20 * funding_score + 0.20 * ls_score
