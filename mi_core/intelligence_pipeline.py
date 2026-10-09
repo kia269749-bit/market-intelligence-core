@@ -65,10 +65,9 @@ def analyze_market(bars:Sequence,*,volume_history:Sequence[float]|None=None,trad
       fomo_support=min(1.0, float(fomo_score)) if signal.side == "LONG" else 0.0,
       crowding=crowding["score"], conflict=max(0.0, 1.0-confluence["agreement"]),
     )
-    # Preserve the existing gate result for audit, while allowing a separate
-    # opportunity rank to keep plausible candidates visible for manual review.
-    effective_gate_eligible = bool(gate["eligible"] or opportunity["eligible"])
-    signal_summary=research_signal_summary(side=signal.side,signal_score=signal.score,confidence=confidence,gate_eligible=effective_gate_eligible,
+    # Opportunity ranking keeps candidates visible for manual review, but it
+    # must not override the existing quality gate or imply trade readiness.
+    signal_summary=research_signal_summary(side=signal.side,signal_score=signal.score,confidence=confidence,gate_eligible=gate["eligible"],
       effective_confluence=confluence["effective_score"],agreement=confluence["agreement"],crowding_score=crowding["score"],
       cascade_risk=crowding["cascade_risk"],oi_funding_divergence=crowding["oi_funding_divergence"],regime_fit=macro_fit,
       fomo_supported=bool(fomo and fomo.get("historical_evidence",{}).get("supported")),meme_supported=bool(meme_report and meme_report.get("historical_evidence_status")=="SUPPORTED"))
