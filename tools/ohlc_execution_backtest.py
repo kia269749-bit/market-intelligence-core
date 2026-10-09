@@ -89,7 +89,7 @@ def _forecast_candidates(bars, indices, target_pct, horizon_bars, min_history):
     return candidates
 
 
-def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, confidence_min=0.0, probability_min=0.0):
+def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96, confidence_min=0.0, probability_min=0.0):
     trades = []
     next_allowed_index = 0
     for candidate in candidates:
@@ -111,7 +111,7 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, confidence_min=0
         is_long = direction == "UP"
         target = entry * (1.0 + target_pct / 100.0) if is_long else entry * (1.0 - target_pct / 100.0)
         stop = entry * (1.0 - stop_pct / 100.0) if is_long else entry * (1.0 + stop_pct / 100.0)
-        end_idx = min(idx + horizon_bars_global, len(bars) - 1)
+        end_idx = min(idx + int(horizon_bars), len(bars) - 1)
         exit_idx = end_idx
         exit_price = float(bars[end_idx].price)
         reason = "TIME_EXIT"
@@ -173,9 +173,6 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, confidence_min=0
     return trades
 
 
-# Assigned per backtest call so the simulator stays simple and deterministic.
-horizon_bars_global = 96
-
 
 def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=300,
              target_levels=(1.15, 2.35), stop_levels=(0.50, 0.75), cost_pct=0.35,
@@ -188,8 +185,6 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
                 "reason": "Input bars must contain real open/high/low values; close-only data is not accepted.",
                 "research_only": True, "live_orders": False}
 
-    global horizon_bars_global
-    horizon_bars_global = int(horizon_bars)
     raw_indices = list(range(min_history, len(bars) - horizon_bars - 1, max(1, step_bars)))
     indices = _evenly_spaced(raw_indices, max_evals)
     holdout_ts = int(bars[int(len(bars) * 0.60)].ts)
@@ -203,7 +198,7 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
                 ("confidence_ge_0_55_and_target_probability_ge_0_45", 0.55, 0.45),
             ):
                 trades = _simulate(bars, candidates, float(target_pct), float(stop_pct), float(cost_pct),
-                                   confidence_min=conf_min, probability_min=prob_min)
+                                   horizon_bars=horizon_bars, confidence_min=conf_min, probability_min=prob_min)
                 dev = [dict(t) for t in trades if t["signal_ts"] < holdout_ts]
                 holdout = [dict(t) for t in trades if t["signal_ts"] >= holdout_ts]
                 results.append({
