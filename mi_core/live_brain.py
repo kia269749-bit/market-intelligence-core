@@ -1,6 +1,6 @@
 """Lightweight live coordinator with conservative multi-source brain safeguards."""
 from __future__ import annotations
-import time, statistics
+import math, time, statistics
 from .fomo_live import scan_boosted
 from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
 from .trade_economics import evaluate_capital_target
@@ -415,6 +415,58 @@ def _context_adjustment(market_context):
         return {"factor": 0.95, "status": "DIVERGENT", "reason": "reference_and_breadth_diverge"}
     return {"factor": 1.0, "status": "NEUTRAL", "reason": "context_not_decisive"}
 
+def _forecast_alignment_gate(forecast, market_bias):
+    """Require the selected forecast to agree with the fused market direction and clear its own edge gate."""
+    if not isinstance(forecast, dict) or not forecast.get("available"):
+        return {"state":"UNAVAILABLE","approved":False,"reason":"forecast_unavailable",
+                "direction":"UNKNOWN","tier":"UNKNOWN","target_hit_probability":0.0}
+    selected=forecast.get("selected") or {}
+    if not isinstance(selected,dict):
+        selected={}
+    raw=str(selected.get("direction") or forecast.get("direction") or "").upper()
+    direction={"UP":"BULLISH","BULLISH":"BULLISH","DOWN":"BEARISH","BEARISH":"BEARISH",
+               "FLAT":"FLAT","NEUTRAL":"FLAT"}.get(raw,"UNKNOWN")
+    tier=str(selected.get("tier","UNKNOWN")).upper()
+    try:
+        probability=float(selected.get("target_hit_probability",0.0) or 0.0)
+    except (TypeError,ValueError):
+        probability=0.0
+    if not math.isfinite(probability):
+        probability=0.0
+    probability=max(0.0,min(1.0,probability))
+    result={"state":"UNKNOWN","approved":False,"reason":"forecast_direction_unavailable",
+            "direction":direction,"tier":tier,"target_hit_probability":round(probability,4)}
+    if direction=="FLAT":
+        result.update(state="FLAT",reason="forecast_flat")
+        return result
+    if direction not in ("BULLISH","BEARISH"):
+        return result
+    try:
+        expected_return=selected.get("expected_return_pct")
+        expected_return=float(expected_return) if expected_return is not None else None
+    except (TypeError,ValueError):
+        expected_return=None
+    if expected_return is not None and math.isfinite(expected_return):
+        if (direction=="BULLISH" and expected_return < 0) or (direction=="BEARISH" and expected_return > 0):
+            result.update(state="SIGN_CONFLICT",reason="forecast_direction_return_sign_conflict")
+            return result
+    bias=str(market_bias or "").upper()
+    if bias not in ("BULLISH","BEARISH"):
+        result.update(state="NO_MARKET_CONSENSUS",reason="no_directional_market_consensus")
+        return result
+    if direction != bias:
+        result.update(state="CONFLICT",reason="forecast_direction_conflict")
+        return result
+    if tier not in ("STRONG","VIABLE"):
+        result.update(state="TIER_REJECT",reason="forecast_tier_not_actionable")
+        return result
+    if probability < 0.45:
+        result.update(state="LOW_TARGET_PROBABILITY",reason="forecast_target_probability_below_0_45")
+        return result
+    result.update(state="ALIGNED",approved=True,reason="forecast_direction_and_economics_aligned")
+    return result
+
+
 def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None, candle_evidence=None, market_context=None):
     smart_money=smart_money or {"score":0.0,"status":"NONE"}
     # Smart-money and candle evidence are confidence modifiers, never standalone triggers.
@@ -474,18 +526,22 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     capital_economics={"available":False,"reason":"no_forecast"}
     timing={"state":"WAIT","reason":"no_forecast","research_only":True,"live_orders":False}
     combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money,candle_evidence,market_context)
+    forecast_alignment=_forecast_alignment_gate(forecast,combined_preview.get("bias"))
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
         eco=evaluate_capital_target(_num(selected.get("expected_move_pct", abs(_num(selected.get("expected_return_pct"))))),
                                     capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
-        capital_economics={"available":True,"approved":eco.approved,
+        approved=bool(eco.approved and forecast_alignment.get("approved"))
+        economic_reason=eco.reason if not eco.approved else forecast_alignment.get("reason","forecast_gate_blocked")
+        capital_economics={"available":True,"approved":approved,
                            "expected_move_pct":eco.expected_move_pct,
                            "required_move_pct":eco.required_move_pct,
                            "preferred_required_move_pct":eco.preferred_required_move_pct,
                            "net_move_pct":eco.net_move_pct,
                            "modeled_profit_usd":eco.modeled_profit_usd,
                            "round_trip_cost_pct":eco.round_trip_cost_pct,
-                           "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,"reason":eco.reason}
+                           "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,
+                           "reason":economic_reason,"forecast_gate":forecast_alignment}
         timing=evaluate_entry_timing(confidence=_num(selected.get("confidence")), expected_move_pct=_num(selected.get("expected_return_pct")), current_move_pct=_num(selected.get("current_move_pct")), required_move_pct=_num(eco.required_move_pct), agreement=combined_preview.get("agreement",0.0), quality_score=quality.get("score",0.0), regime=regime.get("name","UNKNOWN"))
     # Raw FOMO candidates are discovery evidence only. They are not allowed to
     # cast a directional market vote until Leader->Follower evidence confirms them.
@@ -510,7 +566,11 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     if capital_economics.get("available") and not capital_economics.get("approved"):
         combined["actionable"]=False
         no_trade["blocked"]=True
-        no_trade["reasons"]=list(no_trade.get("reasons",[]))+["economic_floor_not_met"]
+        reason=str(capital_economics.get("reason") or "economic_floor_not_met")
+        reasons=list(no_trade.get("reasons",[]))
+        if reason not in reasons:
+            reasons.append(reason)
+        no_trade["reasons"]=reasons
     if micro["divergence"]=="CONFLICT":
         combined["confidence"]=round(combined["confidence"]*.70,4); combined["actionable"]=False
     elif micro["divergence"] in ("BULLISH_DIVERGENCE","BEARISH_DIVERGENCE"):
@@ -526,7 +586,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False,"candidate_signal":fomo_candidate_signal},
           "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
-          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"capital_economics":capital_economics,"timing":timing},
+          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
         "architecture":"Project60 + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
@@ -546,6 +606,11 @@ def print_live(snapshot):
     ce=e.get("capital_economics",{})
     if ce.get("available"):
         print("CAPITAL $500 | net_profit=${:.2f} | tier={} | floor=$4 | preferred=$10 | expected={:.2f}% required4={:.2f}% required10={:.2f}% cost={:.3f}%".format(ce["modeled_profit_usd"],ce.get("tier","REJECT"),ce["expected_move_pct"],ce["required_move_pct"],ce.get("preferred_required_move_pct",0),ce["round_trip_cost_pct"]))
+    fg=e.get("forecast_alignment",{})
+    if e.get("forecast",{}).get("available"):
+        print("FORECAST_GATE state={} direction={} tier={} target_prob={:.0f}% reason={}".format(
+            fg.get("state","UNKNOWN"),fg.get("direction","UNKNOWN"),fg.get("tier","UNKNOWN"),
+            _num(fg.get("target_hit_probability"))*100,fg.get("reason","")))
     tm=e.get("timing",{})
     print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}%".format(tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0))))
     fc=e.get("forecast",{})

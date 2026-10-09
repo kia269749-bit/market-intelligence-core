@@ -1,9 +1,39 @@
 import unittest, json, tempfile, os
 from unittest.mock import patch
-from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard, _forecast_from_project60
+from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard, _forecast_from_project60, _forecast_alignment_gate
 from mi_core.timing_engine import evaluate_entry_timing
 
 class LiveBrainTests(unittest.TestCase):
+    def test_forecast_alignment_gate_accepts_aligned_viable_forecast(self):
+        forecast={"available":True,"selected":{"direction":"UP","expected_return_pct":1.4,
+                   "tier":"VIABLE","target_hit_probability":0.50}}
+        result=_forecast_alignment_gate(forecast,"BULLISH")
+        self.assertTrue(result["approved"])
+        self.assertEqual(result["state"],"ALIGNED")
+
+    def test_forecast_alignment_gate_rejects_direction_conflict(self):
+        forecast={"available":True,"selected":{"direction":"DOWN","expected_return_pct":-1.8,
+                   "tier":"STRONG","target_hit_probability":0.65}}
+        result=_forecast_alignment_gate(forecast,"BULLISH")
+        self.assertFalse(result["approved"])
+        self.assertEqual(result["state"],"CONFLICT")
+        self.assertEqual(result["reason"],"forecast_direction_conflict")
+
+    def test_forecast_alignment_gate_rejects_flat_or_low_probability_forecast(self):
+        flat=_forecast_alignment_gate({"available":True,"selected":{"direction":"FLAT","tier":"STRONG","target_hit_probability":.8}},"BULLISH")
+        weak=_forecast_alignment_gate({"available":True,"selected":{"direction":"UP","expected_return_pct":1.0,"tier":"WATCH","target_hit_probability":.40}},"BULLISH")
+        self.assertEqual(flat["state"],"FLAT")
+        self.assertFalse(flat["approved"])
+        self.assertFalse(weak["approved"])
+        self.assertIn(weak["state"],("TIER_REJECT","LOW_TARGET_PROBABILITY"))
+
+    def test_forecast_alignment_gate_rejects_return_sign_mismatch(self):
+        forecast={"available":True,"selected":{"direction":"UP","expected_return_pct":-1.2,
+                   "tier":"STRONG","target_hit_probability":.8}}
+        result=_forecast_alignment_gate(forecast,"BULLISH")
+        self.assertFalse(result["approved"])
+        self.assertEqual(result["state"],"SIGN_CONFLICT")
+
     def test_leader_follower_evidence_shape_is_preserved(self):
         evidence = {"available": True, "confirmed": True, "events": [{"token": "MEME"}]}
         self.assertTrue(evidence["confirmed"])
@@ -25,6 +55,24 @@ class LiveBrainTests(unittest.TestCase):
         first=p.call_args_list[1].args[0]
         self.assertIn("market_bias=BULLISH confidence=0.70", first)
         self.assertIn("raw_market_bias=NEUTRAL", first)
+
+    def test_run_once_blocks_conflicting_forecast_from_actionable_status(self):
+        market={"rows":[{"change_24h_pct":5.0,"price":100.0}],
+                "data_quality":{"status":"HEALTHY","score":1.0}}
+        forecast={"available":True,"asset":"BTC","price":100.0,
+                  "selected":{"direction":"DOWN","expected_return_pct":-2.5,
+                              "expected_move_pct":2.5,"target_hit_probability":0.65,
+                              "tier":"STRONG","confidence":0.8}}
+        fused={"bias":"BULLISH","confidence":0.8,"agreement":1.0,
+               "actionable":True,"regime":"TREND"}
+        with patch("mi_core.live_brain.fetch_snapshot",return_value=market), \
+             patch("mi_core.live_brain.scan_boosted",return_value={"candidates":[]} ), \
+             patch("mi_core.live_brain._fuse",return_value=fused):
+            snap=run_once(forecast=forecast)
+        self.assertEqual(snap["evidence"]["forecast_alignment"]["state"],"CONFLICT")
+        self.assertFalse(snap["capital_economics"]["approved"])
+        self.assertFalse(snap["evidence"]["combined"]["actionable"])
+        self.assertIn("forecast_direction_conflict",snap["evidence"]["no_trade"]["reasons"])
 
     def test_fomo_failure_does_not_fail_cycle(self):
         market={"rows":[{"change_24h_pct":0.0,"price":100}]}
