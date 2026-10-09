@@ -44,7 +44,7 @@ jobs:
           python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --out reports/${{ matrix.symbol }}_1h_forecast_validation.json
       - name: Evaluate adaptive strategy tournament on real OHLC
         env:
-          SYMBOL: \${{ matrix.symbol }}
+          SYMBOL: ${{ matrix.symbol }}
         run: |
           python - <<'PY'
           import json, os
