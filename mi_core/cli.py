@@ -11,6 +11,7 @@ from .intelligence_pipeline import analyze_market
 from .historical_validation import evaluate_historical_evidence
 from .signal_report import render_signal_report
 from .live_brain import _path_forecast_from_project60, run_once as run_live_brain, print_live as print_live_brain, _validated_forecast_from_project60, _forecast_from_project60
+from .multi_timeframe import fetch_multi_timeframe
 from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
@@ -245,7 +246,13 @@ def main():
                     market_context=analyze_market_context(context_series, reference="BTC", window=120)
                 except Exception:
                     market_context={"available":False,"reason":"context_error","research_only":True,"live_orders":False}
-            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context)
+            mtf=None
+            if x.project60_file:
+                try:
+                    mtf=fetch_multi_timeframe("BTCUSDT")
+                except Exception as exc:
+                    mtf={"available":False,"reason":"multi_timeframe_error:"+str(exc)[:120],"research_only":True,"live_orders":False}
+            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context,mtf)
             if x.outcome_journal:
                 fc=snap.get("evidence",{}).get("forecast",{})
                 selected=fc.get("selected") if isinstance(fc,dict) else {}
