@@ -68,6 +68,9 @@ def _validated_action(snapshot):
     forecast=e.get("forecast") or {}
     bias=str(combined.get("bias","NEUTRAL")).upper()
     reasons=no_trade.get("reasons") or []
+    quality=(snapshot.get("market",{}).get("data_quality") or e.get("data_quality") or {})
+    if str(quality.get("status","")).upper()=="UNSAFE":
+        return {"status":"WAIT","reason":"کیفیت داده ناامن است؛ ورود تأیید نمی‌شود."}
 
     if no_trade.get("blocked"):
         return {"status":"WAIT","reason":"شرط ایمنی بازار فعال است: "+", ".join(reasons)}
@@ -83,6 +86,10 @@ def _validated_action(snapshot):
     selected=forecast.get("selected") if isinstance(forecast,dict) else {}
     selected=selected if isinstance(selected,dict) else {}
     direction=str(alignment.get("direction") or bias).upper()
+    mtf=e.get("multi_timeframe") or {}
+    mtf_bias=str(mtf.get("bias","NEUTRAL")).upper()
+    if mtf.get("available") and mtf_bias in ("BULLISH","BEARISH") and mtf_bias!=direction:
+        return {"status":"WAIT","reason":"تعارض جهت بین پیش‌بینی و روند چندبازه‌ای OHLC."}
     entry=_num(forecast.get("price") or forecast.get("current_price") or
                 selected.get("current_price") or selected.get("price"))
     if entry<=0:
