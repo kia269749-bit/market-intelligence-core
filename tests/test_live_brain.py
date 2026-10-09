@@ -1,9 +1,39 @@
 import unittest, json, tempfile, os
 from unittest.mock import patch
-from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard, _forecast_from_project60
+from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard, _forecast_from_project60, _forecast_alignment_gate
 from mi_core.timing_engine import evaluate_entry_timing
 
 class LiveBrainTests(unittest.TestCase):
+    def test_forecast_alignment_gate_accepts_aligned_viable_forecast(self):
+        forecast={"available":True,"selected":{"direction":"UP","expected_return_pct":1.4,
+                   "tier":"VIABLE","target_hit_probability":0.50}}
+        result=_forecast_alignment_gate(forecast,"BULLISH")
+        self.assertTrue(result["approved"])
+        self.assertEqual(result["state"],"ALIGNED")
+
+    def test_forecast_alignment_gate_rejects_direction_conflict(self):
+        forecast={"available":True,"selected":{"direction":"DOWN","expected_return_pct":-1.8,
+                   "tier":"STRONG","target_hit_probability":0.65}}
+        result=_forecast_alignment_gate(forecast,"BULLISH")
+        self.assertFalse(result["approved"])
+        self.assertEqual(result["state"],"CONFLICT")
+        self.assertEqual(result["reason"],"forecast_direction_conflict")
+
+    def test_forecast_alignment_gate_rejects_flat_or_low_probability_forecast(self):
+        flat=_forecast_alignment_gate({"available":True,"selected":{"direction":"FLAT","tier":"STRONG","target_hit_probability":.8}},"BULLISH")
+        weak=_forecast_alignment_gate({"available":True,"selected":{"direction":"UP","expected_return_pct":1.0,"tier":"WATCH","target_hit_probability":.40}},"BULLISH")
+        self.assertEqual(flat["state"],"FLAT")
+        self.assertFalse(flat["approved"])
+        self.assertFalse(weak["approved"])
+        self.assertIn(weak["state"],("TIER_REJECT","LOW_TARGET_PROBABILITY"))
+
+    def test_forecast_alignment_gate_rejects_return_sign_mismatch(self):
+        forecast={"available":True,"selected":{"direction":"UP","expected_return_pct":-1.2,
+                   "tier":"STRONG","target_hit_probability":.8}}
+        result=_forecast_alignment_gate(forecast,"BULLISH")
+        self.assertFalse(result["approved"])
+        self.assertEqual(result["state"],"SIGN_CONFLICT")
+
     def test_leader_follower_evidence_shape_is_preserved(self):
         evidence = {"available": True, "confirmed": True, "events": [{"token": "MEME"}]}
         self.assertTrue(evidence["confirmed"])
