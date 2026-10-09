@@ -199,9 +199,15 @@ def _evaluate(rows, signal, cost_pct, capital_usd, common_start, split_index):
     positions = [0.0] * len(signal)
     for i in range(2, len(signal)):
         positions[i] = signal[i - 2] if i - 2 >= common_start else 0.0
+    # The open-to-open return indexed at i spans open[i-1] -> open[i].
+    # A close-derived signal is executed at the next open, so the first OOS
+    # return must begin at open[split_index], not the preceding development open.
+    # Score OOS from split_index + 1 and reset the segment's position to flat
+    # for entry-cost accounting; this avoids carrying a development-period trade
+    # into an independently funded holdout account.
     return {
         "development": _metrics(rows, positions, cost_pct, capital_usd, common_start, split_index),
-        "holdout_oos": _metrics(rows, positions, cost_pct, capital_usd, split_index, len(rows)),
+        "holdout_oos": _metrics(rows, positions, cost_pct, capital_usd, split_index + 1, len(rows)),
         "full_sample": _metrics(rows, positions, cost_pct, capital_usd, common_start, len(rows)),
     }
 
