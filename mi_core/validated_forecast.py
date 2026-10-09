@@ -165,19 +165,17 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
     fit_every = max(1, int(fit_every))
 
     for i in range(max(20, min_train), len(bars) - horizon):
-        lo = max(20, i - train_window)
-        X = []
-        y = []
-        for j in _training_indices(i, horizon, train_window):
-            f = feature_cache[j]
-            lab = label_cache[j]
-            if f is not None and lab is not None:
-                X.append(f)
-                y.append(lab)
-        if len(X) < min_train:
-            continue
-
         if model is None or next_fit_i is None or i >= next_fit_i:
+            X = []
+            y = []
+            for j in _training_indices(i, horizon, train_window):
+                f = feature_cache[j]
+                lab = label_cache[j]
+                if f is not None and lab is not None:
+                    X.append(f)
+                    y.append(lab)
+            if len(X) < min_train:
+                continue
             model = _fit(X, y)
             next_fit_i = i + fit_every
 
