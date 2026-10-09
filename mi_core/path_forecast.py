@@ -144,8 +144,11 @@ def _feature_vector(bars):
 
 
 def _historical_feature_rows(bars, end):
+    # Bound work per forecast. Features are rolling/local; a recent analogue
+    # window is sufficient and avoids quadratic scans across all 5,000 bars.
+    start=max(51, int(end)-_LOOKBACK+1)
     rows=[]
-    for i in range(51, max(51,end)+1):
+    for i in range(start, max(start,end)+1):
         rows.append((i,_feature_vector(bars[:i+1])))
     return rows
 
