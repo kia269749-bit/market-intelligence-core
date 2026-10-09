@@ -1,5 +1,6 @@
 from mi_core.intelligence_pipeline import analyze_market
-from mi_core.models import MarketBar
+from mi_core.models import MarketBar, Signal
+from unittest.mock import patch
 
 
 def _bars(n=40):
@@ -95,3 +96,30 @@ def test_pipeline_exposes_manual_signal_summary():
     assert 0.0 <= summary["conviction"] <= 1.0
     assert summary["diagnostic_only"] is True
     assert summary["manual_review"] is True
+
+def test_pipeline_exposes_opportunity_rank_without_fabricating_costs():
+    report = analyze_market(_bars())
+    opportunity = report["opportunity_selection"]
+    assert opportunity["research_only"] is True
+    assert opportunity["live_orders"] is False
+    assert opportunity["cost_status"] == "UNAVAILABLE"
+    assert "signal_gate" in report
+
+def test_opportunity_rank_does_not_override_failed_quality_gate():
+    opportunity = {
+        "eligible": True,
+        "status": "EARLY_OPPORTUNITY",
+        "cost_status": "UNAVAILABLE",
+        "research_only": True,
+        "live_orders": False,
+    }
+    with patch("mi_core.intelligence_pipeline.score_bar",
+               return_value=Signal(ts=1, symbol="BTCUSDT", side="LONG", score=0.8, regime="TREND", confidence=0.8)), \
+         patch("mi_core.intelligence_pipeline.signal_quality_gate",
+               return_value={"eligible": False, "checks": {}, "reasons": ("decay",), "diagnostic_only": True}), \
+         patch("mi_core.intelligence_pipeline.select_opportunity", return_value=opportunity):
+        report = analyze_market(_bars())
+    assert report["opportunity_selection"]["eligible"] is True
+    assert report["signal_summary"]["gate_eligible"] is False
+    assert report["signal_summary"]["status"] == "FILTERED"
+

@@ -1,5 +1,5 @@
 from mi_core.models import MarketBar
-from mi_core.validated_forecast import _feat, _feature_cache, walk_forward_forecast
+from mi_core.validated_forecast import _feat, _feature_cache, _training_indices, walk_forward_forecast
 
 
 def _bars(n=140):
@@ -46,3 +46,11 @@ def test_walk_forward_uses_cached_features_and_stays_research_only():
     assert result["predictions"]
     assert result["research_only"] is True
     assert result["live_orders"] is False
+
+
+def test_training_labels_end_before_prediction_time():
+    prediction_index = 85
+    horizon = 5
+    indices = list(_training_indices(prediction_index, horizon, 60))
+    assert len(indices) == 60
+    assert indices[-1] + horizon < prediction_index

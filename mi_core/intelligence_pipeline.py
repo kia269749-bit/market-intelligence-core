@@ -15,6 +15,7 @@ from .crowding import analyze_crowding
 from .meme_candidate_scoring import score_meme_candidate
 from .signal_gate import SignalQuality, signal_quality_gate, research_signal_summary
 from .signal_report import build_signal_report
+from .opportunity_selection import select_opportunity
 
 def _flow_report(bar)->dict:
     flow_imbalance=order_imbalance(bar.buy_volume,bar.sell_volume); whale_imbalance=order_imbalance(bar.whale_buy,bar.whale_sell)
@@ -52,6 +53,20 @@ def analyze_market(bars:Sequence,*,volume_history:Sequence[float]|None=None,trad
       meme_report=asdict(score_meme_candidate(meme.get("token",bar.symbol),liquidity_usd=float(meme["liquidity_usd"]),volume_24h_usd=float(meme["volume_24h_usd"]),
         holders=int(meme["holders"]),top_holder_pct=float(meme["top_holder_pct"]),buy_sell_ratio=float(meme["buy_sell_ratio"]),
         smart_money_score=float(meme["smart_money_score"]),fomo_score=float(meme["fomo_score"]),historical_evidence=historical_evidence))
+    # Unknown execution economics remain explicitly unavailable. Do not infer
+    # expected price movement from model confidence or signal score.
+    directional_flow = flow["smart_money_score"] * (1 if signal.side == "LONG" else -1 if signal.side == "SHORT" else 0)
+    opportunity = select_opportunity(
+      direction=signal.side, confidence=confidence, expected_move_pct=None, modeled_cost_pct=None,
+      edge=max(0.0, signal.score-entry_threshold), agreement=confluence["agreement"],
+      data_quality=data_quality, regime_fit=macro_fit,
+      timing=1.0 if signal.side != "FLAT" else 0.0,
+      smart_money=max(0.0, directional_flow),
+      fomo_support=min(1.0, float(fomo_score)) if signal.side == "LONG" else 0.0,
+      crowding=crowding["score"], conflict=max(0.0, 1.0-confluence["agreement"]),
+    )
+    # Opportunity ranking keeps candidates visible for manual review, but it
+    # must not override the existing quality gate or imply trade readiness.
     signal_summary=research_signal_summary(side=signal.side,signal_score=signal.score,confidence=confidence,gate_eligible=gate["eligible"],
       effective_confluence=confluence["effective_score"],agreement=confluence["agreement"],crowding_score=crowding["score"],
       cascade_risk=crowding["cascade_risk"],oi_funding_divergence=crowding["oi_funding_divergence"],regime_fit=macro_fit,
@@ -60,5 +75,5 @@ def analyze_market(bars:Sequence,*,volume_history:Sequence[float]|None=None,trad
       microstructure=microstructure,cross_exchange=exchange_confirmation,confluence=confluence,crowding=crowding,fomo=fomo,macro=macro_report,meme=meme_report,historical_evidence=historical_evidence)
     return {"timestamp":bar.ts,"symbol":bar.symbol,"price":bar.price,"flow":flow,"positioning":positioning,"crowding":crowding,"microstructure":microstructure,
       "cross_exchange":exchange_confirmation,"confluence":confluence,"signal":signal.to_dict(),"fomo":fomo,"macro":macro_report,"meme":meme_report,
-      "signal_gate":gate,"signal_summary":signal_summary,"historical_evidence":historical_evidence,"fomo_historical_evidence":fomo_history,
+      "signal_gate":gate,"opportunity_selection":opportunity,"signal_summary":signal_summary,"historical_evidence":historical_evidence,"fomo_historical_evidence":fomo_history,
       "final_report":final_report,"research_only":True,"live_orders":False}
