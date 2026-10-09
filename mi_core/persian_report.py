@@ -167,7 +167,7 @@ def render_persian(snapshot, project60=None):
     timing=e.get("timing") or {}
     if fc.get("available"):
         selected=fc.get("selected") or {}
-        lines.append("🔮 پیش‌بینی: {} | حرکت تخمینی {:+.3f}٪ | احتمال برخورد هدف {:.0f}٪ | افق {} کندل".format(
+        lines.append("🔮 پیش‌بینی: {} | حرکت تخمینی {:+.3f}٪ | احتمال برخورد هدف {:.0f}٪ | افق حدود {} دقیقه".format(
             alignment.get("direction","UNKNOWN"),_num(selected.get("expected_return_pct",
             selected.get("expected_move_pct"))),_num(selected.get("target_hit_probability"))*100,
             selected.get("horizon","?")))
