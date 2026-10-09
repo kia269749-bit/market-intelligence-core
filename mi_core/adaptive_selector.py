@@ -198,7 +198,7 @@ def evaluate_adaptive_selection(
         train = _metrics(resolved_returns(name, current_i, n - train_window - horizon - 1))
         candidates.append({
             "strategy": name,
-            "current_direction": signals[name][current_i] if scheduled[name][current_i] else 0,
+            "current_direction": signals[name][current_i],
             "training": train,
             "training_gate": _training_gate(train, min_train_trades),
         })
