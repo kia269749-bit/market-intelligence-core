@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from mi_core.real_validation import (
     _directional_metrics,
+    _non_overlapping_result,
     _oos_integrity_metrics,
     _path_excursion_metrics,
     _opportunity_tier,
@@ -122,6 +123,18 @@ class RealValidationTests(unittest.TestCase):
         self.assertFalse(short["signal_eligible"])
         self.assertTrue(long["signal_eligible"])
         self.assertEqual(short["accepted_assets"], 0)
+
+
+    def test_economic_metrics_use_non_overlapping_horizon_rows(self):
+        result = {"predictions": [
+            {"ts": i * 60_000, "pred": 1, "actual_return_pct": 0.5}
+            for i in range(6)
+        ]}
+        selected = _non_overlapping_result(result, horizon=2)
+        self.assertEqual(selected["economic_overlap_policy"], "first_prediction_then_wait_full_horizon")
+        self.assertEqual(selected["economic_source_predictions"], 6)
+        self.assertEqual(selected["economic_non_overlapping_predictions"], 3)
+        self.assertEqual([x["ts"] for x in selected["predictions"]], [0, 120_000, 240_000])
 
 if __name__ == "__main__":
     unittest.main()
