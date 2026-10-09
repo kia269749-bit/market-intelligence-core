@@ -1,5 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
+from math import isfinite
 from typing import Mapping,Sequence
 from .fomo_direction import TradeDirection
 @dataclass(frozen=True)
