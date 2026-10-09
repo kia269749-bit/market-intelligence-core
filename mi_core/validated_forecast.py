@@ -159,7 +159,9 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         lo = max(20, i - train_window)
         X = []
         y = []
-        for j in range(lo, i):
+        # Labels require horizon future bars. At decision i, only outcomes
+        # whose exit is at or before i are observable; exclude immature labels.
+        for j in range(lo, i - horizon + 1):
             f = feature_cache[j]
             lab = label_cache[j]
             if f is not None and lab is not None:
@@ -225,7 +227,8 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
     label_cache = _labels_cache(bars, horizon, flat_band)
     X = []
     y = []
-    for j in range(max(20, i - train_window), i):
+    # Do not train on labels whose forward horizon has not finished yet.
+    for j in range(max(20, i - train_window), i - horizon + 1):
         f = feature_cache[j]
         lab = label_cache[j]
         if f is not None and lab is not None:
@@ -265,11 +268,21 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
     }
 
 
-def score_predictions(result):
-    """Compute OOS accuracy, per-class precision/recall and confidence calibration."""
+def non_overlapping_predictions(result):
+    """Sample at most one resolved forecast per horizon to avoid overlapping outcomes."""
     rows = [x for x in result.get("predictions", []) if x.get("actual") is not None]
+    rows.sort(key=lambda x: x.get("ts", 0))
+    horizon = max(1, int(result.get("horizon_bars", 1) or 1))
+    return rows[::horizon]
+
+
+def score_predictions(result):
+    """Score non-overlapping OOS forecasts; retain all-bar accuracy as a diagnostic."""
+    all_rows = [x for x in result.get("predictions", []) if x.get("actual") is not None]
+    rows = non_overlapping_predictions(result)
     if not rows:
-        return {"resolved": 0, "accuracy": 0.0, "precision": {}, "recall": {}, "high_conf_accuracy": 0.0}
+        return {"resolved": 0, "all_forecasts": len(all_rows), "accuracy": 0.0,
+                "all_forecast_accuracy": 0.0, "precision": {}, "recall": {}, "high_conf_accuracy": 0.0}
     metrics = {}
     for c in (-1, 0, 1):
         tp = sum(x["pred"] == c and x["actual"] == c for x in rows)
@@ -282,9 +295,12 @@ def score_predictions(result):
     correct = sum(x["pred"] == x["actual"] for x in rows)
     high = [x for x in rows if max(x["p_up"], x["p_flat"], x["p_down"]) >= .70]
     high_correct = sum(x["pred"] == x["actual"] for x in high)
+    all_correct = sum(x["pred"] == x["actual"] for x in all_rows)
     return {
         "resolved": len(rows),
+        "all_forecasts": len(all_rows),
         "accuracy": round(correct / len(rows), 6),
+        "all_forecast_accuracy": round(all_correct / len(all_rows), 6) if all_rows else 0.0,
         "precision": {k: v["precision"] for k, v in metrics.items()},
         "recall": {k: v["recall"] for k, v in metrics.items()},
         "high_conf_samples": len(high),
@@ -329,7 +345,7 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
 def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
     """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
     rows = [
-        x for x in result.get("predictions", [])
+        x for x in non_overlapping_predictions(result)
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
     ]
     min_move = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
