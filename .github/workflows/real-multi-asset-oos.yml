@@ -42,6 +42,7 @@ jobs:
           from pathlib import Path
           x=json.loads(Path("reports/${{ matrix.symbol }}_1h_forecast_validation.json").read_text())
           edge=x.get("economic_edge",{})
+          overlap=x.get("overlapping_forecast_diagnostic",{})
           metrics=x.get("metrics",{})
           gate=x.get("acceptance_gate",{})
           clock=json.loads(Path("reports/${{ matrix.symbol }}_actual_clock_economic.json").read_text())
@@ -58,8 +59,10 @@ jobs:
             "high_conf_accuracy":metrics.get("high_conf_accuracy"),
             "samples":edge.get("samples"),
             "direction_correct_rate":edge.get("direction_correct_rate"),
-            "forecast_diagnostic_net_profit_usd":edge.get("net_profit_usd"),
-            "forecast_diagnostic_expectancy_usd":edge.get("expectancy_usd"),
+            "non_overlapping_economic_net_profit_usd":edge.get("net_profit_usd"),
+            "non_overlapping_economic_expectancy_usd":edge.get("expectancy_usd"),
+            "overlapping_forecast_diagnostic_net_profit_usd":overlap.get("net_profit_usd"),
+            "overlapping_forecast_diagnostic_expectancy_usd":overlap.get("expectancy_usd"),
             "usd4_hit_rate":edge.get("usd4_hit_rate"),
             "usd10_hit_rate":edge.get("usd10_hit_rate"),
             "forecast_gate_passed":gate.get("accepted"),
