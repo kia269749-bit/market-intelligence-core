@@ -56,6 +56,24 @@ class LiveBrainTests(unittest.TestCase):
         self.assertIn("market_bias=BULLISH confidence=0.70", first)
         self.assertIn("raw_market_bias=NEUTRAL", first)
 
+    def test_run_once_blocks_conflicting_forecast_from_actionable_status(self):
+        market={"rows":[{"change_24h_pct":5.0,"price":100.0}],
+                "data_quality":{"status":"HEALTHY","score":1.0}}
+        forecast={"available":True,"asset":"BTC","price":100.0,
+                  "selected":{"direction":"DOWN","expected_return_pct":-2.5,
+                              "expected_move_pct":2.5,"target_hit_probability":0.65,
+                              "tier":"STRONG","confidence":0.8}}
+        fused={"bias":"BULLISH","confidence":0.8,"agreement":1.0,
+               "actionable":True,"regime":"TREND"}
+        with patch("mi_core.live_brain.fetch_snapshot",return_value=market), \
+             patch("mi_core.live_brain.scan_boosted",return_value={"candidates":[]} ), \
+             patch("mi_core.live_brain._fuse",return_value=fused):
+            snap=run_once(forecast=forecast)
+        self.assertEqual(snap["evidence"]["forecast_alignment"]["state"],"CONFLICT")
+        self.assertFalse(snap["capital_economics"]["approved"])
+        self.assertFalse(snap["evidence"]["combined"]["actionable"])
+        self.assertIn("forecast_direction_conflict",snap["evidence"]["no_trade"]["reasons"])
+
     def test_fomo_failure_does_not_fail_cycle(self):
         market={"rows":[{"change_24h_pct":0.0,"price":100}]}
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", side_effect=TimeoutError("fomo timeout")):
