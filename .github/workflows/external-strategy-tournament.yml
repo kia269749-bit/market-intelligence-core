@@ -14,6 +14,8 @@ on:
     branches: [main]
     paths:
       - "tools/external_strategy_tournament.py"
+      - "tools/cross_market_macro_research.py"
+      - "tests/test_cross_market_macro_research.py"
       - "tests/test_external_strategy_tournament.py"
       - ".github/workflows/external-strategy-tournament.yml"
       - "mi_core/real_data.py"
