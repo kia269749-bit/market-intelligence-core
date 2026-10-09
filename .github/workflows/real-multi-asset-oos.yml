@@ -37,7 +37,7 @@ jobs:
           python tools/economic_path_validation.py \
             --input data/real/${{ matrix.symbol }}_5m.jsonl \
             --out reports/${{ matrix.symbol }}_actual_clock_economic.json \
-            --min-history 300 --step 48 --max-evals 40
+            --min-history 300 --step 96 --max-evals 40
       - name: Print comparable metrics
         run: |
           python - <<'PY'
