@@ -67,12 +67,24 @@ def _market_bias(snapshot, symbol=None):
     confidence=min(0.85,(0.35+0.35*agreement+0.15*strength)*source_factor)
     return ("BULLISH" if avg>0 else "BEARISH"),round(confidence,4)
 
-def _regime(snapshot, forecast=None):
-    """Classify temporal regime only when a time-series forecaster supplies it.
-
-    Dispersion between coins is cross-sectional disagreement, not volatility
-    through time. A one-shot 24h ticker snapshot cannot establish a regime.
-    """
+def _regime(snapshot, forecast=None, multi_timeframe=None):
+    """Use temporal OHLC regime evidence; never mistake cross-asset dispersion for volatility."""
+    mtf=multi_timeframe or {}
+    timeframes=mtf.get("timeframes") or {}
+    h4=timeframes.get("4h") or {}
+    h1=timeframes.get("1h") or {}
+    if mtf.get("available") and h4.get("available"):
+        if h4.get("volatility_state")=="HIGH_VOL":
+            return {"name":"HIGH_VOLATILITY","confidence":0.75,"source":"4h_atr_expansion",
+                    "atr_expansion_ratio":h4.get("atr_expansion_ratio")}
+        d4=str(h4.get("direction","NEUTRAL")).upper()
+        d1=str(h1.get("direction","NEUTRAL")).upper()
+        if d4 in ("BULLISH","BEARISH") and d1==d4:
+            return {"name":"TREND","confidence":0.75,"source":"1h_4h_ohlc_alignment","direction":d4}
+        if d4 in ("BULLISH","BEARISH") and d1 in ("BULLISH","BEARISH") and d1!=d4:
+            return {"name":"MIXED","confidence":0.65,"source":"1h_4h_conflict","direction_1h":d1,"direction_4h":d4}
+        if d4 in ("BULLISH","BEARISH") and d1=="NEUTRAL":
+            return {"name":"TREND","confidence":0.55,"source":"4h_ohlc_trend","direction":d4}
     raw=str((forecast or {}).get("regime") or "").upper()
     mapping={"HIGH_VOL":"HIGH_VOLATILITY","HIGH_VOLATILITY":"HIGH_VOLATILITY",
              "TREND":"TREND","RANGE":"RANGE","MIXED":"MIXED"}
@@ -586,7 +598,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         quality_status=str(quality.get("status","UNSAFE")).upper()
     quality_status={"SAFE":"HEALTHY","PARTIAL":"DEGRADED"}.get(quality_status,quality_status)
     quality["status"]=quality_status
-    regime=_regime(market,forecast)
+    regime=_regime(market,forecast,multi_timeframe)
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
     votes=[(raw_bias,raw_conf)]
