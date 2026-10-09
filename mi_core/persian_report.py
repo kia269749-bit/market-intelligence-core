@@ -58,7 +58,7 @@ def _project60_lines(project60):
     return lines
 
 def _validated_action(snapshot):
-    """Build a Persian report action only from the live brain's validated evidence."""
+    """Build a candidate from the forecast, but reserve execution-ready for all passed gates."""
     e=snapshot.get("evidence",{}) or {}
     combined=e.get("combined",{}) or {}
     economics=snapshot.get("capital_economics") or e.get("capital_economics") or {}
@@ -67,31 +67,20 @@ def _validated_action(snapshot):
     timing=e.get("timing") or {}
     forecast=e.get("forecast") or {}
     bias=str(combined.get("bias","NEUTRAL")).upper()
-    reasons=no_trade.get("reasons") or []
+    reasons=list(no_trade.get("reasons") or [])
     quality=(snapshot.get("market",{}).get("data_quality") or e.get("data_quality") or {})
-    if str(quality.get("status","")).upper()=="UNSAFE":
-        return {"status":"WAIT","reason":"کیفیت داده ناامن است؛ ورود تأیید نمی‌شود."}
+    qstatus=str(quality.get("status","UNKNOWN")).upper()
 
-    if no_trade.get("blocked"):
-        return {"status":"WAIT","reason":"شرط ایمنی بازار فعال است: "+", ".join(reasons)}
-    if not combined.get("actionable"):
-        return {"status":"WAIT","reason":"مغز ترکیبی هنوز جهت/کیفیت کافی برای سیگنال تأییدشده ندارد."}
-    if not economics.get("available") or not economics.get("approved"):
-        return {"status":"WAIT","reason":"گیت اقتصادی عبور نکرده: "+str(economics.get("reason","economic_edge_unproven"))}
-    if not alignment.get("approved"):
-        return {"status":"WAIT","reason":"گیت جهت و اعتبارسنجی عبور نکرده: "+str(alignment.get("reason","forecast_not_validated"))}
+    if qstatus=="UNSAFE" or "unsafe_data" in reasons:
+        return {"status":"WAIT","reason":"کیفیت داده ناامن است؛ ورود و هدف‌گذاری تأیید نمی‌شوند."}
     if not forecast.get("available"):
         return {"status":"WAIT","reason":"پیش‌بینی معتبر برای این چرخه موجود نیست."}
-    if timing.get("state") not in ("EARLY","DEVELOPING"):
-        return {"status":"WAIT","reason":"زمان ورود مناسب نیست: "+str(timing.get("reason",timing.get("state","UNKNOWN")))}
 
     selected=forecast.get("selected") if isinstance(forecast,dict) else {}
     selected=selected if isinstance(selected,dict) else {}
-    direction=str(alignment.get("direction") or bias).upper()
-    mtf=e.get("multi_timeframe") or {}
-    mtf_bias=str(mtf.get("bias","NEUTRAL")).upper()
-    if mtf.get("available") and mtf_bias in ("BULLISH","BEARISH") and mtf_bias!=direction:
-        return {"status":"WAIT","reason":"تعارض جهت بین پیش‌بینی و روند چندبازه‌ای OHLC."}
+    raw_direction=str(alignment.get("direction") or selected.get("direction") or bias).upper()
+    direction={"UP":"BULLISH","BULLISH":"BULLISH","DOWN":"BEARISH","BEARISH":"BEARISH",
+               "FLAT":"FLAT","NEUTRAL":"FLAT"}.get(raw_direction,"UNKNOWN")
     entry=_num(forecast.get("price") or forecast.get("current_price") or
                 selected.get("current_price") or selected.get("price"))
     if entry<=0:
@@ -103,19 +92,43 @@ def _validated_action(snapshot):
                 break
     move=_num(economics.get("expected_move_pct"),_num(selected.get("expected_move_pct")))
     if entry<=0 or move<=0 or direction not in ("BULLISH","BEARISH"):
-        return {"status":"WAIT","reason":"قیمت مرجع یا حرکت مورد انتظار معتبر نیست."}
+        return {"status":"WAIT","reason":"قیمت مرجع، جهت یا حرکت مورد انتظار معتبر نیست."}
 
     from .shadow_risk import build_risk_levels
     risk=build_risk_levels(entry,direction,move)
     target1=entry+(risk["target"]-entry)*0.5
-    status="WATCH_BUY" if direction=="BULLISH" else "WATCH_SELL"
-    execution_ready=bool(e.get("execution_ready"))
+    blockers=[]
+    if no_trade.get("blocked"):
+        blockers.extend(reasons or ["no_trade_guard_blocked"])
+    if not combined.get("actionable"):
+        blockers.append("fusion_not_actionable")
+    if not economics.get("available") or not economics.get("approved"):
+        blockers.append(str(economics.get("reason","economic_edge_unproven")))
+    if not alignment.get("approved"):
+        blockers.append(str(alignment.get("reason","forecast_not_validated")))
+    if timing.get("state") not in ("EARLY","DEVELOPING"):
+        blockers.append("timing_"+str(timing.get("state","UNKNOWN")).lower())
+    if qstatus!="HEALTHY":
+        blockers.append("data_quality_"+qstatus.lower())
+    mtf=e.get("multi_timeframe") or {}
+    mtf_bias=str(mtf.get("bias","NEUTRAL")).upper()
+    if not mtf.get("available"):
+        blockers.append("multi_timeframe_unavailable")
+    elif mtf_bias in ("BULLISH","BEARISH") and mtf_bias!=direction:
+        blockers.append("multi_timeframe_direction_conflict")
+
+    execution_ready=bool(e.get("execution_ready") and not blockers)
     if execution_ready:
-        reason="گیت‌های جهت، اقتصاد، اعتبارسنجی و زمان‌بندی هم‌زمان عبور کرده‌اند؛ فقط پژوهشی/کاغذی."
+        reason="گیت‌های جهت، اقتصاد، اعتبارسنجی خارج از نمونه، کیفیت داده، چندبازه‌ای و زمان‌بندی عبور کرده‌اند؛ فقط پژوهشی/کاغذی."
     else:
-        reason="نامزد جهت‌دار و اقتصادی است، اما زمان‌بندی هنوز برای ورود آماده نیست."
+        unique=[]
+        for item in blockers:
+            if item and item not in unique:
+                unique.append(item)
+        reason="نامزد پژوهشی؛ ورود تأیید نشده. موانع: "+", ".join(unique or ["execution_readiness_gate_not_passed"])
     return {
-        "status":status,"symbol":forecast.get("asset") or selected.get("asset") or "BTC",
+        "status":"WATCH_BUY" if direction=="BULLISH" else "WATCH_SELL",
+        "symbol":forecast.get("asset") or selected.get("asset") or "BTC",
         "price":entry,"entry":entry,"stop":risk["stop"],"target1":target1,"target":risk["target"],
         "risk_reward":risk["risk_reward"],"expected_move_pct":move,
         "target_hit_probability":_num(selected.get("target_hit_probability")),
@@ -125,7 +138,6 @@ def _validated_action(snapshot):
         "execution_ready":execution_ready,"timing_state":timing.get("state","UNKNOWN"),
         "reason":reason,
     }
-
 
 def render_persian(snapshot, project60=None):
     e=snapshot.get("evidence",{}); m=e.get("market",{}); combined=e.get("combined",{})
