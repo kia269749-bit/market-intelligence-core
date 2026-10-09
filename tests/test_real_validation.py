@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from mi_core.models import MarketBar
 from mi_core.real_validation import (
     _aggregate,
     _directional_metrics,
