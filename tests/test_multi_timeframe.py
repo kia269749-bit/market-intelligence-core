@@ -38,6 +38,8 @@ class MultiTimeframeTests(unittest.TestCase):
             row = result["timeframes"][timeframe]
             self.assertIn("rsi14", row)
             self.assertIn("atr14_pct", row)
+            self.assertIn("atr_expansion_ratio", row)
+            self.assertIn("volatility_state", row)
             self.assertIn("support50", row)
             self.assertIn("resistance50", row)
             self.assertIn("candle_pattern", row)
