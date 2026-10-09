@@ -13,7 +13,29 @@ class TraderFill:
 class LeaderFollowerEvent:
     leader_id:str;token:str;direction:TradeDirection;leader_timestamp:int;leader_amount_usd:float;leader_score:float;follower_ids:tuple[str,...];follower_count:int;follower_volume_usd:float;median_lag_seconds:float;confidence:float;status:str
     def to_dict(self):return {"leader_id":self.leader_id,"token":self.token,"direction":self.direction.value,"leader_timestamp":self.leader_timestamp,"leader_amount_usd":self.leader_amount_usd,"leader_score":self.leader_score,"follower_ids":list(self.follower_ids),"follower_count":self.follower_count,"follower_volume_usd":self.follower_volume_usd,"median_lag_seconds":self.median_lag_seconds,"confidence":self.confidence,"status":self.status}
-def _clip(v):return max(0.0,min(1.0,float(v)))
+def _clip(v):
+    try:
+        number = float(v)
+    except (TypeError, ValueError):
+        return 0.0
+    if not isfinite(number):
+        return 0.0
+    return max(0.0, min(1.0, number))
+
+
+def _valid_fill(fill):
+    try:
+        timestamp = float(fill.timestamp)
+        amount = float(fill.amount_usd)
+        confidence = float(fill.confidence)
+    except (TypeError, ValueError, AttributeError):
+        return False
+    return (
+        bool(fill.trader_id) and bool(fill.token)
+        and isfinite(timestamp) and timestamp >= 0
+        and isfinite(amount) and amount > 0
+        and isfinite(confidence) and 0.0 <= confidence <= 1.0
+    )
 def detect_leader_follower_events(fills:Sequence[TraderFill],leader_scores:Mapping[str,float],*,window_seconds=300,min_leader_score=.60,min_fill_confidence=.60,min_followers=2):
     ordered=sorted(fills,key=lambda f:(int(f.timestamp),f.trader_id));out=[]
     for leader in ordered:
