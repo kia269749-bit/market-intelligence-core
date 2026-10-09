@@ -75,7 +75,13 @@ def decode_swap_candidates(tx: Mapping[str, Any], *, signature: str = "", quote_
     sol = _sol_delta(tx, trader)
     if abs(sol) > 1e-12:
         quote_rows.append(("SOL", sol))
-    token_rows = [(mint, d) for (owner, mint), d in deltas.items() if owner == trader and mint not in quotes and abs(d) > 1e-12]\n    # A swap candidate must have exactly one clear quote direction. Multiple conflicting\n    # quote deltas are ambiguous and are left for a protocol-specific parser.\n    if len(quote_rows) > 1:\n        signs = {1 if qd > 0 else -1 for _, qd in quote_rows}\n        if len(signs) > 1:\n            return []
+    token_rows = [(mint, d) for (owner, mint), d in deltas.items() if owner == trader and mint not in quotes and abs(d) > 1e-12]
+    # A swap candidate must have exactly one clear quote direction. Multiple conflicting
+    # quote deltas are ambiguous and are left for a protocol-specific parser.
+    if len(quote_rows) > 1:
+        signs = {1 if qd > 0 else -1 for _, qd in quote_rows}
+        if len(signs) > 1:
+            return []
     out = []
     for token, td in token_rows:
         for quote, qd in quote_rows:
@@ -84,5 +90,12 @@ def decode_swap_candidates(tx: Mapping[str, Any], *, signature: str = "", quote_
                 continue
             qa, ta = abs(qd), abs(td)
             confidence = min(0.85, 0.65 + (0.05 if quote != "SOL" else 0.0) + (0.05 if len(programs) > 1 else 0.0))
-            candidate = SolanaSwapCandidate(signature, int(tx.get("blockTime") or 0), trader, token, side, ta, quote, qa, qa / ta, "+".join(programs), confidence)\n            evidence = classify_protocol(tx)\n            if evidence is not None:\n                if evidence.instruction_direction in {"BUY", "SELL"}:\n                    candidate = SolanaSwapCandidate(candidate.signature, candidate.timestamp, candidate.trader_id, candidate.token_mint, evidence.instruction_direction, candidate.token_amount, candidate.quote_mint, candidate.quote_amount, candidate.price_quote_per_token, evidence.dex, min(0.95, max(candidate.confidence, evidence.confidence)))\n                else:\n                    candidate = SolanaSwapCandidate(candidate.signature, candidate.timestamp, candidate.trader_id, candidate.token_mint, candidate.side, candidate.token_amount, candidate.quote_mint, candidate.quote_amount, candidate.price_quote_per_token, evidence.dex, min(0.95, max(candidate.confidence, evidence.confidence)))\n            out.append(candidate)
+            candidate = SolanaSwapCandidate(signature, int(tx.get("blockTime") or 0), trader, token, side, ta, quote, qa, qa / ta, "+".join(programs), confidence)
+            evidence = classify_protocol(tx)
+            if evidence is not None:
+                if evidence.instruction_direction in {"BUY", "SELL"}:
+                    candidate = SolanaSwapCandidate(candidate.signature, candidate.timestamp, candidate.trader_id, candidate.token_mint, evidence.instruction_direction, candidate.token_amount, candidate.quote_mint, candidate.quote_amount, candidate.price_quote_per_token, evidence.dex, min(0.95, max(candidate.confidence, evidence.confidence)))
+                else:
+                    candidate = SolanaSwapCandidate(candidate.signature, candidate.timestamp, candidate.trader_id, candidate.token_mint, candidate.side, candidate.token_amount, candidate.quote_mint, candidate.quote_amount, candidate.price_quote_per_token, evidence.dex, min(0.95, max(candidate.confidence, evidence.confidence)))
+            out.append(candidate)
     return out
