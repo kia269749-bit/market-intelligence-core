@@ -109,6 +109,15 @@ def _labels_cache(bars, horizon, flat_band):
     return labels
 
 
+def _training_indices(i, horizon, train_window, min_index=20):
+    """Only train on labels that fully resolve before prediction index i."""
+    lo = max(min_index, i - horizon - train_window)
+    hi = i - horizon
+    if hi <= lo:
+        return range(0, 0)
+    return range(lo, hi)
+
+
 def _fit(X, y, epochs=50, lr=.035, l2=.02):
     means = [sum(x[j] for x in X) / len(X) for j in range(len(X[0]))]
     scales = [statistics.pstdev(x[j] for x in X) or 1 for j in range(len(X[0]))]
@@ -156,10 +165,9 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
     fit_every = max(1, int(fit_every))
 
     for i in range(max(20, min_train), len(bars) - horizon):
-        lo = max(20, i - train_window)
         X = []
         y = []
-        for j in range(lo, i):
+        for j in _training_indices(i, horizon, train_window):
             f = feature_cache[j]
             lab = label_cache[j]
             if f is not None and lab is not None:
