@@ -13,7 +13,11 @@ DEFAULT_MINUTES=(15,30,60,120,240,480)
 DEFAULT_COSTS=(0.10,0.20,0.35,0.50)
 
 def _future_index(bars,start,seconds):
-    target=int(bars[start].ts)+int(seconds)
+    # Binance bars use Unix milliseconds; some fixtures and local collectors use
+    # seconds. Convert the requested wall-clock horizon to the input timestamp unit.
+    ts0=int(bars[start].ts)
+    timestamp_scale=1000 if abs(ts0)>=100_000_000_000 else 1
+    target=ts0+int(seconds)*timestamp_scale
     for i in range(start+1,len(bars)):
         if int(bars[i].ts)>=target: return i
     return None
