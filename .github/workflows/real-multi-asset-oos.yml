@@ -12,6 +12,7 @@ on:
       - "mi_core/path_forecast.py"
       - "mi_core/adaptive_selector.py"
       - "mi_core/real_data.py"
+      - "tools/strategy_tournament_diagnostics.py"
       - "mi_core/cli.py"
       - "tools/economic_path_validation.py"
       - "tools/real_opportunity_scan.py"
@@ -75,6 +76,12 @@ jobs:
               "reasons": result.get("reasons"),
           }, sort_keys=True))
           PY
+      - name: Screen fixed strategy families on recent non-overlapping OOS holdout
+        run: |
+          python tools/strategy_tournament_diagnostics.py \
+            --input data/real/${{ matrix.symbol }}_1h.jsonl \
+            --horizon 24 --cost-pct 0.35 --holdout-bars 1000 --windows 3 \
+            --out reports/${{ matrix.symbol }}_strategy_screen.json
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -110,6 +117,7 @@ jobs:
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
             reports/${{ matrix.symbol }}_adaptive_selector_oos.json
+            reports/${{ matrix.symbol }}_strategy_screen.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
