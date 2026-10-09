@@ -10,6 +10,8 @@ on:
       - ".github/workflows/real-multi-asset-oos.yml"
       - "mi_core/real_validation.py"
       - "mi_core/path_forecast.py"
+      - "mi_core/adaptive_selector.py"
+      - "mi_core/real_data.py"
       - "mi_core/cli.py"
       - "tools/economic_path_validation.py"
       - "tools/real_opportunity_scan.py"
@@ -40,6 +42,39 @@ jobs:
       - name: Run walk-forward OOS validation
         run: |
           python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --out reports/${{ matrix.symbol }}_1h_forecast_validation.json
+      - name: Evaluate adaptive strategy tournament on real OHLC
+        env:
+          SYMBOL: \${{ matrix.symbol }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          from mi_core.models import MarketBar
+          from mi_core.adaptive_selector import evaluate_adaptive_selection
+          symbol = os.environ["SYMBOL"]
+          source = Path(f"data/real/{symbol}_1h.jsonl")
+          bars = [MarketBar(**json.loads(line)) for line in source.read_text().splitlines() if line.strip()]
+          result = evaluate_adaptive_selection(
+              bars, horizon=24, cost_pct=0.35, train_window=1500,
+              min_train_trades=20, min_oos_trades=12)
+          out = Path(f"reports/{symbol}_adaptive_selector_oos.json")
+          out.write_text(json.dumps(result, indent=2, sort_keys=True))
+          print(json.dumps({
+              "symbol": symbol,
+              "samples": result.get("samples"),
+              "selected_strategy": result.get("selected_strategy"),
+              "direction": result.get("direction"),
+              "training_gate": result.get("training_gate"),
+              "training_trades": (result.get("training") or {}).get("trades"),
+              "oos_trades": (result.get("walk_forward_oos") or {}).get("trades"),
+              "oos_net_profit_pct": (result.get("walk_forward_oos") or {}).get("net_profit_pct"),
+              "oos_expectancy_pct": (result.get("walk_forward_oos") or {}).get("mean_net_pct"),
+              "oos_profit_factor": (result.get("walk_forward_oos") or {}).get("profit_factor"),
+              "accepted": result.get("accepted"),
+              "status": result.get("status"),
+              "reasons": result.get("reasons"),
+          }, sort_keys=True))
+          PY
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -74,6 +109,7 @@ jobs:
             data/real/${{ matrix.symbol }}_1h.jsonl
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
+            reports/${{ matrix.symbol }}_adaptive_selector_oos.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
