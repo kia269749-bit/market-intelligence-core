@@ -42,9 +42,25 @@ class ShadowJournalTests(unittest.TestCase):
             self.assertEqual(row["status"],"OPEN")
             self.assertEqual(row["direction"],"BULLISH")
             self.assertEqual(row["entry_price"],100.0)
+            self.assertAlmostEqual(row["stop"],98.75)
+            self.assertAlmostEqual(row["target"],102.5)
+            self.assertEqual(row["capital_usd"],500.0)
+            self.assertEqual(row["round_trip_cost_pct"],0.35)
             self.assertTrue(row["research_only"])
             self.assertFalse(row["live_orders"])
             self.assertEqual(summarize(path)["count"],1)
+
+    def test_forecast_top_level_price_is_used_when_selected_price_is_missing(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=str(Path(td)/"shadow.jsonl")
+            snapshot=self._snapshot()
+            forecast=snapshot["evidence"]["forecast"]
+            forecast["price"]=101.0
+            forecast["selected"].pop("current_price")
+            self.assertTrue(_append_shadow_if_actionable(path,snapshot))
+            row=json.loads(Path(path).read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(row["entry_price"],101.0)
+            self.assertAlmostEqual(row["target"],103.525)
 
     def test_duplicate_open_signal_is_not_appended(self):
         with tempfile.TemporaryDirectory() as td:
