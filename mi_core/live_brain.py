@@ -213,6 +213,7 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
             "confidence":x.confidence, "expected_return_pct":x.expected_return_pct,
             "lower_return_pct":x.lower_return_pct, "upper_return_pct":x.upper_return_pct,
             "target_hit_probability":x.target_hit_probability,
+            "analog_samples":x.analog_samples,
             "adverse_move_pct":x.adverse_move_pct
         } for x in path_result.horizons],
         "economic":economics,
