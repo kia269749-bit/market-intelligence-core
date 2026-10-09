@@ -140,9 +140,8 @@ def build_signals(rows):
     return signals
 
 
-def _metrics(rows, positions, cost_pct, capital_usd):
+def _metrics(rows, positions, cost_pct, capital_usd, start_index, end_index):
     opens = _float_series(rows, "open")
-    start = max(200, 2)
     net_returns = []
     gross_returns = []
     turnover_costs = []
@@ -150,7 +149,7 @@ def _metrics(rows, positions, cost_pct, capital_usd):
     equity = float(capital_usd)
     peak = equity
     max_dd = 0.0
-    for i in range(start, len(rows)):
+    for i in range(max(1, start_index), min(end_index, len(rows))):
         if not (math.isfinite(opens[i]) and math.isfinite(opens[i - 1]) and opens[i - 1] > 0):
             continue
         pos = positions[i]
@@ -184,32 +183,21 @@ def _metrics(rows, positions, cost_pct, capital_usd):
         "annualized_sharpe_approx": round(daily_mean / daily_sd * math.sqrt(252), 4) if daily_sd else None,
         "max_drawdown_pct": round(max_dd, 4),
         "exposure_pct": round(sum(active) / n * 100.0, 2) if n else 0.0,
-        "position_changes": sum(1 for i in range(1, len(positions)) if positions[i] != positions[i - 1]),
+        "position_changes": sum(1 for i in range(max(1, start_index), min(end_index, len(positions))) if positions[i] != positions[i - 1]),
         "ending_equity_usd": round(equity, 4),
     }
 
-
 def _evaluate(rows, signal, cost_pct, capital_usd, common_start, split_index):
     # A close-derived signal is executed at the next open. The open-to-open
-    # return begins at that execution open, so shift the signal two rows to
-    # align with the open-return series indexed by its ending bar.
+    # return indexed by i spans open[i-1] to open[i], so signal[i-2] is used.
     positions = [0.0] * len(signal)
     for i in range(2, len(signal)):
         positions[i] = signal[i - 2] if i - 2 >= common_start else 0.0
-    # Same exact bars and capital convention for development and holdout.
-    full = _metrics(rows[common_start:], positions[common_start:], cost_pct, capital_usd)
-    # For slice metrics, rebase position series and OHLC rows, preserving only
-    # positions whose signals were known before the first evaluated interval.
-    dev_rows = rows[common_start:split_index]
-    dev_pos = positions[common_start:split_index]
-    oos_rows = rows[split_index:]
-    oos_pos = positions[split_index:]
     return {
-        "development": _metrics(dev_rows, dev_pos, cost_pct, capital_usd),
-        "holdout_oos": _metrics(oos_rows, oos_pos, cost_pct, capital_usd),
-        "full_sample": full,
+        "development": _metrics(rows, positions, cost_pct, capital_usd, common_start, split_index),
+        "holdout_oos": _metrics(rows, positions, cost_pct, capital_usd, split_index, len(rows)),
+        "full_sample": _metrics(rows, positions, cost_pct, capital_usd, common_start, len(rows)),
     }
-
 
 def tournament(bars, *, cost_round_trip_pct=0.35, capital_usd=500.0):
     rows = sorted(bars, key=lambda b: int(b.ts))
