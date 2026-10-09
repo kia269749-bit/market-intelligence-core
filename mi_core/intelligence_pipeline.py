@@ -15,6 +15,7 @@ from .crowding import analyze_crowding
 from .meme_candidate_scoring import score_meme_candidate
 from .signal_gate import SignalQuality, signal_quality_gate, research_signal_summary
 from .signal_report import build_signal_report
+from .opportunity_selection import select_opportunity
 
 def _flow_report(bar)->dict:
     flow_imbalance=order_imbalance(bar.buy_volume,bar.sell_volume); whale_imbalance=order_imbalance(bar.whale_buy,bar.whale_sell)
