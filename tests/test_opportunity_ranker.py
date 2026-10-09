@@ -26,7 +26,8 @@ def test_profitable_large_move_beats_small_move():
         "regime": "TREND",
     })
     assert strong["economic_status"] in ("STRONG", "VIABLE", "WATCH")
-    assert weak["economic_status"] == "REJECT"
+    assert weak["economic_status"] == "WATCH"
+    assert weak["reject_reason"] == "EDGE_TOO_SMALL"
     assert strong["opportunity_score"] > weak["opportunity_score"]
 
 
