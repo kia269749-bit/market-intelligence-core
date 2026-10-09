@@ -225,7 +225,16 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         economic_metrics = _directional_metrics(economic_result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
         path_metrics = _path_excursion_metrics(result)
+        # Economic edge is computed on non-overlapping outcomes. Keep the
+        # all-rows calculation only as an explicitly labeled diagnostic.
         edge_diagnostic = diagnose_economic_edge(
+            economic_result,
+            capital_usd=capital_usd,
+            round_trip_cost_pct=round_trip_cost_pct,
+            min_profit_usd=min_profit_usd,
+            preferred_profit_usd=preferred_profit_usd,
+        )
+        overlapping_edge_diagnostic = diagnose_economic_edge(
             result,
             capital_usd=capital_usd,
             round_trip_cost_pct=round_trip_cost_pct,
@@ -250,7 +259,9 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
-            "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
+            "edge_diagnostic": edge_diagnostic,
+            "overlapping_forecast_diagnostic": overlapping_edge_diagnostic,
+            "integrity_metrics": integrity_metrics,
             "economic_overlap_policy": economic_result.get("economic_overlap_policy"),
             "economic_source_predictions": economic_result.get("economic_source_predictions", len(result.get("predictions", []))),
             "economic_non_overlapping_predictions": economic_result.get("economic_non_overlapping_predictions", len(economic_result.get("predictions", []))),
