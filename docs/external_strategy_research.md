@@ -57,7 +57,7 @@ real daily OHLC data:
 - 20-day Donchian breakout with 10-day exit
 - RSI(14) mean reversion, enter below 30 and exit above 50
 
-The workflow downloads up to 1,500 daily candles for BTC, ETH, SOL, BNB and XRP
+The workflow downloads up to 2,500 daily candles for BTC, ETH, SOL, BNB and XRP
 from Binance public market data. It reports a chronological 70% development /
 30% holdout split and repeats the same fixed rules under 0.20%, 0.35% and 0.50%
 round-trip cost assumptions on $500 starting capital.
