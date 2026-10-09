@@ -38,6 +38,12 @@ class ExternalStrategyTournamentTests(unittest.TestCase):
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
         self.assertFalse(result["trade_ready"])
+        expected_split = 200 + int((800 - 200) * 0.70)
+        expected_holdout_returns = 800 - expected_split - 1
+        self.assertEqual(
+            result["strategy_results"]["buy_and_hold"]["holdout_oos"]["bars"],
+            expected_holdout_returns,
+        )
         for item in result["strategy_results"].values():
             self.assertIn("development", item)
             self.assertIn("holdout_oos", item)
