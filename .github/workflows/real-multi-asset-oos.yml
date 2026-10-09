@@ -45,20 +45,28 @@ jobs:
           metrics=x.get("metrics",{})
           gate=x.get("acceptance_gate",{})
           clock=json.loads(Path("reports/${{ matrix.symbol }}_actual_clock_economic.json").read_text())
+          clock_metrics=clock.get("cost_sensitivity",{}).get("0.35",{})
+          path_candidate_passed=(
+            int(clock_metrics.get("accepted_signals",0)) >= 20
+            and float(clock_metrics.get("expectancy_pct",0.0)) > 0
+            and float(clock_metrics.get("positive_net_rate",0.0)) >= 0.55
+            and float(clock_metrics.get("target_hit_rate",0.0)) >= 0.30
+          )
           print(json.dumps({
             "symbol":"${{ matrix.symbol }}",
             "accuracy":metrics.get("accuracy"),
             "high_conf_accuracy":metrics.get("high_conf_accuracy"),
             "samples":edge.get("samples"),
             "direction_correct_rate":edge.get("direction_correct_rate"),
-            "positive_net_rate":edge.get("positive_net_rate"),
-            "expectancy_usd":edge.get("expectancy_usd"),
-            "net_profit_usd":edge.get("net_profit_usd"),
+            "forecast_diagnostic_net_profit_usd":edge.get("net_profit_usd"),
+            "forecast_diagnostic_expectancy_usd":edge.get("expectancy_usd"),
             "usd4_hit_rate":edge.get("usd4_hit_rate"),
             "usd10_hit_rate":edge.get("usd10_hit_rate"),
-            "adverse_0_50_rate":edge.get("adverse_0_50_rate"),
-            "accepted":gate.get("accepted"),
-            "actual_clock_0_35":clock.get("cost_sensitivity",{}).get("0.35"),
+            "forecast_gate_passed":gate.get("accepted"),
+            "path_candidate_passed":path_candidate_passed,
+            "trade_ready":False,
+            "trade_readiness_reason":"ordered TP/SL execution and full portfolio simulation are not yet validated",
+            "actual_clock_0_35":clock_metrics,
             "research_only":x.get("research_only"),
             "live_orders":x.get("live_orders")
           },sort_keys=True))
@@ -105,9 +113,19 @@ jobs:
           for s in symbols:
               p=Path("artifact-data/reports")/(s+"_actual_clock_economic.json")
               x=json.loads(p.read_text())
+              costs=x.get("cost_sensitivity",{}).get("0.35",{})
+              path_candidate_passed=(
+                int(costs.get("accepted_signals",0)) >= 20
+                and float(costs.get("expectancy_pct",0.0)) > 0
+                and float(costs.get("positive_net_rate",0.0)) >= 0.55
+                and float(costs.get("target_hit_rate",0.0)) >= 0.30
+              )
               out[s]={
                 "status":x.get("status"),
                 "evaluation_points":x.get("evaluation_points"),
+                "forecast_path_candidate_passed":path_candidate_passed,
+                "trade_ready":False,
+                "trade_readiness_reason":"ordered TP/SL execution and full portfolio simulation are not yet validated",
                 "cost_sensitivity":x.get("cost_sensitivity",{}),
                 "horizon_results":x.get("horizon_results",{})
               }
