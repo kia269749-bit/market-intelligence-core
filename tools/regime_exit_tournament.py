@@ -149,7 +149,7 @@ def main():
     result = evaluate(bars, a.horizon, a.cost_pct, a.holdout_bars)
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+    out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps({
         "symbol": result["symbol"], "horizon_bars": result["horizon_bars"],
         "cost_pct": result["round_trip_cost_pct"],
