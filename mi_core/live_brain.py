@@ -10,26 +10,66 @@ def _num(v, d=0.0):
     try: return float(v)
     except (TypeError, ValueError): return d
 
-def _market_bias(snapshot):
-    changes=[_num(x.get("change_24h_pct")) for x in snapshot.get("rows",[]) if x.get("change_24h_pct") is not None]
-    if not changes: return "NEUTRAL",0.25
-    avg=sum(changes)/len(changes)
-    if avg>=1.0: return "BULLISH",min(1.0,0.50+avg/20)
-    if avg<=-1.0: return "BEARISH",min(1.0,0.50+abs(avg)/20)
-    return "NEUTRAL",0.50
+def _market_bias(snapshot, symbol=None):
+    """Estimate 24h directional context with one vote per asset, not per exchange row.
 
-def _regime(snapshot):
-    changes=[_num(x.get("change_24h_pct")) for x in snapshot.get("rows",[]) if x.get("change_24h_pct") is not None]
-    if len(changes)<3:
-        return {"name":"UNKNOWN","confidence":0.25,"dispersion":0.0}
-    avg=sum(changes)/len(changes)
-    dispersion=statistics.pstdev(changes)
-    if dispersion>=8.0: name="HIGH_VOLATILITY"
-    elif abs(avg)>=2.0: name="TREND"
-    elif dispersion<=2.0 and abs(avg)<1.0: name="RANGE"
-    else: name="MIXED"
-    confidence=min(1.0,0.40+min(0.50,dispersion/20))
-    return {"name":name,"confidence":round(confidence,4),"dispersion":round(dispersion,4)}
+    For an asset forecast, use that asset's cross-exchange median. Without an
+    asset, estimate broad-market breadth. This score is a heuristic context,
+    not a calibrated probability or an intraday entry signal.
+    """
+    rows=[x for x in snapshot.get("rows",[]) if isinstance(x,dict) and x.get("change_24h_pct") is not None]
+    if not rows:
+        return "NEUTRAL",0.25
+    wanted=str(symbol or "").upper().replace("-","").replace("/","")
+    named=[x for x in rows if str(x.get("symbol","")).upper().replace("-","").replace("/","")==wanted] if wanted else []
+    if wanted:
+        if named:
+            rows=named
+        elif any(x.get("symbol") for x in rows):
+            return "NEUTRAL",0.25
+        # Compatibility for old single-asset snapshots without symbol metadata.
+    grouped={}
+    for row in rows:
+        key=str(row.get("symbol") or "__unspecified__").upper().replace("-","").replace("/","")
+        try:
+            value=float(row.get("change_24h_pct"))
+            if not math.isfinite(value):
+                continue
+        except (TypeError,ValueError):
+            continue
+        grouped.setdefault(key,[]).append(value)
+    changes=[statistics.median(values) for values in grouped.values() if values]
+    if not changes:
+        return "NEUTRAL",0.25
+    avg=statistics.median(changes)
+    if abs(avg)<0.50:
+        return "NEUTRAL",0.25
+    sign=1 if avg>0 else -1
+    agreement=sum(1 for value in changes if value*sign>0)/len(changes)
+    if agreement<0.55:
+        return "NEUTRAL",round(0.25+0.20*agreement,4)
+    source_n=len(rows)
+    source_factor=min(1.0,0.75+0.08*max(0,source_n-1))
+    strength=min(1.0,abs(avg)/5.0)
+    confidence=min(0.85,(0.35+0.35*agreement+0.15*strength)*source_factor)
+    return ("BULLISH" if avg>0 else "BEARISH"),round(confidence,4)
+
+def _regime(snapshot, forecast=None):
+    """Classify temporal regime only when a time-series forecaster supplies it.
+
+    Dispersion between coins is cross-sectional disagreement, not volatility
+    through time. A one-shot 24h ticker snapshot cannot establish a regime.
+    """
+    raw=str((forecast or {}).get("regime") or "").upper()
+    mapping={"HIGH_VOL":"HIGH_VOLATILITY","HIGH_VOLATILITY":"HIGH_VOLATILITY",
+             "TREND":"TREND","RANGE":"RANGE","MIXED":"MIXED"}
+    if raw in mapping:
+        score=abs(_num((forecast or {}).get("trend_score"),0.0))
+        confidence=min(0.90,0.45+score/6.0) if raw=="TREND" else 0.60
+        return {"name":mapping[raw],"confidence":round(confidence,4),
+                "source":"historical_price_path","trend_score":round(_num((forecast or {}).get("trend_score"),0.0),4)}
+    return {"name":"UNKNOWN","confidence":0.0,"source":"insufficient_time_series",
+            "reason":"cross_sectional_ticker_snapshot_cannot_estimate_temporal_regime"}
 
 def _data_quality(snapshot, max_age_sec=180):
     rows=snapshot.get("rows") or []
@@ -501,7 +541,8 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
     except Exception as exc:
         fomo={"ts":int(time.time()),"candidates":[],"research_only":True,"wallet_level":False}; fomo_error=str(exc)
-    raw_bias,raw_conf=_market_bias(market)
+    forecast_asset=(forecast or {}).get("asset") if isinstance(forecast,dict) else None
+    raw_bias,raw_conf=_market_bias(market,forecast_asset)
     # Use the multi-exchange snapshot gate as the authoritative decision gate.
     # The local row-level check remains a fallback for snapshots that predate the gate.
     market_quality=market.get("data_quality") or {}
@@ -512,7 +553,9 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     else:
         quality=_data_quality(market)
         quality_status=str(quality.get("status","UNSAFE")).upper()
-    regime=_regime(market)
+    quality_status={"SAFE":"HEALTHY","PARTIAL":"DEGRADED"}.get(quality_status,quality_status)
+    quality["status"]=quality_status
+    regime=_regime(market,forecast)
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
     votes=[(raw_bias,raw_conf)]
