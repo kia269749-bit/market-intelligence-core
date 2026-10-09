@@ -82,7 +82,7 @@ def _trade(bars, i, direction, horizon, cost_pct, stop_atr, target_atr):
 def _evaluate(bars, signals, strategy, horizon, cost_pct, stop_atr, target_atr, start, end):
     rows = []
     next_allowed = start
-    for i in range(start, max(start, end - 1)):
+    for i in range(start, max(start, end - horizon - 1)):
         direction = signals[strategy][i]
         if not direction or i < next_allowed:
             continue
