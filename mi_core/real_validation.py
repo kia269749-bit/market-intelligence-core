@@ -224,7 +224,9 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         elif integrity_metrics.get("class_collapse"):
             tier = "NO_TRADE"
         elif gate.get("accepted"):
-            tier = "TRADE"
+            # Forecast acceptance is not proof of executable profitability.
+            # This research runner has no intrahorizon fill/TP/SL simulation.
+            tier = "WATCH"
         else:
             tier = _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, integrity_metrics)
         asset_results.append({
@@ -238,12 +240,18 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "time_window_metrics": _time_window_metrics(result),
             "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
+            "trade_ready": False,
+            "trade_readiness_reason": "requires_actual_clock_execution_validation_with_ordered_costs_and_TP_SL",
         })
     aggregate = _aggregate(asset_results)
     return {
         "horizon_bars": horizon, "validated_assets": len(asset_results),
         "signal_eligible": signal_eligible,
+        # Forecast-gate passes are not executable trade approvals.
         "accepted_assets": sum(bool(x["acceptance_gate"].get("accepted")) and signal_eligible for x in asset_results),
+        "forecast_gate_passed_assets": sum(bool(x["acceptance_gate"].get("accepted")) and signal_eligible for x in asset_results),
+        "trade_ready_assets": 0,
+        "trade_readiness_policy": "actual_clock_execution_validation_required; forecast acceptance is not trade acceptance",
         "aggregate": aggregate, "assets": asset_results,
     }
 
