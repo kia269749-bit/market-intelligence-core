@@ -66,7 +66,7 @@ def strategy_signal(votes: dict[str, int], strategy: str) -> int:
     if strategy == "two_of_three":
         bullish = sum(v == 1 for v in vals)
         bearish = sum(v == -1 for v in vals)
-        return 1 if bullish >= 2 and bearish == 0 else -1 if bearish >= 2 and bullish == 0 else 0
+        return 1 if bullish >= 2 else -1 if bearish >= 2 else 0
     if strategy == "unanimous":
         return vals[0] if vals[0] != 0 and vals.count(vals[0]) == 3 else 0
     raise ValueError(f"unknown strategy: {strategy}")
@@ -79,7 +79,8 @@ def _simulate_segment(bars, start: int, end: int, strategy: str, horizon: int,
     trades = []
     i = max(start, 60)
     end = min(end, len(bars) - 1)
-    while i < end - 1:
+    horizon = max(1, int(horizon))
+    while i < end - horizon - 1:
         votes = engine_votes(bars, i)
         side = strategy_signal(votes, strategy)
         if side == 0:
@@ -90,8 +91,6 @@ def _simulate_segment(bars, start: int, end: int, strategy: str, horizon: int,
         if entry <= 0:
             i += 1
             continue
-        stop_price = entry * (1.0 - stop_pct / 100.0) if side == 1 else entry * (1.0 + stop_pct / 100.0)
-        tp_prices = [entry * (1.0 + side * float(t) / 100.0) for t in targets]
         deadline = min(end, entry_i + int(horizon))
         remaining = 1.0
         realized_gross_pct = 0.0
