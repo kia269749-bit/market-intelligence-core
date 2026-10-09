@@ -54,7 +54,7 @@ class PersianReportTests(unittest.TestCase):
         self.assertIn("نامزد خرید، آماده‌ی ورود پژوهشی",report)
         self.assertIn("حد ضرر مدل: 98.7500",report)
         self.assertIn("هدف مدل: 102.5000",report)
-        self.assertIn("انتخاب‌گر پویا: EDGE",report)
+        self.assertIn("انتخاب‌گر پویا: OOS_EDGE_PASSED",report)
         self.assertIn("هیچ سفارش واقعی ارسال نمی‌شود",report)
 
     def test_report_never_suggests_entry_when_data_is_unsafe(self):
