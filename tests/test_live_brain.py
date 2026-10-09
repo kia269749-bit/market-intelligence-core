@@ -132,6 +132,19 @@ class LiveBrainTests(unittest.TestCase):
         self.assertFalse(snap["evidence"]["combined"]["actionable"])
         self.assertIn("forecast_direction_conflict",snap["evidence"]["no_trade"]["reasons"])
 
+    def test_multitimeframe_evidence_votes_in_fusion(self):
+        market={"rows":[{"symbol":"BTCUSDT","change_24h_pct":5.0,"price":100.0}],
+                "data_quality":{"status":"HEALTHY","score":1.0}}
+        mtf={"available":True,"bias":"BEARISH","confidence_score":0.8,
+             "timeframes_used":3,"timeframes":{"5m":{"direction":"BEARISH"},"1h":{"direction":"BEARISH"},"4h":{"direction":"BULLISH"}},
+             "research_only":True,"live_orders":False}
+        with patch("mi_core.live_brain.fetch_snapshot",return_value=market), \
+             patch("mi_core.live_brain.scan_boosted",return_value={"candidates":[]}):
+            snap=run_once(multi_timeframe=mtf)
+        self.assertEqual(snap["evidence"]["fusion_inputs"]["multi_timeframe"]["bias"],"BEARISH")
+        self.assertEqual(snap["evidence"]["multi_timeframe"]["timeframes_used"],3)
+        self.assertFalse(snap["evidence"]["combined"]["actionable"])
+
     def test_fomo_failure_does_not_fail_cycle(self):
         market={"rows":[{"change_24h_pct":0.0,"price":100}]}
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", side_effect=TimeoutError("fomo timeout")):
