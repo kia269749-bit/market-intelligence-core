@@ -43,7 +43,7 @@ class PersianReportTests(unittest.TestCase):
                 "forecast":{"available":True,"asset":"BTC","price":100.0,
                     "selected":{"direction":"UP","expected_return_pct":2.5,"expected_move_pct":2.5,
                                 "target_hit_probability":0.7,"horizon":20},
-                    "adaptive_validation":{"available":True,"accepted":True,"selected_strategy":"ema_trend",
+                    "adaptive_validation":{"available":True,"accepted":True,"status":"OOS_EDGE_PASSED","selected_strategy":"ema_trend",
                         "walk_forward_oos":{"trades":20,"net_profit_pct":12.0,"profit_factor":1.4}}},
                 "multi_timeframe":{"available":True,"bias":"BULLISH","score":0.8,"agreement":1.0,
                     "aligned_timeframes":3,"timeframes":{},"structural_target_reference":105.0},
