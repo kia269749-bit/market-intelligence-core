@@ -1,0 +1,98 @@
+name: External Strategy Tournament
+
+on:
+  push:
+    branches: [main, 'research/**']
+    paths:
+      - "tools/external_strategy_tournament.py"
+      - "tools/cross_market_macro_research.py"
+      - "tests/test_cross_market_macro_research.py"
+      - "tests/test_external_strategy_tournament.py"
+      - ".github/workflows/external-strategy-tournament.yml"
+      - "mi_core/real_data.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/external_strategy_tournament.py"
+      - "tools/cross_market_macro_research.py"
+      - "tests/test_cross_market_macro_research.py"
+      - "tests/test_external_strategy_tournament.py"
+      - ".github/workflows/external-strategy-tournament.yml"
+      - "mi_core/real_data.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+  cross-market-macro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download BTC daily OHLC data
+        run: |
+          mkdir -p data/real reports/external-strategy
+          python -m mi_core.cli real --symbol BTCUSDT --interval 1d --bars 2500 --out data/real/BTCUSDT_1d_macro.jsonl --report reports/external-strategy/BTCUSDT_1d_macro_data.json
+      - name: Evaluate lagged USD, equities, gold, oil and volatility data
+        run: |
+          python tools/cross_market_macro_research.py \
+            --crypto-input data/real/BTCUSDT_1d_macro.jsonl \
+            --out reports/external-strategy/BTC_cross_market_macro_oos.json \
+            --cost-round-trip-pct 0.35 --capital 500
+      - name: Publish cross-market report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-market-macro-BTC
+          path: |
+            data/real/BTCUSDT_1d_macro.jsonl
+            reports/external-strategy/BTCUSDT_1d_macro_data.json
+            reports/external-strategy/BTC_cross_market_macro_oos.json
+
+  real-data-tournament:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download real daily OHLC data
+        run: |
+          mkdir -p data/real reports/external-strategy
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1d --bars 2500 --out data/real/${{ matrix.symbol }}_1d.jsonl --report reports/external-strategy/${{ matrix.symbol }}_1d_data.json
+      - name: Compare fixed external strategy families after costs
+        run: |
+          set -e
+          for cost in 0.20 0.35 0.50; do
+            python tools/external_strategy_tournament.py \
+              --input data/real/${{ matrix.symbol }}_1d.jsonl \
+              --out reports/external-strategy/${{ matrix.symbol }}_cost_${cost}.json \
+              --cost-round-trip-pct ${cost} --capital 500
+          done
+      - name: Publish reproducible reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-strategy-tournament-${{ matrix.symbol }}
+          path: |
+            data/real/${{ matrix.symbol }}_1d.jsonl
+            reports/external-strategy/${{ matrix.symbol }}_1d_data.json
+            reports/external-strategy/${{ matrix.symbol }}_cost_*.json

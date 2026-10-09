@@ -1,0 +1,44 @@
+name: Regime-Conditioned Strategy Attribution
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/regime-strategy-analysis.yml"
+      - "tools/regime_strategy_analysis.py"
+      - "tools/external_strategy_tournament.py"
+      - "tests/test_regime_strategy_analysis.py"
+
+permissions:
+  contents: read
+
+jobs:
+  regime-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run unit tests
+        run: |
+          python -m unittest discover -s tests -p 'test_regime_strategy_analysis.py' -v
+          python -m unittest discover -s tests -p 'test_external_strategy_tournament.py' -v
+      - name: Download daily OHLC
+        run: |
+          mkdir -p data/real reports/regime-analysis
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1d --bars 2500 --out data/real/${{ matrix.symbol }}_1d.jsonl --report reports/regime-analysis/${{ matrix.symbol }}_data.json
+      - name: Attribute fixed strategies by causal OOS regime
+        run: |
+          python tools/regime_strategy_analysis.py --input data/real/${{ matrix.symbol }}_1d.jsonl --out reports/regime-analysis/${{ matrix.symbol }}_regime_oos.json --cost-round-trip-pct 0.35 --capital 500
+      - uses: actions/upload-artifact@v4
+        with:
+          name: regime-strategy-analysis-${{ matrix.symbol }}
+          path: reports/regime-analysis/${{ matrix.symbol }}_*.json
+          if-no-files-found: error
