@@ -671,6 +671,14 @@ def print_live(snapshot):
         print("FORECAST_GATE state={} direction={} tier={} target_prob={:.0f}% reason={}".format(
             fg.get("state","UNKNOWN"),fg.get("direction","UNKNOWN"),fg.get("tier","UNKNOWN"),
             _num(fg.get("target_hit_probability"))*100,fg.get("reason","")))
+        av=e["forecast"].get("adaptive_validation") or {}
+        if av.get("available"):
+            oos=av.get("walk_forward_oos") or {}
+            print("ADAPTIVE_SELECTOR status={} model={} direction={} train_trades={} OOS_trades={} OOS_net={:.3f}% PF={:.2f} reasons={}".format(
+                av.get("status","UNKNOWN"),av.get("selected_strategy","NONE"),av.get("direction","NONE"),
+                (av.get("training") or {}).get("trades",0),oos.get("trades",0),
+                oos.get("net_profit_pct",0.0),oos.get("profit_factor",0.0),
+                ",".join(av.get("reasons") or [])))
     tm=e.get("timing",{})
     print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}%".format(tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0))))
     fc=e.get("forecast",{})
