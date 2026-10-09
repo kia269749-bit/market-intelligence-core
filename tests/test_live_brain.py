@@ -94,6 +94,16 @@ class LiveBrainTests(unittest.TestCase):
         self.assertEqual(_regime(market)["name"],"UNKNOWN")
         self.assertEqual(_regime(market,{"regime":"HIGH_VOL"})["name"],"HIGH_VOLATILITY")
 
+    def test_temporal_regime_uses_higher_timeframe_ohlc(self):
+        market={"rows":[{"symbol":"BTCUSDT","change_24h_pct":3.0}]}
+        aligned={"available":True,"timeframes":{
+            "1h":{"available":True,"direction":"BULLISH"},
+            "4h":{"available":True,"direction":"BULLISH","volatility_state":"NORMAL","atr_expansion_ratio":1.1}}}
+        volatile={"available":True,"timeframes":{
+            "4h":{"available":True,"direction":"BULLISH","volatility_state":"HIGH_VOL","atr_expansion_ratio":2.2}}}
+        self.assertEqual(_regime(market,None,aligned)["name"],"TREND")
+        self.assertEqual(_regime(market,None,volatile)["name"],"HIGH_VOLATILITY")
+
     def test_fallback_data_quality_statuses_are_normalized(self):
         market={"rows":[{"symbol":"BTCUSDT","change_24h_pct":0.0,"price":100.0}]}
         with patch("mi_core.live_brain.fetch_snapshot",return_value=market), \
