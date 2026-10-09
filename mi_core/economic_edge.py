@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from .validated_forecast import non_overlapping_predictions
+
 
 def _num(v, default=0.0):
     try:
@@ -18,7 +20,7 @@ def _num(v, default=0.0):
 
 def _directional_rows(result):
     return [
-        x for x in result.get("predictions", [])
+        x for x in non_overlapping_predictions(result)
         if x.get("pred") in (-1, 1)
         and x.get("actual_return_pct") is not None
     ]

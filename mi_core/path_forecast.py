@@ -29,6 +29,7 @@ class HorizonForecast:
     favorable_target_pct: float
     adverse_move_pct: float
     target_hit_probability: float
+    analog_samples: int
 
 
 @dataclass(frozen=True)
@@ -138,32 +139,33 @@ def _forecast_one(
     upper = expected + 1.0 * spread
 
     direction = "UP" if expected > 0 else "DOWN" if expected < 0 else "FLAT"
-    confidence = _clamp(
-        0.50
-        + min(0.22, abs(trend) * 0.08)
-        + min(0.18, abs(expected) / max(spread, 1e-6) * 0.08),
-        0.34,
-        0.90,
-    )
-
     favorable = abs(expected)
     adverse = max(0.0, -lower if direction == "UP" else upper if direction == "DOWN" else spread)
-    hits = sum(
-        (x >= target_move_pct if direction == "UP" else x <= -target_move_pct)
-        for x in vals
-    )
-    hit_prob = hits / len(vals) if vals and direction != "FLAT" else 0.0
+    if direction == "UP":
+        directional_hits = sum(x > 0 for x in vals)
+        target_hits = sum(x >= target_move_pct for x in vals)
+    elif direction == "DOWN":
+        directional_hits = sum(x < 0 for x in vals)
+        target_hits = sum(x <= -target_move_pct for x in vals)
+    else:
+        directional_hits = sum(abs(x) <= 0.15 for x in vals)
+        target_hits = 0
+    # Smoothed historical analogue frequencies replace the old trend-based
+    # confidence formula, which could report high confidence without wins.
+    confidence = (directional_hits + 2.0) / (len(vals) + 4.0) if vals else 0.5
+    hit_prob = (target_hits + 1.0) / (len(vals) + 2.0) if vals and direction != "FLAT" else 0.0
 
     return HorizonForecast(
         horizon=horizon,
         direction=direction,
-        confidence=round(confidence, 4),
+        confidence=round(_clamp(confidence, 0.0, 1.0), 4),
         expected_return_pct=round(expected, 4),
         lower_return_pct=round(lower, 4),
         upper_return_pct=round(upper, 4),
         favorable_target_pct=round(favorable, 4),
         adverse_move_pct=round(adverse, 4),
-        target_hit_probability=round(hit_prob, 4),
+        target_hit_probability=round(_clamp(hit_prob, 0.0, 1.0), 4),
+        analog_samples=len(vals),
     )
 
 
@@ -221,13 +223,26 @@ def path_to_economic_opportunity(
             "expected_return_pct": f.expected_return_pct,
             "expected_move_pct": abs(f.expected_return_pct),
             "target_hit_probability": f.target_hit_probability,
+            "analog_samples": f.analog_samples,
+            "adverse_move_pct": f.adverse_move_pct,
+            "risk_reward_ratio": round(abs(f.expected_return_pct) / max(f.adverse_move_pct, 1e-6), 4),
             "modeled_net_profit_usd": round(modeled_profit, 2),
             "tier": tier,
+            "tier_reason": {
+                "STRONG": "target_probability_and_preferred_net_profit_pass",
+                "VIABLE": "target_probability_and_minimum_net_profit_pass",
+                "WATCH": "marginal_target_probability",
+                "REJECT": "insufficient_empirical_target_probability_or_net_move",
+            }[tier],
         })
 
+    # Prefer a genuinely viable horizon over a larger but statistically weak
+    # expected move. Previously a rejected horizon could hide a viable one.
+    tier_rank = {"STRONG": 3, "VIABLE": 2, "WATCH": 1, "REJECT": 0}
     best = max(
         rows,
-        key=lambda r: (r["modeled_net_profit_usd"], r["target_hit_probability"]),
+        key=lambda r: (tier_rank[r["tier"]], r["target_hit_probability"],
+                       r["risk_reward_ratio"], r["modeled_net_profit_usd"]),
         default=None,
     )
     return {

@@ -57,56 +57,181 @@ def _project60_lines(project60):
         if evidence: lines.append("     شواهد: "+ "، ".join(evidence))
     return lines
 
+def _validated_action(snapshot):
+    """Build a candidate from the forecast, but reserve execution-ready for all passed gates."""
+    e=snapshot.get("evidence",{}) or {}
+    combined=e.get("combined",{}) or {}
+    economics=snapshot.get("capital_economics") or e.get("capital_economics") or {}
+    alignment=e.get("forecast_alignment") or {}
+    no_trade=e.get("no_trade") or {}
+    timing=e.get("timing") or {}
+    forecast=e.get("forecast") or {}
+    bias=str(combined.get("bias","NEUTRAL")).upper()
+    reasons=list(no_trade.get("reasons") or [])
+    quality=(snapshot.get("market",{}).get("data_quality") or e.get("data_quality") or {})
+    qstatus=str(quality.get("status","UNKNOWN")).upper()
+
+    if qstatus=="UNSAFE" or "unsafe_data" in reasons:
+        return {"status":"WAIT","reason":"کیفیت داده ناامن است؛ ورود و هدف‌گذاری تأیید نمی‌شوند."}
+    if not forecast.get("available"):
+        return {"status":"WAIT","reason":"پیش‌بینی معتبر برای این چرخه موجود نیست."}
+
+    selected=forecast.get("selected") if isinstance(forecast,dict) else {}
+    selected=selected if isinstance(selected,dict) else {}
+    raw_direction=str(alignment.get("direction") or selected.get("direction") or bias).upper()
+    direction={"UP":"BULLISH","BULLISH":"BULLISH","DOWN":"BEARISH","BEARISH":"BEARISH",
+               "FLAT":"FLAT","NEUTRAL":"FLAT"}.get(raw_direction,"UNKNOWN")
+    entry=_num(forecast.get("price") or forecast.get("current_price") or
+                selected.get("current_price") or selected.get("price"))
+    if entry<=0:
+        asset=str(forecast.get("asset") or selected.get("asset") or "BTC").upper()
+        for row in (snapshot.get("market",{}) or {}).get("rows",[]):
+            symbol=str(row.get("symbol","")).upper().replace("-","").replace("/","")
+            if symbol in (asset,asset+"USDT",asset+"USDC",asset+"USD") and _num(row.get("price"))>0:
+                entry=_num(row.get("price"))
+                break
+    move=_num(economics.get("expected_move_pct"),_num(selected.get("expected_move_pct")))
+    if entry<=0 or move<=0 or direction not in ("BULLISH","BEARISH"):
+        return {"status":"WAIT","reason":"قیمت مرجع، جهت یا حرکت مورد انتظار معتبر نیست."}
+
+    from .shadow_risk import build_risk_levels
+    risk=build_risk_levels(entry,direction,move)
+    target1=entry+(risk["target"]-entry)*0.5
+    blockers=[]
+    if no_trade.get("blocked"):
+        blockers.extend(reasons or ["no_trade_guard_blocked"])
+    if not combined.get("actionable"):
+        blockers.append("fusion_not_actionable")
+    if not economics.get("available") or not economics.get("approved"):
+        blockers.append(str(economics.get("reason","economic_edge_unproven")))
+    if not alignment.get("approved"):
+        blockers.append(str(alignment.get("reason","forecast_not_validated")))
+    if timing.get("state") not in ("EARLY","DEVELOPING"):
+        blockers.append("timing_"+str(timing.get("state","UNKNOWN")).lower())
+    if qstatus!="HEALTHY":
+        blockers.append("data_quality_"+qstatus.lower())
+    mtf=e.get("multi_timeframe") or {}
+    mtf_bias=str(mtf.get("bias","NEUTRAL")).upper()
+    if not mtf.get("available"):
+        blockers.append("multi_timeframe_unavailable")
+    elif mtf_bias in ("BULLISH","BEARISH") and mtf_bias!=direction:
+        blockers.append("multi_timeframe_direction_conflict")
+
+    execution_ready=bool(e.get("execution_ready") and not blockers)
+    if execution_ready:
+        reason="گیت‌های جهت، اقتصاد، اعتبارسنجی خارج از نمونه، کیفیت داده، چندبازه‌ای و زمان‌بندی عبور کرده‌اند؛ فقط پژوهشی/کاغذی."
+    else:
+        unique=[]
+        for item in blockers:
+            if item and item not in unique:
+                unique.append(item)
+        reason="نامزد پژوهشی؛ ورود تأیید نشده. موانع: "+", ".join(unique or ["execution_readiness_gate_not_passed"])
+    return {
+        "status":"WATCH_BUY" if direction=="BULLISH" else "WATCH_SELL",
+        "symbol":forecast.get("asset") or selected.get("asset") or "BTC",
+        "price":entry,"entry":entry,"stop":risk["stop"],"target1":target1,"target":risk["target"],
+        "risk_reward":risk["risk_reward"],"expected_move_pct":move,
+        "target_hit_probability":_num(selected.get("target_hit_probability")),
+        "modeled_profit_usd":_num(economics.get("modeled_profit_usd")),
+        "round_trip_cost_pct":_num(economics.get("round_trip_cost_pct")),
+        "required_move_pct":_num(economics.get("required_move_pct")),
+        "execution_ready":execution_ready,"timing_state":timing.get("state","UNKNOWN"),
+        "reason":reason,
+    }
+
 def render_persian(snapshot, project60=None):
     e=snapshot.get("evidence",{}); m=e.get("market",{}); combined=e.get("combined",{})
     f=e.get("fomo",{}); lf=e.get("fomo_leader_follower",{})
     bias=str(combined.get("bias",m.get("bias","NEUTRAL"))).upper()
     confidence=_num(combined.get("confidence",m.get("confidence")),0)
-    a=build_action(snapshot.get("market",{}).get("rows",[]),bias,confidence,snapshot.get("risk_policy"))
-    quality=snapshot.get("market",{}).get("data_quality") or {}
+    a=_validated_action(snapshot)
+    quality=(snapshot.get("market",{}).get("data_quality") or e.get("data_quality") or {})
     qstatus=str(quality.get("status","UNKNOWN")).upper()
     qemoji={"HEALTHY":"🟢","DEGRADED":"🟡","UNSAFE":"🔴"}.get(qstatus,"⚪")
     lines=["🧠 گزارش هوش بازار",
            "{} سلامت داده: {} | منابع موفق: {}/{}".format(qemoji,
                {"HEALTHY":"سالم","DEGRADED":"کاهش‌یافته","UNSAFE":"ناامن"}.get(qstatus,qstatus),
                quality.get("successful_sources",0),quality.get("expected_sources",0)),
-           "📊 تصمیم ترکیبی: {} | اعتماد: {:.0f}٪".format(bias,confidence*100),
+           "📊 تصمیم ترکیبی: {} | امتیاز اعتماد: {:.0f}٪".format(bias,confidence*100),
            "🌐 منابع بازار: {}".format(m.get("sources",0))]
     if qstatus=="UNSAFE":
-        lines += ["⛔ تحلیل و ورود جدید متوقف: کیفیت داده برای تصمیم قابل اتکا کافی نیست."]
+        lines += ["⛔ داده ناامن است؛ ورود جدید تأیید نمی‌شود."]
     elif qstatus=="DEGRADED":
-        lines += ["⚠️ داده ناقص است: فقط WATCH/رصد زودهنگام مجاز است، نه تصمیم قطعی."]
+        lines += ["⚠️ داده ناقص است؛ فقط رصد و نامزدهای پژوهشی."]
     lines+=_project60_lines(project60 or snapshot.get("project60"))
-    lines+=["🧭 Leader→Follower: {} رویداد تأییدشده".format(lf.get("confirmed") and len(lf.get("events",[])) or 0),
-            "🧲 FOMO: {} کاندید | رصد والت: {}".format(f.get("candidates",0),"فعال" if f.get("wallet_level") else "فعلاً غیرفعال"),
-            "","📌 راهنمای تحلیلی"]
+
+    mtf=e.get("multi_timeframe") or {}
+    if mtf.get("available"):
+        lines.append("🕰️ چندبازه‌ای: {} | توافق {:.0f}٪ | امتیاز {:.2f}".format(
+            mtf.get("bias","UNKNOWN"),_num(mtf.get("agreement"))*100,_num(mtf.get("score"))))
+        for interval in ("5m","1h","4h"):
+            row=(mtf.get("timeframes") or {}).get(interval) or {}
+            if row.get("available"):
+                lines.append("  {}: {} | RSI {:.1f} | ATR {:.3f}٪ | حمایت {} | مقاومت {} | شکست {} | کندل {}".format(
+                    interval,row.get("direction","UNKNOWN"),_num(row.get("rsi14")),
+                    _num(row.get("atr14_pct")),row.get("support50","?"),row.get("resistance50","?"),
+                    row.get("breakout","?"),row.get("candle_pattern","?")))
+        if mtf.get("structural_target_reference") is not None:
+            lines.append("📍 مرجع ساختاری هدف: {}".format(mtf.get("structural_target_reference")))
+    else:
+        lines.append("🕰️ چندبازه‌ای OHLC: در این چرخه داده معتبر کافی نبود.")
+
+    fc=e.get("forecast") or {}
+    alignment=e.get("forecast_alignment") or {}
+    timing=e.get("timing") or {}
+    if fc.get("available"):
+        selected=fc.get("selected") or {}
+        lines.append("🔮 پیش‌بینی: {} | حرکت تخمینی {:+.3f}٪ | احتمال برخورد هدف {:.0f}٪ | افق حدود {} دقیقه".format(
+            alignment.get("direction","UNKNOWN"),_num(selected.get("expected_return_pct",
+            selected.get("expected_move_pct"))),_num(selected.get("target_hit_probability"))*100,
+            selected.get("horizon","?")))
+        lines.append("🧪 گیت پیش‌بینی: {} | {}".format(alignment.get("state","UNKNOWN"),alignment.get("reason","")))
+        adaptive=fc.get("adaptive_validation") or {}
+        if adaptive.get("available"):
+            oos=adaptive.get("walk_forward_oos") or {}
+            lines.append("🧠 انتخاب‌گر پویا: {} | مدل {} | معاملات OOS {} | سود خالص تجمعی {:.3f}٪ | PF {:.2f}".format(
+                adaptive.get("status","UNKNOWN"),adaptive.get("selected_strategy","NONE"),
+                oos.get("trades",0),_num(oos.get("net_profit_pct")),_num(oos.get("profit_factor"))))
+    if timing:
+        lines.append("⏱️ زمان‌بندی: {} | {} | حرکت باقی‌مانده {:.3f}٪".format(
+            timing.get("state","UNKNOWN"),timing.get("reason",""),_num(timing.get("remaining_move_pct"))))
+
+    lines += ["🧭 Leader→Follower: {} رویداد تأییدشده".format(lf.get("confirmed") and len(lf.get("events",[])) or 0),
+              "🧲 FOMO: {} کاندید | رصد والت: {}".format(f.get("candidates",0),"فعال" if f.get("wallet_level") else "فعلاً غیرفعال"),
+              "","📌 نتیجه‌ی عملیاتی"]
+
     for i,row in enumerate(f.get("top",[])[:3],1):
         lines.append("  FOMO#{} {} | score={} | vol={:,.0f} | 24h={:+.2f}%".format(
             i,row.get("token","?"),row.get("fomo_score","?"),_num(row.get("volume_24h_usd")),
             _num(row.get("price_change_24h_pct"))))
-    gate=a.get("gate")
+
     if a["status"]=="WATCH_BUY":
-        lines += ["🟢 سناریو: بررسی ورود",
-                  "💰 محدوده ورود: {:.2f} تا {:.2f}".format(a["entry_low"],a["entry_high"]),
-                  "🛑 حد بی‌اعتباری: {:.2f}".format(a["stop"]),
-                  "🎯 هدف ۱: {:.2f}".format(a["target1"]),
-                  "🎯 هدف ۲: {:.2f}".format(a["target2"]),
-                  "🧮 گیت $10: PASS | R/R خالص {:.2f} | هزینه {:.2f}%".format(gate.gate.net_rr,gate.gate.round_trip_cost_pct),
+        label="🟢 نامزد خرید، آماده‌ی ورود پژوهشی" if a["execution_ready"] else "🟡 نامزد خرید، هنوز ورود تأیید نشده"
+        lines += [label,
+                  "💰 قیمت مرجع: {:.4f}".format(a["entry"]),
+                  "🛑 حد ضرر مدل: {:.4f}".format(a["stop"]),
+                  "🎯 هدف میانی: {:.4f}".format(a["target1"]),
+                  "🎯 هدف مدل: {:.4f}".format(a["target"]),
+                  "📈 حرکت مورد انتظار: {:.3f}٪ | نرخ برخورد هدف در الگوهای مشابه: {:.0f}٪".format(
+                      a["expected_move_pct"],a["target_hit_probability"]*100),
+                  "🧮 سود خالص مدل‌شده: USD {:.2f} | هزینه رفت‌وبرگشت: {:.3f}٪ | R/R {:.2f}".format(
+                      a["modeled_profit_usd"],a["round_trip_cost_pct"],a["risk_reward"]),
                   "💡 "+a["reason"]]
     elif a["status"]=="WATCH_SELL":
-        lines += ["🔴 سناریو: بررسی خروج/کاهش ریسک",
-                  "💰 محدوده خروج: {:.2f} تا {:.2f}".format(a["exit_low"],a["exit_high"]),
-                  "🛑 حد بی‌اعتباری: {:.2f}".format(a["invalid"]),
-                  "🎯 هدف: {:.2f}".format(a["target"]),
-                  "🧮 گیت سوددهی: PASS | R/R خالص {:.2f} | هزینه مدل {:.2f}%".format(gate.net_rr,gate.round_trip_cost_pct),
+        label="🔴 نامزد فروش/شورت، آماده‌ی ورود پژوهشی" if a["execution_ready"] else "🟡 نامزد نزولی، هنوز ورود تأیید نشده"
+        lines += [label,
+                  "💰 قیمت مرجع: {:.4f}".format(a["entry"]),
+                  "🛑 حد ضرر مدل: {:.4f}".format(a["stop"]),
+                  "🎯 هدف میانی: {:.4f}".format(a["target1"]),
+                  "🎯 هدف مدل: {:.4f}".format(a["target"]),
+                  "📉 حرکت مورد انتظار: {:.3f}٪ | احتمال تاریخی برخورد هدف: {:.0f}٪".format(
+                      a["expected_move_pct"],a["target_hit_probability"]*100),
+                  "🧮 سود خالص مدل‌شده: USD {:.2f} | هزینه رفت‌وبرگشت: {:.3f}٪ | R/R {:.2f}".format(
+                      a["modeled_profit_usd"],a["round_trip_cost_pct"],a["risk_reward"]),
                   "💡 "+a["reason"]]
     else:
-        if gate:
-            lines.append("🧮 گیت سوددهی: FAIL | {} | R/R خالص {:.2f}".format(gate.reason,gate.gate.net_rr))
-        lines += ["⚪ فعلاً صبر","💡 "+a["reason"]]
-    if gate and a["status"] in ("WATCH_BUY","WATCH_SELL"):
-        lines.insert(-1, "📦 حجم مدل‌شده: ${:,.2f} | سود خالص مدل‌شده: ${:.2f} | زیان مدل‌شده: ${:.2f}".format(gate.position_usd,gate.modeled_net_profit_usd,gate.modeled_loss_usd))
-    elif gate:
-        lines.insert(-1, "📦 حجم لازم برای حداقل سود: ${:,.2f} | زیان مدل‌شده: ${:.2f}".format(gate.required_position_usd,gate.modeled_loss_usd))
-    lines += ["","⚠️ خروجی پژوهشی است؛ گیت $10 یک فیلتر طراحی است و سود واقعی را تضمین نمی‌کند."]
+        lines += ["⚪ فعلاً ورود تأیید نمی‌شود",
+                  "💡 "+a.get("reason","شواهد کافی برای ورود وجود ندارد.")]
+
+    lines += ["","⚠️ پژوهشی/کاغذی است؛ هیچ سفارش واقعی ارسال نمی‌شود. مدل فقط وقتی ورود را آماده می‌داند که جهت، اقتصاد، اعتبارسنجی خارج از نمونه و زمان‌بندی هم‌زمان تأیید شوند."]
     return "\n".join(lines)

@@ -10,26 +10,91 @@ def _num(v, d=0.0):
     try: return float(v)
     except (TypeError, ValueError): return d
 
-def _market_bias(snapshot):
-    changes=[_num(x.get("change_24h_pct")) for x in snapshot.get("rows",[]) if x.get("change_24h_pct") is not None]
-    if not changes: return "NEUTRAL",0.25
-    avg=sum(changes)/len(changes)
-    if avg>=1.0: return "BULLISH",min(1.0,0.50+avg/20)
-    if avg<=-1.0: return "BEARISH",min(1.0,0.50+abs(avg)/20)
-    return "NEUTRAL",0.50
+def _market_bias(snapshot, symbol=None):
+    """Estimate 24h directional context with one vote per asset, not per exchange row.
 
-def _regime(snapshot):
-    changes=[_num(x.get("change_24h_pct")) for x in snapshot.get("rows",[]) if x.get("change_24h_pct") is not None]
-    if len(changes)<3:
-        return {"name":"UNKNOWN","confidence":0.25,"dispersion":0.0}
-    avg=sum(changes)/len(changes)
-    dispersion=statistics.pstdev(changes)
-    if dispersion>=8.0: name="HIGH_VOLATILITY"
-    elif abs(avg)>=2.0: name="TREND"
-    elif dispersion<=2.0 and abs(avg)<1.0: name="RANGE"
-    else: name="MIXED"
-    confidence=min(1.0,0.40+min(0.50,dispersion/20))
-    return {"name":name,"confidence":round(confidence,4),"dispersion":round(dispersion,4)}
+    For an asset forecast, use that asset's cross-exchange median. Without an
+    asset, estimate broad-market breadth. This score is a heuristic context,
+    not a calibrated probability or an intraday entry signal.
+    """
+    rows=[x for x in snapshot.get("rows",[]) if isinstance(x,dict) and x.get("change_24h_pct") is not None]
+    if not rows:
+        return "NEUTRAL",0.25
+    def base_symbol(value):
+        normalized=str(value or "").upper().replace("-","").replace("/","").replace("_","")
+        # Normalize common spot/perpetual quote suffixes so BTC and BTCUSDT
+        # refer to the same asset, while preserving the actual base asset.
+        changed=True
+        while changed:
+            changed=False
+            for suffix in ("PERP","USDT","USDC","BUSD","USD"):
+                if normalized.endswith(suffix) and len(normalized)>len(suffix):
+                    normalized=normalized[:-len(suffix)]
+                    changed=True
+                    break
+        return normalized
+    wanted=base_symbol(symbol)
+    named=[x for x in rows if base_symbol(x.get("symbol"))==wanted] if wanted else []
+    if wanted:
+        if named:
+            rows=named
+        elif any(x.get("symbol") for x in rows):
+            return "NEUTRAL",0.25
+        # Compatibility for old single-asset snapshots without symbol metadata.
+    grouped={}
+    for row in rows:
+        key=base_symbol(row.get("symbol")) or "__unspecified__"
+        try:
+            value=float(row.get("change_24h_pct"))
+            if not math.isfinite(value):
+                continue
+        except (TypeError,ValueError):
+            continue
+        grouped.setdefault(key,[]).append(value)
+    changes=[statistics.median(values) for values in grouped.values() if values]
+    if not changes:
+        return "NEUTRAL",0.25
+    avg=statistics.median(changes)
+    if abs(avg)<0.50:
+        return "NEUTRAL",0.25
+    sign=1 if avg>0 else -1
+    agreement=sum(1 for value in changes if value*sign>0)/len(changes)
+    if agreement<0.55:
+        return "NEUTRAL",round(0.25+0.20*agreement,4)
+    source_n=len(rows)
+    source_factor=min(1.0,0.75+0.08*max(0,source_n-1))
+    strength=min(1.0,abs(avg)/5.0)
+    confidence=min(0.85,(0.35+0.35*agreement+0.15*strength)*source_factor)
+    return ("BULLISH" if avg>0 else "BEARISH"),round(confidence,4)
+
+def _regime(snapshot, forecast=None, multi_timeframe=None):
+    """Use temporal OHLC regime evidence; never mistake cross-asset dispersion for volatility."""
+    mtf=multi_timeframe or {}
+    timeframes=mtf.get("timeframes") or {}
+    h4=timeframes.get("4h") or {}
+    h1=timeframes.get("1h") or {}
+    if mtf.get("available") and h4.get("available"):
+        if h4.get("volatility_state")=="HIGH_VOL":
+            return {"name":"HIGH_VOLATILITY","confidence":0.75,"source":"4h_atr_expansion",
+                    "atr_expansion_ratio":h4.get("atr_expansion_ratio")}
+        d4=str(h4.get("direction","NEUTRAL")).upper()
+        d1=str(h1.get("direction","NEUTRAL")).upper()
+        if d4 in ("BULLISH","BEARISH") and d1==d4:
+            return {"name":"TREND","confidence":0.75,"source":"1h_4h_ohlc_alignment","direction":d4}
+        if d4 in ("BULLISH","BEARISH") and d1 in ("BULLISH","BEARISH") and d1!=d4:
+            return {"name":"MIXED","confidence":0.65,"source":"1h_4h_conflict","direction_1h":d1,"direction_4h":d4}
+        if d4 in ("BULLISH","BEARISH") and d1=="NEUTRAL":
+            return {"name":"TREND","confidence":0.55,"source":"4h_ohlc_trend","direction":d4}
+    raw=str((forecast or {}).get("regime") or "").upper()
+    mapping={"HIGH_VOL":"HIGH_VOLATILITY","HIGH_VOLATILITY":"HIGH_VOLATILITY",
+             "TREND":"TREND","RANGE":"RANGE","MIXED":"MIXED"}
+    if raw in mapping:
+        score=abs(_num((forecast or {}).get("trend_score"),0.0))
+        confidence=min(0.90,0.45+score/6.0) if raw=="TREND" else 0.60
+        return {"name":mapping[raw],"confidence":round(confidence,4),
+                "source":"historical_price_path","trend_score":round(_num((forecast or {}).get("trend_score"),0.0),4)}
+    return {"name":"UNKNOWN","confidence":0.0,"source":"insufficient_time_series",
+            "reason":"cross_sectional_ticker_snapshot_cannot_estimate_temporal_regime"}
 
 def _data_quality(snapshot, max_age_sec=180):
     rows=snapshot.get("rows") or []
@@ -161,6 +226,11 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
     path_result=forecast_path(bars, horizons=(5,10,20,50), min_history=140)
     if path_result is None:
         return {"available":False,"reason":"insufficient_history","samples":len(bars)}
+    from .adaptive_selector import evaluate_adaptive_selection
+    adaptive=evaluate_adaptive_selection(
+        bars, horizon=20, cost_pct=0.35,
+        train_window=min(600,max(120,len(bars)//2)),
+        min_train_trades=12, min_oos_trades=12)
     economics=path_to_economic_opportunity(path_result, capital_usd=500.0,
                                            round_trip_cost_pct=0.35,
                                            min_profit_usd=4.0, preferred_profit_usd=10.0)
@@ -173,11 +243,13 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
             "confidence":x.confidence, "expected_return_pct":x.expected_return_pct,
             "lower_return_pct":x.lower_return_pct, "upper_return_pct":x.upper_return_pct,
             "target_hit_probability":x.target_hit_probability,
+            "analog_samples":x.analog_samples,
             "adverse_move_pct":x.adverse_move_pct
         } for x in path_result.horizons],
         "economic":economics,
         "selected":economics.get("best") or {},
-        "method":"strictly-historical multi-horizon path forecast",
+        "adaptive_validation":adaptive,
+        "method":"strictly-historical multi-horizon path forecast + cost-aware rolling strategy tournament",
         "research_only":True, "live_orders":False
     }
 
@@ -457,6 +529,16 @@ def _forecast_alignment_gate(forecast, market_bias):
     if direction != bias:
         result.update(state="CONFLICT",reason="forecast_direction_conflict")
         return result
+    adaptive=forecast.get("adaptive_validation")
+    if isinstance(adaptive,dict):
+        if not adaptive.get("accepted"):
+            reasons=adaptive.get("reasons") or ["walk_forward_edge_not_proven"]
+            result.update(state="EDGE_UNPROVEN",reason="adaptive_edge_not_proven:"+str(reasons[0]))
+            return result
+        adaptive_direction=str(adaptive.get("direction","")).upper()
+        if adaptive_direction not in (direction,""):
+            result.update(state="ADAPTIVE_CONFLICT",reason="adaptive_strategy_direction_conflict")
+            return result
     if tier not in ("STRONG","VIABLE"):
         result.update(state="TIER_REJECT",reason="forecast_tier_not_actionable")
         return result
@@ -495,13 +577,15 @@ def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None, ca
             "candle_adjustment":candle,"market_context_adjustment":context}
 
 def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None,
-             fomo_leader_evidence=None, outcome_memory=None, forecast=None, candle_evidence=None, market_context=None):
+             fomo_leader_evidence=None, outcome_memory=None, forecast=None, candle_evidence=None, market_context=None,
+             multi_timeframe=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
     except Exception as exc:
         fomo={"ts":int(time.time()),"candidates":[],"research_only":True,"wallet_level":False}; fomo_error=str(exc)
-    raw_bias,raw_conf=_market_bias(market)
+    forecast_asset=(forecast or {}).get("asset") if isinstance(forecast,dict) else None
+    raw_bias,raw_conf=_market_bias(market,forecast_asset)
     # Use the multi-exchange snapshot gate as the authoritative decision gate.
     # The local row-level check remains a fallback for snapshots that predate the gate.
     market_quality=market.get("data_quality") or {}
@@ -512,11 +596,18 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     else:
         quality=_data_quality(market)
         quality_status=str(quality.get("status","UNSAFE")).upper()
-    regime=_regime(market)
+    quality_status={"SAFE":"HEALTHY","PARTIAL":"DEGRADED"}.get(quality_status,quality_status)
+    quality["status"]=quality_status
+    regime=_regime(market,forecast,multi_timeframe)
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
     votes=[(raw_bias,raw_conf)]
     if p60_bias in ("BULLISH","BEARISH"): votes.append((p60_bias,p60_conf))
+    mtf=multi_timeframe or {}
+    mtf_bias=str(mtf.get("bias","NEUTRAL")).upper()
+    mtf_conf=_num(mtf.get("confidence_score"),0.0)
+    if mtf.get("available") and mtf_bias in ("BULLISH","BEARISH") and mtf_conf>=0.45:
+        votes.append((mtf_bias,min(0.80,mtf_conf)))
     lf=fomo_leader_evidence or {}
     lf_vote=_leader_follower_vote(lf)
     smart_money=_smart_money_score(lf)
@@ -579,16 +670,25 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     if quality_status=="UNSAFE":
         combined={"bias":"NEUTRAL","confidence":0.0,"agreement":combined["agreement"],"actionable":False,
                   "regime":regime["name"],"outcome_memory":_outcome_adjustment(outcome_memory)}
+    execution_ready=bool(
+        combined.get("actionable") and not no_trade.get("blocked")
+        and capital_economics.get("approved") and forecast_alignment.get("approved")
+        and timing.get("state")=="EARLY" and quality_status=="HEALTHY"
+        and mtf.get("available") and mtf_bias==str(forecast_alignment.get("direction","")).upper()
+        and _num(mtf.get("aligned_timeframes"))>=2
+    )
     return {"ts":int(time.time()),"market":market,"fomo":fomo,
-        "evidence":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
+        "evidence":{"execution_ready":execution_ready,
+          "market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
           "project60":{"available":bool(project60 and project60.get("available")),"bias":p60_bias,"confidence":round(p60_conf,4)},
           "data_quality":quality,"market_data_gate":quality_status,"regime":regime,"microstructure":micro,"combined":combined,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False,"candidate_signal":fomo_candidate_signal},
-          "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
+          "multi_timeframe":mtf or {"available":False,"reason":"not_requested","research_only":True,"live_orders":False},
+          "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"multi_timeframe":{"available":bool(mtf.get("available")),"bias":mtf_bias,"confidence_score":round(mtf_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
           "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
-        "architecture":"Project60 + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Risk/Validation -> Outcome Memory",
+        "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
 def print_live(snapshot):
@@ -597,6 +697,20 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
+    mtf=e.get("multi_timeframe",{}) or {}
+    if mtf.get("available"):
+        parts=[]
+        for interval in ("5m","1h","4h"):
+            row=(mtf.get("timeframes") or {}).get(interval) or {}
+            if row.get("available"):
+                parts.append("{}:{} RSI={} ATR={} support={} resistance={} breakout={} candle={}".format(
+                    interval,row.get("direction","UNKNOWN"),row.get("rsi14","?"),row.get("atr14_pct","?"),
+                    row.get("support50","?"),row.get("resistance50","?"),row.get("breakout","?"),row.get("candle_pattern","?")))
+        print("MULTI_TIMEFRAME bias={} score={:.2f} agreement={:.2f} target_ref={} | {}".format(
+            mtf.get("bias","UNKNOWN"),_num(mtf.get("score")), _num(mtf.get("agreement")),
+            mtf.get("structural_target_reference","?")," | ".join(parts)))
+    else:
+        print("MULTI_TIMEFRAME unavailable | {}".format(mtf.get("reason","not_requested")))
     candle=e.get("candle_evidence",{})
     cadj=e.get("combined",{}).get("candle_adjustment",{})
     print("microstructure={} squeeze_risk={} | candle={} pattern={} candle_status={} | smart_money={} | outcome_memory={} | fomo_candidates={} wallet_level={}".format(
@@ -611,8 +725,28 @@ def print_live(snapshot):
         print("FORECAST_GATE state={} direction={} tier={} target_prob={:.0f}% reason={}".format(
             fg.get("state","UNKNOWN"),fg.get("direction","UNKNOWN"),fg.get("tier","UNKNOWN"),
             _num(fg.get("target_hit_probability"))*100,fg.get("reason","")))
+        av=e["forecast"].get("adaptive_validation") or {}
+        if av.get("available"):
+            oos=av.get("walk_forward_oos") or {}
+            print("ADAPTIVE_SELECTOR status={} model={} direction={} train_trades={} OOS_trades={} OOS_net={:.3f}% PF={:.2f} reasons={}".format(
+                av.get("status","UNKNOWN"),av.get("selected_strategy","NONE"),av.get("direction","NONE"),
+                (av.get("training") or {}).get("trades",0),oos.get("trades",0),
+                oos.get("net_profit_pct",0.0),oos.get("profit_factor",0.0),
+                ",".join(av.get("reasons") or [])))
+            ranked=sorted(av.get("candidates") or [],key=lambda x:(
+                (x.get("training") or {}).get("ci_lower_pct",0.0),
+                (x.get("training") or {}).get("mean_net_pct",0.0)),reverse=True)[:3]
+            print("ADAPTIVE_TOP3 " + " | ".join("{}:n{} net={:.3f}% PF={:.2f} dir={}".format(
+                row.get("strategy","?"),(row.get("training") or {}).get("trades",0),
+                (row.get("training") or {}).get("net_profit_pct",0.0),
+                (row.get("training") or {}).get("profit_factor",0.0),
+                "BUY" if row.get("current_direction",0)>0 else "SELL" if row.get("current_direction",0)<0 else "WAIT"
+            ) for row in ranked))
     tm=e.get("timing",{})
-    print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}%".format(tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0))))
+    print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}% | EXECUTION_READY={}".format(
+        tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),
+        tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0)),
+        e.get("execution_ready",False)))
     fc=e.get("forecast",{})
     if fc.get("available"):
         if isinstance(fc.get("horizons"),list):

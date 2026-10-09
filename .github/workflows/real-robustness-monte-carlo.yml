@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/real-robustness-monte-carlo.yml"
+      - "mi_core/validated_forecast.py"
+      - "mi_core/economic_edge.py"
+      - "tests/**"
 
 jobs:
   robustness:
@@ -34,6 +41,7 @@ jobs:
           python - <<'PY'
           import json, random
           from pathlib import Path
+          from mi_core.validated_forecast import non_overlapping_predictions
           symbol = "${{ matrix.symbol }}"
           configs = [("h24_t300",24,300),("h60_t300",60,300),("h120_t600",120,600)]
           out={"symbol":symbol,"research_only":True,"live_orders":False,"windows":[]}
@@ -45,14 +53,20 @@ jobs:
               x=json.loads(Path(f"reports/robustness/{symbol}_{label}.json").read_text())
               edge=x.get("economic_edge",{}); metrics=x.get("metrics",{})
               vals=[]; cost=float(edge.get("thresholds",{}).get("round_trip_cost_pct",0.35)); capital=float(edge.get("thresholds",{}).get("capital_usd",500))
-              for row in x.get("predictions",[]):
+              for row in non_overlapping_predictions(x):
                   if row.get("pred") not in (-1,1) or row.get("actual_return_pct") is None: continue
                   actual=float(row["actual_return_pct"]); pred=int(row["pred"]); favorable=actual if pred==1 else -actual
                   vals.append(capital*(favorable-cost)/100.0)
               rng=random.Random(20261007+horizon+train); n=len(vals); ex=[]; pf=[]; pos=0
               if n:
+                  block_len=min(2,n)
                   for _ in range(5000):
-                      sample=[vals[rng.randrange(n)] for _ in range(n)]; profit=sum(sample)
+                      sample=[]
+                      while len(sample)<n:
+                          start=rng.randrange(n)
+                          sample.extend(vals[(start+k)%n] for k in range(block_len))
+                      sample=sample[:n]
+                      profit=sum(sample)
                       pf.append(profit); ex.append(profit/n); pos += profit>0
               out["windows"].append({
                   "label":label,"horizon":horizon,"train_window":train,"samples":edge.get("samples"),

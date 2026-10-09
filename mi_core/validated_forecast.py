@@ -159,7 +159,9 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         lo = max(20, i - train_window)
         X = []
         y = []
-        for j in range(lo, i):
+        # Labels require horizon future bars. At decision i, only outcomes
+        # whose exit is at or before i are observable; exclude immature labels.
+        for j in range(lo, i - horizon + 1):
             f = feature_cache[j]
             lab = label_cache[j]
             if f is not None and lab is not None:
@@ -225,23 +227,43 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
     label_cache = _labels_cache(bars, horizon, flat_band)
     X = []
     y = []
-    for j in range(max(20, i - train_window), i):
+    train_returns_by_class = {-1: [], 0: [], 1: []}
+    train_records = []
+    # Do not train on labels whose forward horizon has not finished yet.
+    for j in range(max(20, i - train_window), i - horizon + 1):
         f = feature_cache[j]
         lab = label_cache[j]
         if f is not None and lab is not None:
+            realized = _ret(bars[j + horizon].price, bars[j].price) * 100.0
             X.append(f)
             y.append(lab)
+            train_returns_by_class[lab].append(realized)
+            train_records.append((j, lab, realized))
     if len(X) < 60 or feature_cache[i] is None:
         return {"available": False, "reason": "insufficient_training_samples", "samples": len(X)}
     p = _predict(_fit(X, y), feature_cache[i])
-    direction = {1: "UP", 0: "FLAT", -1: "DOWN"}[max(p, key=p.get)]
+    class_mean_return = {
+        label: statistics.fmean(values) if values else 0.0
+        for label, values in train_returns_by_class.items()
+    }
+    # Expected return is the probability-weighted realized return of mature
+    # training outcomes in each class, not probability difference times volatility.
+    exp = sum(float(p[label]) * class_mean_return[label] for label in (-1, 0, 1))
+    direction = "UP" if exp > 0 else "DOWN" if exp < 0 else "FLAT"
     rs = [_ret(bars[k].price, bars[k - 1].price) for k in range(max(1, i - 19), i + 1)]
     vol = statistics.pstdev(rs) or 1e-8
-    exp = (p[1] - p[-1]) * vol * math.sqrt(horizon) * 100
     band = 1.96 * vol * math.sqrt(horizon) * 100
     short = sum(rs[-5:])
     reversal = (short < 0 and direction == "UP") or (short > 0 and direction == "DOWN")
-    breakout = min(.95, max(.05, .5 + abs(short) / (vol * 5) * .12))
+    current_strength = float(feature_cache[i][0])
+    similar = [
+        realized for j, lab, realized in train_records
+        if feature_cache[j] is not None
+        and current_strength * float(feature_cache[j][0]) > 0
+        and abs(abs(current_strength) - abs(float(feature_cache[j][0]))) <= 0.75
+    ]
+    continuation_hits = sum((value > 0 if current_strength > 0 else value < 0) for value in similar)
+    breakout = (continuation_hits + 1.0) / (len(similar) + 2.0) if similar and current_strength != 0 else 0.5
     current_move_pct = short * 100.0
     return {
         "available": True,
@@ -255,21 +277,39 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
         "expected_return_pct": round(exp, 4),
         "lower_return_pct": round(exp - band, 4),
         "upper_return_pct": round(exp + band, 4),
-        "confidence": round(max(p.values()), 4),
+        "confidence": round(p[1] if direction == "UP" else p[-1] if direction == "DOWN" else p[0], 4),
         "reversal_warning": reversal,
         "breakout_probability": round(breakout, 4),
+        "continuation_probability": round(breakout, 4),
+        "continuation_analogue_samples": len(similar),
+        "confidence_source": "model_class_probability_not_independently_calibrated",
+        "class_mean_return_pct": {str(k): round(v, 4) for k, v in class_mean_return.items()},
         "current_move_pct": round(current_move_pct, 4),
-        "model_version": "wf-logit-v2",
+        "model_version": "wf-logit-v3-mature-labels",
         "research_only": True,
         "live_orders": False,
     }
 
 
+def non_overlapping_predictions(result, require_actual=False):
+    """Sample at most one resolved forecast per horizon to avoid overlapping outcomes."""
+    rows = [
+        x for x in result.get("predictions", [])
+        if x.get("actual") is not None or x.get("actual_return_pct") is not None
+    ]
+    rows.sort(key=lambda x: x.get("ts", 0))
+    horizon = max(1, int(result.get("horizon_bars", 1) or 1))
+    sampled = rows[::horizon]
+    return [x for x in sampled if x.get("actual") is not None] if require_actual else sampled
+
+
 def score_predictions(result):
-    """Compute OOS accuracy, per-class precision/recall and confidence calibration."""
-    rows = [x for x in result.get("predictions", []) if x.get("actual") is not None]
+    """Score non-overlapping OOS forecasts; retain all-bar accuracy as a diagnostic."""
+    all_rows = [x for x in result.get("predictions", []) if x.get("actual") is not None]
+    rows = non_overlapping_predictions(result, require_actual=True)
     if not rows:
-        return {"resolved": 0, "accuracy": 0.0, "precision": {}, "recall": {}, "high_conf_accuracy": 0.0}
+        return {"resolved": 0, "all_forecasts": len(all_rows), "accuracy": 0.0,
+                "all_forecast_accuracy": 0.0, "precision": {}, "recall": {}, "high_conf_accuracy": 0.0}
     metrics = {}
     for c in (-1, 0, 1):
         tp = sum(x["pred"] == c and x["actual"] == c for x in rows)
@@ -282,9 +322,12 @@ def score_predictions(result):
     correct = sum(x["pred"] == x["actual"] for x in rows)
     high = [x for x in rows if max(x["p_up"], x["p_flat"], x["p_down"]) >= .70]
     high_correct = sum(x["pred"] == x["actual"] for x in high)
+    all_correct = sum(x["pred"] == x["actual"] for x in all_rows)
     return {
         "resolved": len(rows),
+        "all_forecasts": len(all_rows),
         "accuracy": round(correct / len(rows), 6),
+        "all_forecast_accuracy": round(all_correct / len(all_rows), 6) if all_rows else 0.0,
         "precision": {k: v["precision"] for k, v in metrics.items()},
         "recall": {k: v["recall"] for k, v in metrics.items()},
         "high_conf_samples": len(high),
@@ -329,7 +372,7 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
 def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
     """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
     rows = [
-        x for x in result.get("predictions", [])
+        x for x in non_overlapping_predictions(result)
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
     ]
     min_move = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
