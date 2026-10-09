@@ -1,6 +1,6 @@
 import unittest
 from mi_core.models import MarketBar
-from tools.economic_path_validation import validate
+from tools.economic_path_validation import validate, _path_stats
 
 
 class TestEconomicPathValidation(unittest.TestCase):
@@ -19,6 +19,17 @@ class TestEconomicPathValidation(unittest.TestCase):
         self.assertFalse(r["live_orders"])
         self.assertIn("cost_sensitivity",r)
         self.assertIn("horizon_results",r)
+
+    def test_short_adverse_excursion_tracks_upward_move(self):
+        bars = [
+            MarketBar(ts=i * 3600, symbol="BTCUSDT", price=p,
+                      buy_volume=1, sell_volume=1, volume=2)
+            for i, p in enumerate((100.0, 98.0, 101.0, 97.0))
+        ]
+        realized, mfe, mae = _path_stats(bars, 0, 3, "DOWN")
+        self.assertAlmostEqual(realized, 3.0)
+        self.assertAlmostEqual(mfe, 3.0)
+        self.assertAlmostEqual(mae, 1.0)
 
 
 if __name__=="__main__":
