@@ -8,6 +8,9 @@ class RealDataTests(unittest.TestCase):
         bars = rows_to_bars(rows, "BTCUSDT")
         self.assertEqual(len(bars), 1)
         self.assertEqual(bars[0].price, 1.5)
+        self.assertEqual(bars[0].open, 1.0)
+        self.assertEqual(bars[0].high, 2.0)
+        self.assertEqual(bars[0].low, 0.5)
         self.assertEqual(bars[0].buy_volume, 60.0)
         self.assertEqual(bars[0].sell_volume, 40.0)
 
