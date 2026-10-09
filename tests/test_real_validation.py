@@ -62,6 +62,22 @@ class RealValidationTests(unittest.TestCase):
         clean = _gap_clean_predictions(rows)
         self.assertEqual([x["bar_index"] for x in clean], [0])
 
+    def test_side_diagnostics_compare_long_short_and_baselines_after_costs(self):
+        from mi_core.real_validation import _side_and_baseline_diagnostics
+        result = _side_and_baseline_diagnostics({"predictions": [
+            {"pred": 1, "actual_return_pct": 1.0},
+            {"pred": -1, "actual_return_pct": -0.8},
+            {"pred": 0, "actual_return_pct": 0.2},
+        ]}, capital_usd=500.0, round_trip_cost_pct=0.35)
+        self.assertEqual(result["model_long"]["trades"], 1)
+        self.assertEqual(result["model_short"]["trades"], 1)
+        self.assertAlmostEqual(result["model_long"]["net_profit_usd"], 3.25, places=4)
+        self.assertAlmostEqual(result["model_short"]["net_profit_usd"], 2.25, places=4)
+        self.assertEqual(result["always_long_same_windows"]["trades"], 3)
+        self.assertEqual(result["model_abstained_windows"], 1)
+        self.assertTrue(result["research_only"])
+        self.assertFalse(result["live_orders"])
+
     def test_path_excursion_metrics_measure_targets_and_adverse_move(self):
         result = _path_excursion_metrics({"predictions": [
             {"pred": 1, "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
