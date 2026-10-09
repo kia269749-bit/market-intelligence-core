@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
 from .economic_edge import diagnose_economic_edge
-SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
+SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Observed Project60 cadence: 60 bars ~= 86-88 minutes; shorter horizons are diagnostic only.
 
 from .validated_forecast import (
     forecast_acceptance_gate,
@@ -59,6 +59,50 @@ def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
         "expectancy_usd": round(sum(profits) / n, 4) if n else 0.0,
         "profit_factor": round(gross_profit / gross_loss, 4) if gross_loss else None,
         "max_drawdown_usd": round(max_dd, 4),
+        "research_only": True,
+        "live_orders": False,
+    }
+
+
+def _side_and_baseline_diagnostics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
+    """Compare model-selected long/short trades with always-long/short baselines.
+
+    Uses only supplied OOS outcomes and a fixed cost assumption. This is a
+    diagnostic, not a fill-level backtest or trade approval.
+    """
+    rows = [x for x in result.get("predictions", [])
+            if x.get("actual_return_pct") is not None]
+
+    def summarize(selected, side_fn):
+        pnls = []
+        for row in selected:
+            side = side_fn(row)
+            if side not in (-1, 1):
+                continue
+            net_pct = side * _num(row.get("actual_return_pct")) - round_trip_cost_pct
+            pnls.append(capital_usd * net_pct / 100.0)
+        gross_win = sum(x for x in pnls if x > 0)
+        gross_loss = abs(sum(x for x in pnls if x < 0))
+        return {
+            "trades": len(pnls),
+            "win_rate_net": round(sum(x > 0 for x in pnls) / len(pnls), 6) if pnls else 0.0,
+            "net_profit_usd": round(sum(pnls), 4),
+            "expectancy_usd": round(sum(pnls) / len(pnls), 4) if pnls else 0.0,
+            "profit_factor": round(gross_win / gross_loss, 4) if gross_loss else (None if not gross_win else "infinite"),
+        }
+
+    model_rows = [x for x in rows if x.get("pred") in (-1, 1)]
+    return {
+        "model_long": summarize([x for x in model_rows if x["pred"] == 1], lambda x: 1),
+        "model_short": summarize([x for x in model_rows if x["pred"] == -1], lambda x: -1),
+        "model_combined": summarize(model_rows, lambda x: x.get("pred")),
+        "always_long_same_windows": summarize(rows, lambda x: 1),
+        "always_short_same_windows": summarize(rows, lambda x: -1),
+        "windows_with_resolved_return": len(rows),
+        "model_abstained_windows": sum(x.get("pred") not in (-1, 1) for x in rows),
+        "cost_assumption_round_trip_pct": round_trip_cost_pct,
+        "capital_usd": capital_usd,
+        "interpretation": "diagnostic_only_not_execution_simulation",
         "research_only": True,
         "live_orders": False,
     }
@@ -257,6 +301,10 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
+            "side_and_baseline_diagnostics": _side_and_baseline_diagnostics(
+                economic_result, capital_usd=capital_usd,
+                round_trip_cost_pct=round_trip_cost_pct,
+            ),
             "edge_diagnostic": edge_diagnostic,
             "economic_overlap_policy": "non_overlapping_bar_windows",
             "economic_source_predictions": len(result.get("predictions", [])),
