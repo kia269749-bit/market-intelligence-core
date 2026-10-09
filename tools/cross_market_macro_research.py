@@ -12,6 +12,8 @@ import io
 import json
 import math
 import sys
+import time
+from urllib.error import URLError
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.request import Request, urlopen
@@ -51,15 +53,24 @@ def parse_fred_csv(text, series_id):
     return sorted(dedup.items())
 
 
-def fetch_fred_series(series_id, timeout=20):
+def fetch_fred_series(series_id, timeout=30, attempts=3):
+    """Fetch public FRED data with bounded retries for transient runner/network timeouts."""
     url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=" + series_id
     req = Request(url, headers={"User-Agent": "market-intelligence-core/1.0"})
-    with urlopen(req, timeout=timeout) as response:
-        payload = response.read().decode("utf-8-sig")
-    result = parse_fred_csv(payload, series_id)
-    if len(result) < 100:
-        raise RuntimeError(f"FRED series {series_id} returned only {len(result)} valid observations")
-    return result
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            with urlopen(req, timeout=timeout) as response:
+                payload = response.read().decode("utf-8-sig")
+            result = parse_fred_csv(payload, series_id)
+            if len(result) < 100:
+                raise RuntimeError(f"FRED series {series_id} returned only {len(result)} valid observations")
+            return result
+        except (TimeoutError, OSError, URLError) as exc:
+            last_error = exc
+            if attempt + 1 < attempts:
+                time.sleep(2 * (attempt + 1))
+    raise RuntimeError(f"Unable to fetch FRED series {series_id} after {attempts} attempts: {last_error}")
 
 
 def _lagged_change(series, cutoff):
