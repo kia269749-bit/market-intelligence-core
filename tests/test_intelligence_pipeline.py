@@ -1,5 +1,5 @@
 from mi_core.intelligence_pipeline import analyze_market
-from mi_core.models import MarketBar
+from mi_core.models import MarketBar, Signal
 from unittest.mock import patch
 
 
@@ -113,7 +113,9 @@ def test_opportunity_rank_does_not_override_failed_quality_gate():
         "research_only": True,
         "live_orders": False,
     }
-    with patch("mi_core.intelligence_pipeline.signal_quality_gate",
+    with patch("mi_core.intelligence_pipeline.score_bar",
+               return_value=Signal(ts=1, symbol="BTCUSDT", side="LONG", score=0.8, regime="TREND", confidence=0.8)), \
+         patch("mi_core.intelligence_pipeline.signal_quality_gate",
                return_value={"eligible": False, "checks": {}, "reasons": ("decay",), "diagnostic_only": True}), \
          patch("mi_core.intelligence_pipeline.select_opportunity", return_value=opportunity):
         report = analyze_market(_bars())
