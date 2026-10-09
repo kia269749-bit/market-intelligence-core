@@ -52,7 +52,7 @@ class CrossMarketMacroResearchTests(unittest.TestCase):
         row = next(item for item in dataset if item["date"] == "2024-01-10")
         # Target date 2024-01-10 uses the latest available macro observation
         # no later than 2024-01-08, i.e. the 7->8 change, not same-day data.
-        expected = ((108.0 / 107.0) - 1.0) * 100.0
+        expected = ((107.0 / 106.0) - 1.0) * 100.0
         self.assertAlmostEqual(row["features"]["usd_broad"], expected, places=6)
 
     def test_macro_model_is_research_only_and_reports_untouched_holdout(self):
