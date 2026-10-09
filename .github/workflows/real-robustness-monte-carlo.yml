@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/real-robustness-monte-carlo.yml"
+      - "mi_core/validated_forecast.py"
+      - "mi_core/economic_edge.py"
+      - "tests/**"
 
 jobs:
   robustness:
