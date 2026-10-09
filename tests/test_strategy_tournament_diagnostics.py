@@ -19,16 +19,19 @@ class StrategyTournamentDiagnosticsTests(unittest.TestCase):
             ))
         return rows
 
-    def test_screen_reports_each_strategy_and_windows_without_approval(self):
+    def test_train_selects_candidates_before_holdout_evaluation(self):
         result = evaluate(self._bars(), horizon=10, cost_pct=0.35,
                           holdout_bars=240, windows=3)
         self.assertTrue(result["available"])
-        self.assertEqual(len(result["strategies"]), 11)
-        self.assertEqual(len(result["ranking"]), 11)
+        self.assertEqual(len(result["training_metrics"]), 11)
+        self.assertEqual(len(result["holdout_metrics_all_families_exploratory"]), 11)
+        self.assertLess(result["train_end_index_exclusive"], result["holdout_start_index"] + 1)
+        self.assertEqual(result["holdout_bars"], 240)
+        self.assertLessEqual(len(result["selected_on_training_only"]), 3)
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
-        self.assertIn("MULTIPLE_COMPARISON_BIAS", result["interpretation"])
-        for metrics in result["strategies"].values():
+        self.assertIn("TRAIN_SELECTED_OOS_SCREEN_ONLY", result["interpretation"])
+        for metrics in result["holdout_metrics_all_families_exploratory"].values():
             self.assertEqual(len(metrics["window_metrics"]), 3)
             self.assertGreaterEqual(metrics["trades"], 0)
 
