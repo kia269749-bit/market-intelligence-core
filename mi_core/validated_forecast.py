@@ -277,7 +277,7 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
         "expected_return_pct": round(exp, 4),
         "lower_return_pct": round(exp - band, 4),
         "upper_return_pct": round(exp + band, 4),
-        "confidence": round(max(p.values()), 4),
+        "confidence": round(p[1] if direction == "UP" else p[-1] if direction == "DOWN" else p[0], 4),
         "reversal_warning": reversal,
         "breakout_probability": round(breakout, 4),
         "continuation_probability": round(breakout, 4),
