@@ -56,7 +56,7 @@ def analyze_positioning(data: Mapping[str, float | int | None]) -> dict:
     oi_score = _clamp(math.tanh(oi_change / 5.0))
     funding_score = _clamp(-funding / 0.001 * 0.25)
     ls_score = _ratio_score(float(long_short)) if long_short is not None else 0.0
-    taker_score = _signed_pressure(float(taker_buy), float(taker_sell))
+    taker_score = _taker_pressure(float(taker_buy), float(taker_sell))
     basis_score = _clamp(-basis / 1.0)
     positioning_score = _clamp(
         0.25 * oi_score + 0.20 * funding_score + 0.20 * ls_score
