@@ -37,7 +37,7 @@ def _valid_fill(fill):
         and isfinite(confidence) and 0.0 <= confidence <= 1.0
     )
 def detect_leader_follower_events(fills:Sequence[TraderFill],leader_scores:Mapping[str,float],*,window_seconds=300,min_leader_score=.60,min_fill_confidence=.60,min_followers=2):
-    ordered=sorted(fills,key=lambda f:(int(f.timestamp),f.trader_id));out=[]
+    ordered=sorted((f for f in fills if _valid_fill(f)),key=lambda f:(int(f.timestamp),f.trader_id));out=[]
     for leader in ordered:
         direction=leader.normalized_direction();score=_clip(leader_scores.get(leader.trader_id,0))
         if direction is TradeDirection.UNKNOWN or score<min_leader_score or leader.confidence<min_fill_confidence:continue
