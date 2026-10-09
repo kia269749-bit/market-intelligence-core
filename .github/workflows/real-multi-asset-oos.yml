@@ -76,12 +76,14 @@ jobs:
               "reasons": result.get("reasons"),
           }, sort_keys=True))
           PY
-      - name: Screen fixed strategy families on recent non-overlapping OOS holdout
+      - name: Screen fixed strategy families across multiple horizons on untouched holdout
         run: |
-          PYTHONPATH=. python tools/strategy_tournament_diagnostics.py \
-            --input data/real/${{ matrix.symbol }}_1h.jsonl \
-            --horizon 24 --cost-pct 0.35 --holdout-bars 1000 --windows 3 \
-            --out reports/${{ matrix.symbol }}_strategy_screen.json
+          for horizon in 4 8 12 24; do
+            PYTHONPATH=. python tools/strategy_tournament_diagnostics.py \
+              --input data/real/${{ matrix.symbol }}_1h.jsonl \
+              --horizon "${horizon}" --cost-pct 0.35 --holdout-bars 1000 --windows 3 \
+              --out "reports/${{ matrix.symbol }}_strategy_screen_h${horizon}.json"
+          done
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -117,7 +119,7 @@ jobs:
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
             reports/${{ matrix.symbol }}_adaptive_selector_oos.json
-            reports/${{ matrix.symbol }}_strategy_screen.json
+            reports/${{ matrix.symbol }}_strategy_screen_h*.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
