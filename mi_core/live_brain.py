@@ -692,6 +692,15 @@ def print_live(snapshot):
                 (av.get("training") or {}).get("trades",0),oos.get("trades",0),
                 oos.get("net_profit_pct",0.0),oos.get("profit_factor",0.0),
                 ",".join(av.get("reasons") or [])))
+            ranked=sorted(av.get("candidates") or [],key=lambda x:(
+                (x.get("training") or {}).get("ci_lower_pct",0.0),
+                (x.get("training") or {}).get("mean_net_pct",0.0)),reverse=True)[:3]
+            print("ADAPTIVE_TOP3 " + " | ".join("{}:n{} net={:.3f}% PF={:.2f} dir={}".format(
+                row.get("strategy","?"),(row.get("training") or {}).get("trades",0),
+                (row.get("training") or {}).get("net_profit_pct",0.0),
+                (row.get("training") or {}).get("profit_factor",0.0),
+                "BUY" if row.get("current_direction",0)>0 else "SELL" if row.get("current_direction",0)<0 else "WAIT"
+            ) for row in ranked))
     tm=e.get("timing",{})
     print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}%".format(tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0))))
     fc=e.get("forecast",{})
