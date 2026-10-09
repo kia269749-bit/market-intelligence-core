@@ -72,14 +72,14 @@ def _ohlc_ready(bars):
     )
 
 
-def _forecast_candidates(bars, indices, target_pct, horizon_bars, min_history):
+def _forecast_candidates(bars, indices, horizon_bars, min_history):
     candidates = []
     for idx in indices:
         forecast = forecast_path(
             bars[:idx + 1],
             horizons=(horizon_bars,),
             min_history=min_history,
-            target_move_pct=target_pct,
+            target_move_pct=1.15,
         )
         if forecast is None or not forecast.horizons:
             continue
@@ -90,6 +90,7 @@ def _forecast_candidates(bars, indices, target_pct, horizon_bars, min_history):
             "direction": f.direction,
             "confidence": float(f.confidence),
             "target_probability": float(f.target_hit_probability),
+            "target_ladder_probability": dict(f.target_ladder_probability),
         })
     return candidates
 
@@ -194,8 +195,17 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
     indices = _evenly_spaced(raw_indices, max_evals)
     holdout_ts = int(bars[int(len(bars) * 0.60)].ts)
     results = []
+    base_candidates = _forecast_candidates(bars, indices, horizon_bars, min_history)
     for target_pct in target_levels:
-        candidates = _forecast_candidates(bars, indices, float(target_pct), horizon_bars, min_history)
+        candidates = [
+            {
+                **candidate,
+                "target_probability": float(candidate["target_ladder_probability"].get(
+                    float(target_pct), candidate["target_probability"]
+                )),
+            }
+            for candidate in base_candidates
+        ]
         for stop_pct in stop_levels:
             for cohort, conf_min, prob_min in (
                 ("all_directional", 0.0, 0.0),
