@@ -4,6 +4,19 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/real-multi-asset-oos.yml"
+      - "mi_core/real_validation.py"
+      - "mi_core/path_forecast.py"
+      - "mi_core/cli.py"
+      - "tools/economic_path_validation.py"
+      - "tools/real_opportunity_scan.py"
+      - "tests/**"
+
+permissions:
+  contents: read
 
 jobs:
   validate:
@@ -24,36 +37,51 @@ jobs:
         run: |
           mkdir -p data/real reports
           python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1h --bars 5000 --out data/real/${{ matrix.symbol }}_1h.jsonl --report reports/${{ matrix.symbol }}_1h.json
-      - name: Run walk-forward OOS validation
+      - name: Run walk-forward OOS forecast diagnostics
         run: |
           python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --out reports/${{ matrix.symbol }}_1h_forecast_validation.json
+      - name: Run actual-clock economic path validation
+        run: |
+          python tools/economic_path_validation.py \
+            --input data/real/${{ matrix.symbol }}_1h.jsonl \
+            --out reports/${{ matrix.symbol }}_actual_clock_economic.json \
+            --min-history 300 --step 12 --max-evals 160
       - name: Print comparable metrics
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          x=json.loads(Path("reports/${{ matrix.symbol }}_1h_forecast_validation.json").read_text())
-          edge=x.get("economic_edge",{})
-          metrics=x.get("metrics",{})
-          gate=x.get("acceptance_gate",{})
+          symbol = "${{ matrix.symbol }}"
+          x = json.loads(Path(f"reports/{symbol}_1h_forecast_validation.json").read_text())
+          edge = x.get("economic_edge", {})
+          overlap = x.get("overlapping_forecast_diagnostic", {})
+          metrics = x.get("metrics", {})
+          gate = x.get("acceptance_gate", {})
+          clock = json.loads(Path(f"reports/{symbol}_actual_clock_economic.json").read_text())
+          cost = clock.get("cost_sensitivity", {}).get("0.35", {})
+          path_candidate_passed = (
+              int(cost.get("accepted_signals", 0)) >= 20
+              and float(cost.get("expectancy_pct", 0.0)) > 0
+              and float(cost.get("positive_net_rate", 0.0)) >= 0.55
+              and float(cost.get("target_hit_rate", 0.0)) >= 0.30
+          )
           print(json.dumps({
-            "symbol":"${{ matrix.symbol }}",
-            "accuracy":metrics.get("accuracy"),
-            "high_conf_accuracy":metrics.get("high_conf_accuracy"),
-            "samples":edge.get("samples"),
-            "direction_correct_rate":edge.get("direction_correct_rate"),
-            "positive_net_rate":edge.get("positive_net_rate"),
-            "expectancy_usd":edge.get("expectancy_usd"),
-            "net_profit_usd":edge.get("net_profit_usd"),
-            "usd4_hit_rate":edge.get("usd4_hit_rate"),
-            "usd10_hit_rate":edge.get("usd10_hit_rate"),
-            "adverse_0_50_rate":edge.get("adverse_0_50_rate"),
-            "accepted":gate.get("accepted"),
-            "research_only":x.get("research_only"),
-            "live_orders":x.get("live_orders")
-          },sort_keys=True))
+              "symbol": symbol,
+              "accuracy_diagnostic": metrics.get("accuracy"),
+              "high_conf_accuracy_diagnostic": metrics.get("high_conf_accuracy"),
+              "non_overlapping_economic_net_profit_usd": edge.get("net_profit_usd"),
+              "non_overlapping_economic_expectancy_usd": edge.get("expectancy_usd"),
+              "overlapping_forecast_diagnostic_net_profit_usd": overlap.get("net_profit_usd"),
+              "forecast_gate_passed": gate.get("accepted"),
+              "actual_clock_cost_0_35_pct": cost,
+              "path_candidate_passed": path_candidate_passed,
+              "trade_ready": False,
+              "trade_readiness_reason": "ordered TP/SL execution and portfolio-level simulation still required",
+              "research_only": True,
+              "live_orders": False
+          }, sort_keys=True))
           PY
-      - name: Publish validation artifact
+      - name: Publish validation artifacts
         uses: actions/upload-artifact@v4
         with:
           name: market-intelligence-${{ matrix.symbol }}-oos
@@ -61,6 +89,8 @@ jobs:
             data/real/${{ matrix.symbol }}_1h.jsonl
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
+            reports/${{ matrix.symbol }}_actual_clock_economic.json
+          if-no-files-found: error
 
-# research matrix trigger
-# validation trigger: real multi-asset OOS run
+# Forecast metrics are diagnostics; only actual-clock, cost-adjusted outcomes inform economic candidacy.
+# Research only. No live orders.
