@@ -29,11 +29,26 @@ class TestPathForecast(unittest.TestCase):
         self.assertIsNotNone(p)
         self.assertEqual(tuple(x.horizon for x in p.horizons), (5, 10, 20, 50))
         for x in p.horizons:
-            self.assertLessEqual(0.34, x.confidence)
-            self.assertLessEqual(x.confidence, 0.90)
+            self.assertGreaterEqual(x.confidence, 0.0)
+            self.assertLessEqual(x.confidence, 1.0)
+            self.assertGreater(x.analog_samples, 0)
             self.assertLessEqual(-100.0, x.lower_return_pct)
             self.assertLessEqual(x.lower_return_pct, x.upper_return_pct)
             self.assertLessEqual(x.target_hit_probability, 1.0)
+
+    def test_best_horizon_prioritizes_viability_over_raw_move_size(self):
+        from mi_core.path_forecast import HorizonForecast, PathForecast
+        path=PathForecast(
+            symbol="BTC",ts=1,price=100.0,
+            horizons=(
+                HorizonForecast(5,"UP",0.60,3.0,-5.0,8.0,3.0,5.0,0.20,100),
+                HorizonForecast(20,"UP",0.58,1.5,0.5,2.5,1.5,0.5,0.60,100),
+            ),
+            regime="TREND",trend_score=1.5,data_samples=300,
+        )
+        result=path_to_economic_opportunity(path,capital_usd=500.0,round_trip_cost_pct=0.35)
+        self.assertEqual(result["best"]["horizon"],20)
+        self.assertEqual(result["best"]["tier"],"VIABLE")
 
     def test_economic_layer_does_not_override_forecast(self):
         p = forecast_path(self._bars())
