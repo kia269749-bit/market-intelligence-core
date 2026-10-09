@@ -11,7 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .models import MarketBar
-from .real_data import fetch_klines, rows_to_bars
+from .real_data import INTERVAL_MS, fetch_klines, rows_to_bars
 
 _CACHE = {}
 _CACHE_TTL_SECONDS = 90.0
@@ -161,7 +161,15 @@ def fetch_multi_timeframe(symbol="BTCUSDT", intervals=("5m", "1h", "4h"), limit=
     errors = {}
     def fetch_one(interval):
         raw = fetch_klines(symbol, interval, limit=limit, timeout=timeout)
-        return interval, rows_to_bars(raw, symbol)
+        bars = rows_to_bars(raw, symbol)
+        # Never use a still-forming candle. Reject stale responses rather than
+        # allowing a partial bar to change indicators mid-candle.
+        now_ms = int(time.time() * 1000)
+        step_ms = INTERVAL_MS[interval]
+        bars = [bar for bar in bars if int(bar.ts) + step_ms <= now_ms]
+        if not bars or now_ms - (int(bars[-1].ts) + step_ms) > 2 * step_ms:
+            return interval, []
+        return interval, bars
     with ThreadPoolExecutor(max_workers=min(3, len(intervals))) as pool:
         futures = {pool.submit(fetch_one, interval): interval for interval in intervals}
         for future in as_completed(futures):
