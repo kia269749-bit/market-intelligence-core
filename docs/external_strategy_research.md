@@ -80,7 +80,14 @@ candidate. Before integration into production signal selection it must demonstra
 - No lookahead, timestamp leakage, survivorship or overlapping-capital accounting.
 - A live shadow/paper record before any consideration of real orders.
 
-Next research wave: align lagged external-market data (broad USD index, US equities,
-gold and oil) to crypto timestamps, then test whether those features add incremental
-out-of-sample net profitability beyond the crypto-only baselines. No macro feature is
-accepted until it passes the same cost-aware evaluation.
+## Cross-market macro experiment
+
+The same research branch now includes tools/cross_market_macro_research.py and a
+GitHub Actions job that downloads public FRED daily series for the broad USD index,
+S&P 500, gold, WTI oil and VIX, then aligns them to BTC daily OHLC data. Macro changes
+are lagged by at least two calendar days relative to the BTC candle date. A fixed OLS
+model is fit only on the first 70% of aligned observations and evaluated on the final
+30%, with both direction-only and cost-thresholded results compared against
+buy-and-hold. This is an exploratory test of whether other markets add information,
+not a signal accepted into the production brain. The external-data job must pass and
+its holdout results must be reviewed before any conclusion is drawn.
