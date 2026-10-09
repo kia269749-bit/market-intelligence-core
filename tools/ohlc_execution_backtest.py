@@ -95,7 +95,7 @@ def _forecast_candidates(bars, indices, horizon_bars, min_history):
     return candidates
 
 
-def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96, confidence_min=0.0, probability_min=0.0):
+def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96, confidence_min=0.0, probability_min=0.0, direction_mode="model"):
     trades = []
     next_allowed_index = 0
     for candidate in candidates:
@@ -103,6 +103,8 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
         if idx < next_allowed_index:
             continue
         direction = candidate["direction"]
+        if direction_mode == "contrarian":
+            direction = "DOWN" if direction == "UP" else "UP" if direction == "DOWN" else direction
         if direction not in ("UP", "DOWN"):
             continue
         if candidate["confidence"] < confidence_min or candidate["target_probability"] < probability_min:
@@ -207,13 +209,17 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
             for candidate in base_candidates
         ]
         for stop_pct in stop_levels:
-            for cohort, conf_min, prob_min in (
-                ("all_directional", 0.0, 0.0),
-                ("confidence_ge_0_60", 0.60, 0.0),
-                ("confidence_ge_0_55_and_target_probability_ge_0_45", 0.55, 0.45),
-            ):
+            cohorts = (
+                ("all_directional", 0.0, 0.0, "model"),
+                ("confidence_ge_0_60", 0.60, 0.0, "model"),
+                ("confidence_ge_0_55_and_target_probability_ge_0_45", 0.55, 0.45, "model"),
+                ("contrarian_all_directional", 0.0, 0.0, "contrarian"),
+                ("contrarian_confidence_ge_0_60", 0.60, 0.0, "contrarian"),
+            )
+            for cohort, conf_min, prob_min, direction_mode in cohorts:
                 trades = _simulate(bars, candidates, float(target_pct), float(stop_pct), float(cost_pct),
-                                   horizon_bars=horizon_bars, confidence_min=conf_min, probability_min=prob_min)
+                                   horizon_bars=horizon_bars, confidence_min=conf_min,
+                                   probability_min=prob_min, direction_mode=direction_mode)
                 dev = [dict(t) for t in trades if t["signal_ts"] < holdout_ts]
                 holdout = [dict(t) for t in trades if t["signal_ts"] >= holdout_ts]
                 results.append({
