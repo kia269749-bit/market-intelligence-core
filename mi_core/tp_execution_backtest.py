@@ -226,6 +226,12 @@ def main(argv=None):
     args = parser.parse_args(argv)
     horizons = tuple(int(x.strip()) for x in args.horizons.split(",") if x.strip())
     targets = tuple(float(x.strip()) for x in args.targets.split(",") if x.strip())
+    if not horizons or any(h <= 0 for h in horizons):
+        parser.error("--horizons must contain positive integers")
+    if not targets or any(t <= 0 for t in targets) or tuple(sorted(targets)) != targets:
+        parser.error("--targets must be positive and strictly increasing")
+    if args.stop <= 0 or args.cost < 0 or args.max_rows <= 0 or args.min_trades <= 0:
+        parser.error("--stop and --max-rows/--min-trades must be positive; --cost cannot be negative")
     result = run_tournament(args.input, args.max_rows, horizons, targets, args.stop, args.cost, args.min_trades)
     payload = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out:
