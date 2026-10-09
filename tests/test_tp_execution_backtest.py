@@ -21,9 +21,10 @@ class TPExecutionBacktestTests(unittest.TestCase):
         self.assertEqual(strategy_signal({"trend": 1, "flow": 1, "trade_flow": 0}, "unanimous"), 0)
         self.assertEqual(strategy_signal({"trend": 1, "flow": -1, "trade_flow": 1}, "unanimous"), 0)
 
-    def test_two_of_three_needs_directional_majority_without_conflict(self):
-        self.assertEqual(strategy_signal({"trend": 1, "flow": 1, "trade_flow": -1}, "two_of_three"), 0)
-        self.assertEqual(strategy_signal({"trend": 1, "flow": 1, "trade_flow": 0}, "two_of_three"), 1)
+    def test_two_of_three_accepts_majority_and_rejects_ties(self):
+        self.assertEqual(strategy_signal({"trend": 1, "flow": 1, "trade_flow": -1}, "two_of_three"), 1)
+        self.assertEqual(strategy_signal({"trend": -1, "flow": -1, "trade_flow": 1}, "two_of_three"), -1)
+        self.assertEqual(strategy_signal({"trend": 1, "flow": -1, "trade_flow": 0}, "two_of_three"), 0)
 
     def test_empty_or_short_segment_never_creates_trade(self):
         bars = [bar(i, 100.0) for i in range(20)]
