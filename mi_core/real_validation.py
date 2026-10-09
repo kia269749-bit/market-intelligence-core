@@ -154,29 +154,39 @@ def _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, int
     return "NO_TRADE"
 
 def _aggregate(asset_results):
-    resolved = sum(int(x["prediction_metrics"].get("resolved", 0)) for x in asset_results)
+    # Some assets may be skipped for insufficient history. Aggregate only
+    # successfully scored assets, while reporting skipped/scored counts.
+    scored = [
+        x for x in asset_results
+        if isinstance(x.get("prediction_metrics"), dict)
+        and isinstance(x.get("capital_metrics"), dict)
+        and isinstance(x.get("economic_metrics"), dict)
+    ]
+    resolved = sum(int(x["prediction_metrics"].get("resolved", 0)) for x in scored)
     correct = sum(
         int(round(_num(x["prediction_metrics"].get("accuracy")) *
                   int(x["prediction_metrics"].get("resolved", 0))))
-        for x in asset_results
+        for x in scored
     )
-    directional = sum(int(x["capital_metrics"].get("resolved_directional", 0)) for x in asset_results)
+    directional = sum(int(x["capital_metrics"].get("resolved_directional", 0)) for x in scored)
     min_hits = sum(
         round(_num(x["capital_metrics"].get("min_target_hit_rate")) *
               int(x["capital_metrics"].get("resolved_directional", 0)))
-        for x in asset_results
+        for x in scored
     )
     pref_hits = sum(
         round(_num(x["capital_metrics"].get("preferred_target_hit_rate")) *
               int(x["capital_metrics"].get("resolved_directional", 0)))
-        for x in asset_results
+        for x in scored
     )
-    total_net = sum(_num(x["economic_metrics"].get("net_profit_usd")) for x in asset_results)
+    total_net = sum(_num(x["economic_metrics"].get("net_profit_usd")) for x in scored)
     total_exp = sum(_num(x["economic_metrics"].get("expectancy_usd")) *
                     int(x["economic_metrics"].get("directional_predictions", 0))
-                    for x in asset_results)
+                    for x in scored)
     return {
         "assets_validated": len(asset_results),
+        "assets_scored": len(scored),
+        "assets_skipped": len(asset_results) - len(scored),
         "oos_resolved": resolved,
         "oos_accuracy": round(correct / resolved, 6) if resolved else 0.0,
         "directional_predictions": directional,
@@ -187,7 +197,6 @@ def _aggregate(asset_results):
         "research_only": True,
         "live_orders": False,
     }
-
 
 def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, preferred_profit_usd, round_trip_cost_pct):
     signal_eligible = int(horizon) >= SHORT_HORIZON_SIGNAL_CUTOFF
