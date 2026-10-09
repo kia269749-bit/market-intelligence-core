@@ -20,8 +20,21 @@ def _market_bias(snapshot, symbol=None):
     rows=[x for x in snapshot.get("rows",[]) if isinstance(x,dict) and x.get("change_24h_pct") is not None]
     if not rows:
         return "NEUTRAL",0.25
-    wanted=str(symbol or "").upper().replace("-","").replace("/","")
-    named=[x for x in rows if str(x.get("symbol","")).upper().replace("-","").replace("/","")==wanted] if wanted else []
+    def base_symbol(value):
+        normalized=str(value or "").upper().replace("-","").replace("/","").replace("_","")
+        # Normalize common spot/perpetual quote suffixes so BTC and BTCUSDT
+        # refer to the same asset, while preserving the actual base asset.
+        changed=True
+        while changed:
+            changed=False
+            for suffix in ("PERP","USDT","USDC","BUSD","USD"):
+                if normalized.endswith(suffix) and len(normalized)>len(suffix):
+                    normalized=normalized[:-len(suffix)]
+                    changed=True
+                    break
+        return normalized
+    wanted=base_symbol(symbol)
+    named=[x for x in rows if base_symbol(x.get("symbol"))==wanted] if wanted else []
     if wanted:
         if named:
             rows=named
@@ -30,7 +43,7 @@ def _market_bias(snapshot, symbol=None):
         # Compatibility for old single-asset snapshots without symbol metadata.
     grouped={}
     for row in rows:
-        key=str(row.get("symbol") or "__unspecified__").upper().replace("-","").replace("/","")
+        key=base_symbol(row.get("symbol")) or "__unspecified__"
         try:
             value=float(row.get("change_24h_pct"))
             if not math.isfinite(value):
