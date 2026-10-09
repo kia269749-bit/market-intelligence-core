@@ -80,8 +80,10 @@ def _validated_action(snapshot):
         return {"status":"WAIT","reason":"گیت اقتصادی عبور نکرده: "+str(economics.get("reason","economic_edge_unproven"))}
     if not alignment.get("approved"):
         return {"status":"WAIT","reason":"گیت جهت و اعتبارسنجی عبور نکرده: "+str(alignment.get("reason","forecast_not_validated"))}
-    if timing.get("state") in ("LATE","WAIT"):
-        return {"status":"WAIT","reason":"زمان ورود مناسب نیست: "+str(timing.get("reason",timing.get("state")))}
+    if not forecast.get("available"):
+        return {"status":"WAIT","reason":"پیش‌بینی معتبر برای این چرخه موجود نیست."}
+    if timing.get("state") not in ("EARLY","DEVELOPING"):
+        return {"status":"WAIT","reason":"زمان ورود مناسب نیست: "+str(timing.get("reason",timing.get("state","UNKNOWN")))}
 
     selected=forecast.get("selected") if isinstance(forecast,dict) else {}
     selected=selected if isinstance(selected,dict) else {}
@@ -198,7 +200,7 @@ def render_persian(snapshot, project60=None):
                   "🛑 حد ضرر مدل: {:.4f}".format(a["stop"]),
                   "🎯 هدف میانی: {:.4f}".format(a["target1"]),
                   "🎯 هدف مدل: {:.4f}".format(a["target"]),
-                  "📈 حرکت مورد انتظار: {:.3f}٪ | احتمال تاریخی برخورد هدف: {:.0f}٪".format(
+                  "📈 حرکت مورد انتظار: {:.3f}٪ | نرخ برخورد هدف در الگوهای مشابه: {:.0f}٪".format(
                       a["expected_move_pct"],a["target_hit_probability"]*100),
                   "🧮 سود خالص مدل‌شده: USD {:.2f} | هزینه رفت‌وبرگشت: {:.3f}٪ | R/R {:.2f}".format(
                       a["modeled_profit_usd"],a["round_trip_cost_pct"],a["risk_reward"]),
