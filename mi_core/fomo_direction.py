@@ -1,6 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
+from math import isfinite
 class TradeDirection(str, Enum):
     BUY="BUY"; SELL="SELL"; UNKNOWN="UNKNOWN"
 @dataclass(frozen=True)
