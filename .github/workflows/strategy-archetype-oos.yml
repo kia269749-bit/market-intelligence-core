@@ -1,0 +1,91 @@
+name: Strategy Archetype OOS Research
+
+on:
+  push:
+    branches: [main, 'research/**']
+    paths:
+      - "tools/strategy_archetype_backtest.py"
+      - "tests/test_strategy_archetype_backtest.py"
+      - ".github/workflows/strategy-archetype-oos.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "tools/strategy_archetype_backtest.py"
+      - "tests/test_strategy_archetype_backtest.py"
+      - ".github/workflows/strategy-archetype-oos.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+
+  real-data-oos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download 8000 real 1-hour OHLC bars
+        env:
+          SYMBOL: ${{ matrix.symbol }}
+        run: |
+          mkdir -p data/real reports
+          python - <<'PY'
+          import os
+          from mi_core.real_data import download
+          symbol=os.environ["SYMBOL"]
+          bars,path=download(symbol, "1h", 8000, f"data/real/{symbol}_1h.jsonl")
+          if len(bars) < 2000:
+              raise SystemExit(f"insufficient real OHLC bars for {symbol}: {len(bars)}")
+          print(f"downloaded {len(bars)} OHLC bars for {symbol}: {bars[0].ts}..{bars[-1].ts}")
+          PY
+      - name: Compare predefined strategy archetypes
+        run: |
+          python tools/strategy_archetype_backtest.py --input data/real/${{ matrix.symbol }}_1h.jsonl --out reports/${{ matrix.symbol }}_strategy_oos.json --capital 500 --max-hold 12 --cooldown 3
+      - name: Print OOS summary
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p=Path("reports/${{ matrix.symbol }}_strategy_oos.json")
+          x=json.loads(p.read_text())
+          print(json.dumps({
+            "symbol":x.get("symbol"),
+            "bars":x.get("bars"),
+            "buy_hold_return_pct":x.get("buy_hold_return_pct"),
+            "trade_ready":x.get("trade_ready"),
+            "results":[{
+              "strategy":r["strategy"],
+              "target_pct":r["target_pct"],
+              "stop_pct":r["stop_pct"],
+              "cost_pct":r["round_trip_cost_pct"],
+              "development":r["development"],
+              "holdout_oos":r["holdout_oos"],
+              "full_walk_forward":r["full_walk_forward"]
+            } for r in x.get("results",[])]
+          },sort_keys=True))
+          PY
+      - name: Publish report
+        uses: actions/upload-artifact@v4
+        with:
+          name: strategy-archetype-oos-${{ matrix.symbol }}
+          path: |
+            data/real/${{ matrix.symbol }}_1h.jsonl
+            reports/${{ matrix.symbol }}_strategy_oos.json
