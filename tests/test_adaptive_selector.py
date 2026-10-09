@@ -30,7 +30,10 @@ class AdaptiveSelectorTests(unittest.TestCase):
             train_window=120, min_train_trades=4, min_oos_trades=3,
         )
         self.assertTrue(result["available"])
-        self.assertEqual(len(result["candidates"]), 6)
+        self.assertEqual(len(result["candidates"]), 11)
+        strategies = {row["strategy"] for row in result["candidates"]}
+        self.assertIn("oi_funding_5", strategies)
+        self.assertIn("funding_crowding", strategies)
         self.assertIn(result["status"], ("OOS_EDGE_PASSED", "EDGE_UNPROVEN"))
         self.assertIn("walk_forward_oos", result)
         self.assertGreaterEqual(result["walk_forward_oos"]["trades"], 0)
