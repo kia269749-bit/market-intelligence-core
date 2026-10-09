@@ -13,7 +13,7 @@ class PersianReportTests(unittest.TestCase):
     def test_report_uses_combined_bias_and_project60_evidence(self):
         snapshot={"market":{"rows":[{"symbol":"BTCUSDT","price":100.0}]},
                   "evidence":{"market":{"bias":"NEUTRAL","confidence":0.5,"sources":3},
-                              "combined":{"bias":"BULLISH","confidence":0.8},
+                              "combined":{"bias":"BULLISH","confidence":0.8,"actionable":True},
                               "fomo":{"candidates":1,"wallet_level":False,"top":[]}}}
         project60={"available":True,"bias":"BULLISH","confidence":0.8,
                    "assets":{"BTC":{"available":True,"direction":"BULLISH",
