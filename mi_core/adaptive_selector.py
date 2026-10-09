@@ -170,11 +170,17 @@ def evaluate_adaptive_selection(
         }
 
     signals = {name: [_signal(bars, i, name) for i in range(n)] for name in STRATEGIES}
+    scheduled = {name: [False] * n for name in STRATEGIES}
     outcomes = {name: [None] * n for name in STRATEGIES}
     for name in STRATEGIES:
+        next_allowed = 0
         for i, direction in enumerate(signals[name]):
-            if direction:
-                outcomes[name][i] = _net_return(bars, i, direction, horizon, cost_pct)
+            # Avoid counting highly overlapping horizon returns as independent trades.
+            if not direction or i < next_allowed:
+                continue
+            scheduled[name][i] = True
+            next_allowed = i + horizon + 1
+            outcomes[name][i] = _net_return(bars, i, direction, horizon, cost_pct)
 
     def resolved_returns(name, decision_index, start_index):
         # Include only trades whose full outcome was known by decision_index.
@@ -183,7 +189,7 @@ def evaluate_adaptive_selection(
         return [
             outcomes[name][j]
             for j in range(lo, min(stop, n))
-            if signals[name][j] and outcomes[name][j] is not None
+            if scheduled[name][j] and outcomes[name][j] is not None
         ]
 
     current_i = n - 1
@@ -192,7 +198,7 @@ def evaluate_adaptive_selection(
         train = _metrics(resolved_returns(name, current_i, n - train_window - horizon - 1))
         candidates.append({
             "strategy": name,
-            "current_direction": signals[name][current_i],
+            "current_direction": signals[name][current_i] if scheduled[name][current_i] else 0,
             "training": train,
             "training_gate": _training_gate(train, min_train_trades),
         })
@@ -202,11 +208,14 @@ def evaluate_adaptive_selection(
     oos_returns = []
     oos_choices = []
     oos_start = max(60, n - max(180, train_window // 2))
+    oos_next_allowed = oos_start
     for i in range(oos_start, n - horizon - 1):
+        if i < oos_next_allowed:
+            continue
         ranked = []
         for name in STRATEGIES:
             train = _metrics(resolved_returns(name, i, i - train_window - horizon - 1))
-            if _training_gate(train, min_train_trades) and signals[name][i]:
+            if _training_gate(train, min_train_trades) and scheduled[name][i]:
                 ranked.append((train["ci_lower_pct"], train["mean_net_pct"], name))
         if not ranked:
             continue
@@ -215,6 +224,7 @@ def evaluate_adaptive_selection(
         if outcome is not None:
             oos_returns.append(outcome)
             oos_choices.append(chosen)
+            oos_next_allowed = i + horizon + 1
 
     oos = _metrics(oos_returns)
     oos_accepted = (
