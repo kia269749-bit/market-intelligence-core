@@ -51,11 +51,14 @@ def _analyze_one(interval, bars):
     ema20 = _ema(closes[-50:], 20)
     ema50 = _ema(closes[-55:], 50)
     rsi = _rsi(closes, 14)
-    tr_values = []
-    for i in range(max(1, len(bars) - 14), len(bars)):
-        tr_values.append(max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])))
-    atr = statistics.fmean(tr_values) if tr_values else 0.0
+    tr_all = []
+    for i in range(1, len(bars)):
+        tr_all.append(max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])))
+    atr = statistics.fmean(tr_all[-14:]) if tr_all else 0.0
+    atr_baseline = statistics.fmean(tr_all[-50:]) if tr_all else 0.0
     atr_pct = atr / close * 100.0 if close > 0 else 0.0
+    atr_expansion = atr / atr_baseline if atr_baseline > 0 else 1.0
+    volatility_state = "HIGH_VOL" if atr_expansion >= 1.8 else "LOW_VOL" if atr_expansion <= 0.70 else "NORMAL"
     momentum_pct = (close / closes[-6] - 1.0) * 100.0 if closes[-6] > 0 else 0.0
     if close > ema20 > ema50 and momentum_pct > 0:
         direction = "BULLISH"
@@ -101,6 +104,7 @@ def _analyze_one(interval, bars):
         "price": round(close, 8), "direction": direction,
         "ema20": round(ema20, 8), "ema50": round(ema50, 8),
         "rsi14": round(rsi, 2), "atr14_pct": round(atr_pct, 4),
+        "atr_expansion_ratio": round(atr_expansion, 4), "volatility_state": volatility_state,
         "momentum_5bar_pct": round(momentum_pct, 4),
         "breakout": breakout, "candle_pattern": candle_pattern,
         "body_pct": round(body_pct, 4), "upper_wick_pct": round(upper_wick_pct, 4),
