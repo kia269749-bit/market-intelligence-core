@@ -50,6 +50,9 @@ def rows_to_bars(rows, symbol):
             symbol=symbol.upper(),
             price=float(r[4]),
             volume=volume,
+            open=float(r[1]),
+            high=float(r[2]),
+            low=float(r[3]),
             buy_volume=taker_buy,
             sell_volume=max(0.0, volume - taker_buy),
         ))
