@@ -21,6 +21,7 @@ from .multi_asset_forecast import scan_project60, load_project60_assets
 from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
+from .real_validation import _non_overlapping_result, _directional_metrics
 
 def _num(value, default=0.0):
     try:
@@ -211,18 +212,31 @@ def main():
     elif x.cmd=="forecast-project60":
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
+        economic_result=_non_overlapping_result(result,x.horizon)
         result["metrics"]=score_predictions(result)
-        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
+        result["overlapping_forecast_diagnostic"]=diagnose_economic_edge(result)
+        result["economic_edge"]=diagnose_economic_edge(economic_result)
+        result["economic_metrics"]=_directional_metrics(economic_result,capital_usd=500.0,round_trip_cost_pct=0.35)
+        result["capital_metrics"]=score_capital_targets(economic_result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
+        result["forecast_gate_passed"]=bool(result["acceptance_gate"].get("accepted"))
+        result["trade_ready"]=False
+        result["trade_readiness_reason"]="requires_actual_clock_execution_validation_with_ordered_costs_and_TP_SL"
         result["forecast_now"] = _validated_forecast_from_project60(x.input,x.asset,x.max_rows)
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
         bars=load_input(x.input)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window,fit_every=10)
+        economic_result=_non_overlapping_result(result,x.horizon)
         result["metrics"]=score_predictions(result)
-        result["economic_edge"]=diagnose_economic_edge(result)
-        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
+        result["overlapping_forecast_diagnostic"]=diagnose_economic_edge(result)
+        result["economic_edge"]=diagnose_economic_edge(economic_result)
+        result["economic_metrics"]=_directional_metrics(economic_result,capital_usd=500.0,round_trip_cost_pct=0.35)
+        result["capital_metrics"]=score_capital_targets(economic_result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
+        result["forecast_gate_passed"]=bool(result["acceptance_gate"].get("accepted"))
+        result["trade_ready"]=False
+        result["trade_readiness_reason"]="requires_actual_clock_execution_validation_with_ordered_costs_and_TP_SL"
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="live-all":
         if x.interval<10: raise ValueError("interval must be at least 10 seconds")
