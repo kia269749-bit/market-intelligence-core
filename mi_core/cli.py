@@ -15,6 +15,7 @@ from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
 from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals
+from .shadow_risk import build_risk_levels
 from .shadow_performance import summarize_performance, format_performance_line
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 from .multi_asset_forecast import scan_project60, load_project60_assets
@@ -107,13 +108,35 @@ def _append_shadow_if_actionable(journal_path, snapshot):
     selected=forecast.get("selected") if isinstance(forecast,dict) else {}
     if not isinstance(selected,dict):
         selected={}
-    entry_price=selected.get("current_price")
     asset=str(forecast.get("asset") or selected.get("asset") or "MARKET")
+    entry_price=(selected.get("current_price") or forecast.get("price")
+                 or forecast.get("current_price") or selected.get("price"))
     try:
         entry_price=float(entry_price)
     except (TypeError,ValueError):
         entry_price=None
-    if entry_price is None or entry_price <= 0:
+    if entry_price is None or not math.isfinite(entry_price) or entry_price <= 0:
+        return False
+    expected_move=economics.get("expected_move_pct")
+    if expected_move is None:
+        expected_move=selected.get("expected_move_pct")
+    if expected_move is None:
+        try:
+            expected_move=abs(float(selected.get("expected_return_pct") or 0.0))
+        except (TypeError,ValueError):
+            return False
+    try:
+        expected_move=float(expected_move)
+        capital_usd=float(economics.get("capital_usd") or 500.0)
+        round_trip_cost_pct=float(economics.get("round_trip_cost_pct") or 0.35)
+        if not math.isfinite(expected_move) or expected_move <= 0:
+            return False
+        if not math.isfinite(capital_usd) or capital_usd <= 0:
+            return False
+        if not math.isfinite(round_trip_cost_pct) or round_trip_cost_pct <= 0:
+            round_trip_cost_pct=0.35
+        risk=build_risk_levels(entry_price,bias,expected_move)
+    except (TypeError,ValueError):
         return False
     signal_id=f"{asset}:{bias}:{round(entry_price,4)}"
     try:
@@ -143,10 +166,18 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
-        "expected_move_pct":economics.get("expected_move_pct"),
+        "stop":risk["stop"],
+        "target":risk["target"],
+        "risk_pct":risk["risk_pct"],
+        "reward_pct":risk["reward_pct"],
+        "risk_reward":risk["risk_reward"],
+        "risk_model":risk["model"],
+        "expected_move_pct":expected_move,
         "required_move_pct":economics.get("required_move_pct"),
         "preferred_required_move_pct":economics.get("preferred_required_move_pct"),
         "modeled_profit_usd":economics.get("modeled_profit_usd"),
+        "capital_usd":capital_usd,
+        "round_trip_cost_pct":round_trip_cost_pct,
         "confidence":combined.get("confidence"),
         "agreement":combined.get("agreement"),
         "regime":combined.get("regime"),
@@ -155,8 +186,7 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         "research_only":True,
         "live_orders":False,
     }
-    append_paper_signal(journal_path,signal)
-    return True
+    return append_paper_signal(journal_path,signal)
 
 def main():
     ap=argparse.ArgumentParser(description="Market Intelligence Core")

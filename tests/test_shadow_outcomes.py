@@ -31,6 +31,29 @@ class ShadowOutcomeTests(unittest.TestCase):
             self.assertEqual(s["wins"],1)
             self.assertAlmostEqual(s["net_profit_usd"],8.25,places=4)
 
+    def test_target_overshoot_is_capped_at_target_price(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=str(Path(td)/"shadow.jsonl")
+            append_signal(p,{"signal_id":"x","direction":"BULLISH","entry_price":100.0,
+                             "stop":99.0,"target":102.0,"capital_usd":500.0,
+                             "round_trip_cost_pct":0.35,"research_only":True})
+            self.assertEqual(resolve_open_signals(p,105.0,now=200),1)
+            row=json.loads(Path(p).read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(row["exit_price"],102.0)
+            self.assertEqual(row["observed_price"],105.0)
+            self.assertAlmostEqual(row["net_profit_usd"],8.25,places=4)
+
+    def test_stop_gap_uses_worse_observed_price(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=str(Path(td)/"shadow.jsonl")
+            append_signal(p,{"signal_id":"x","direction":"BULLISH","entry_price":100.0,
+                             "stop":99.0,"target":102.0,"capital_usd":500.0,
+                             "round_trip_cost_pct":0.35,"research_only":True})
+            self.assertEqual(resolve_open_signals(p,95.0,now=200),1)
+            row=json.loads(Path(p).read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(row["exit_price"],95.0)
+            self.assertAlmostEqual(row["net_profit_usd"],-26.75,places=4)
+
     def test_stop_resolution_records_loss(self):
         with tempfile.TemporaryDirectory() as td:
             p=str(Path(td)/"shadow.jsonl")

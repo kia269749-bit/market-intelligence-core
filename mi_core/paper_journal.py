@@ -1,6 +1,7 @@
 """Append-only shadow journal and lightweight outcome resolution."""
 from __future__ import annotations
 import json
+import math
 import time
 from pathlib import Path
 
@@ -56,17 +57,37 @@ def resolve_open_signals(path: str, current_price: float | dict, now: int | None
                 price=float(price_map[asset])
             else:
                 price=float(current_price)
-            status=resolve_signal(float(row["entry_price"]), price,
-                                  row["direction"], float(row["stop"]), float(row["target"]))
+            entry=float(row["entry_price"])
+            direction=str(row["direction"]).upper()
+            stop=float(row["stop"])
+            target=float(row["target"])
+            status=resolve_signal(entry, price, direction, stop, target)
         except (KeyError, TypeError, ValueError):
             continue
         if status=="OPEN": continue
-        entry=float(row["entry_price"]); direction=str(row["direction"]).upper()
-        gross_pct=((price-entry)/entry*100) if direction=="BULLISH" else ((entry-price)/entry*100)
-        cost_pct=float(row.get("round_trip_cost_pct",0.0) or 0.0)
-        capital=float(row.get("capital_usd",500.0) or 500.0)
-        row.update({"status":status,"resolved_ts":now,"exit_price":price,
+        # Cap target fills at the target price. For a stop gap, use the worse
+        # observed price so a sparse price poll cannot inflate shadow PnL.
+        if status=="TARGET":
+            exit_price=target
+        elif direction=="BULLISH":
+            exit_price=min(price,stop)
+        else:
+            exit_price=max(price,stop)
+        gross_pct=((exit_price-entry)/entry*100) if direction=="BULLISH" else ((entry-exit_price)/entry*100)
+        try:
+            cost_pct=float(row.get("round_trip_cost_pct",0.35))
+            capital=float(row.get("capital_usd",500.0) or 500.0)
+        except (TypeError,ValueError):
+            cost_pct=0.35
+            capital=500.0
+        if cost_pct < 0 or not math.isfinite(cost_pct):
+            cost_pct=0.35
+        if capital <= 0 or not math.isfinite(capital):
+            capital=500.0
+        row.update({"status":status,"resolved_ts":now,"exit_price":exit_price,
+                    "observed_price":price,
                     "gross_move_pct":round(gross_pct,6),
+                    "round_trip_cost_pct":cost_pct,
                     "net_profit_usd":round(capital*(gross_pct-cost_pct)/100,4)})
         changed+=1
     if changed:
