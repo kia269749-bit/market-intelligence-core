@@ -102,6 +102,11 @@ def _append_shadow_if_actionable(journal_path, snapshot):
     economics=snapshot.get("capital_economics") or {}
     if not combined.get("actionable") or not economics.get("approved"):
         return False
+    # New live snapshots separate a directional/economic candidate from an
+    # entry-ready setup. Keep legacy unit fixtures compatible when the field
+    # is absent, but never journal a real snapshot before timing says EARLY.
+    if "execution_ready" in (snapshot.get("evidence") or {}) and not (snapshot.get("evidence") or {}).get("execution_ready"):
+        return False
     bias=str(combined.get("bias","")).upper()
     if bias not in ("BULLISH","BEARISH"):
         return False
