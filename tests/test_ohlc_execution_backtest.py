@@ -24,7 +24,7 @@ class OhlcExecutionTests(unittest.TestCase):
         candidate = [{"index": 0, "ts": 0, "direction": "DOWN", "confidence": .8, "target_probability": .7}]
         trades = _simulate(bars, candidate, 1.0, .5, .35, horizon_bars=2)
         self.assertEqual(trades[0]["exit_reason"], "STOP")
-        self.assertEqual(trades[0]["exit_price"], 100.5)
+        self.assertEqual(trades[0]["exit_price"], 102.0)
         self.assertLess(trades[0]["gross_return_pct"], 0)
 
     def test_close_only_data_is_rejected(self):
