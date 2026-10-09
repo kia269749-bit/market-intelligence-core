@@ -21,6 +21,14 @@ from .multi_asset_forecast import scan_project60, load_project60_assets
 from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
+from .real_validation import _non_overlapping_result, _directional_metrics
+
+def _num(value, default=0.0):
+    try:
+        value=float(value)
+        return value if math.isfinite(value) else default
+    except (TypeError, ValueError):
+        return default
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -98,17 +106,21 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         return False
     combined=(snapshot.get("evidence") or {}).get("combined") or {}
     economics=snapshot.get("capital_economics") or {}
-    if not combined.get("actionable") or not economics.get("approved"):
+    forecast=(snapshot.get("evidence") or {}).get("forecast") or {}
+    selected=forecast.get("selected") if isinstance(forecast,dict) else {}
+    path_economics=(forecast.get("economic") or {}) if isinstance(forecast,dict) else {}
+    edge=path_economics.get("best") or selected or {}
+    if not combined.get("actionable"):
+        return False
+    if str(edge.get("tier","REJECT")) not in ("STRONG","VIABLE"):
         return False
     bias=str(combined.get("bias","")).upper()
     if bias not in ("BULLISH","BEARISH"):
         return False
-    forecast=(snapshot.get("evidence") or {}).get("forecast") or {}
-    selected=forecast.get("selected") if isinstance(forecast,dict) else {}
     if not isinstance(selected,dict):
         selected={}
-    entry_price=selected.get("current_price")
-    asset=str(forecast.get("asset") or selected.get("asset") or "MARKET")
+    entry_price=forecast.get("current_price") or selected.get("current_price") or edge.get("current_price")
+    asset=str(forecast.get("asset") or selected.get("asset") or edge.get("asset") or "MARKET")
     try:
         entry_price=float(entry_price)
     except (TypeError,ValueError):
@@ -138,15 +150,29 @@ def _append_shadow_if_actionable(journal_path, snapshot):
                     return False
     except OSError:
         pass
+    target_pct=max(0.0,_num(edge.get("selected_target_pct",0.0)))
+    adverse_pct=max(0.0,_num(selected.get("adverse_move_pct",0.0)))
+    if target_pct<=0.0:
+        return False
+    stop_pct=max(0.10,min(5.0,adverse_pct if adverse_pct>0 else target_pct*0.75))
+    target_price=entry_price*(1.0+target_pct/100.0) if bias=="BULLISH" else entry_price*(1.0-target_pct/100.0)
+    stop_price=entry_price*(1.0-stop_pct/100.0) if bias=="BULLISH" else entry_price*(1.0+stop_pct/100.0)
     signal={
         "signal_id":signal_id,
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
-        "expected_move_pct":economics.get("expected_move_pct"),
-        "required_move_pct":economics.get("required_move_pct"),
-        "preferred_required_move_pct":economics.get("preferred_required_move_pct"),
-        "modeled_profit_usd":economics.get("modeled_profit_usd"),
+        "target":target_price,
+        "stop":stop_price,
+        "target_pct":target_pct,
+        "stop_pct":stop_pct,
+        "round_trip_cost_pct":0.35,
+        "capital_usd":500.0,
+        "expected_move_pct":edge.get("expected_return_pct",edge.get("expected_move_pct")),
+        "selected_target_pct":target_pct,
+        "selected_target_hit_probability":edge.get("selected_target_hit_probability"),
+        "expected_net_return_pct":edge.get("expected_net_return_pct"),
+        "capital_reporting":economics,
         "confidence":combined.get("confidence"),
         "agreement":combined.get("agreement"),
         "regime":combined.get("regime"),
@@ -186,18 +212,31 @@ def main():
     elif x.cmd=="forecast-project60":
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
+        economic_result=_non_overlapping_result(result,x.horizon)
         result["metrics"]=score_predictions(result)
-        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
+        result["overlapping_forecast_diagnostic"]=diagnose_economic_edge(result)
+        result["economic_edge"]=diagnose_economic_edge(economic_result)
+        result["economic_metrics"]=_directional_metrics(economic_result,capital_usd=500.0,round_trip_cost_pct=0.35)
+        result["capital_metrics"]=score_capital_targets(economic_result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
+        result["forecast_gate_passed"]=bool(result["acceptance_gate"].get("accepted"))
+        result["trade_ready"]=False
+        result["trade_readiness_reason"]="requires_actual_clock_execution_validation_with_ordered_costs_and_TP_SL"
         result["forecast_now"] = _validated_forecast_from_project60(x.input,x.asset,x.max_rows)
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
         bars=load_input(x.input)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window,fit_every=10)
+        economic_result=_non_overlapping_result(result,x.horizon)
         result["metrics"]=score_predictions(result)
-        result["economic_edge"]=diagnose_economic_edge(result)
-        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
+        result["overlapping_forecast_diagnostic"]=diagnose_economic_edge(result)
+        result["economic_edge"]=diagnose_economic_edge(economic_result)
+        result["economic_metrics"]=_directional_metrics(economic_result,capital_usd=500.0,round_trip_cost_pct=0.35)
+        result["capital_metrics"]=score_capital_targets(economic_result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
+        result["forecast_gate_passed"]=bool(result["acceptance_gate"].get("accepted"))
+        result["trade_ready"]=False
+        result["trade_readiness_reason"]="requires_actual_clock_execution_validation_with_ordered_costs_and_TP_SL"
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
     elif x.cmd=="live-all":
         if x.interval<10: raise ValueError("interval must be at least 10 seconds")

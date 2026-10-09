@@ -28,7 +28,7 @@ class ShadowJournalTests(unittest.TestCase):
                     "regime": "TREND",
                 },
                 "data_quality": {"status": "HEALTHY"},
-                "forecast": {"available": True, "asset": "BTC", "direction": "UP", "selected": {"current_price": 100.0, "asset": "BTC"}},
+                "forecast": {"available": True, "asset": "BTC", "direction": "UP", "current_price": 100.0, "economic": {"best": {"tier": "STRONG", "direction": "UP", "expected_return_pct": 2.5, "selected_target_pct": 1.15, "selected_target_hit_probability": 0.80, "expected_net_return_pct": 2.15}}, "selected": {"current_price": 100.0, "asset": "BTC", "direction": "UP", "confidence": 0.80, "adverse_move_pct": 0.5}},
             },
         }
 
@@ -58,8 +58,11 @@ class ShadowJournalTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             path=str(Path(td)/"shadow.jsonl")
             self.assertFalse(_append_shadow_if_actionable(path,self._snapshot(actionable=False)))
-            self.assertFalse(_append_shadow_if_actionable(path,self._snapshot(approved=False)))
-            self.assertFalse(Path(path).exists())
+            # Capital approval is reporting-only after the capital-independent
+            # edge refactor. A valid forecast must not be strangled by a
+            # dollar-target gate.
+            self.assertTrue(_append_shadow_if_actionable(path,self._snapshot(approved=False)))
+            self.assertEqual(len(Path(path).read_text(encoding="utf-8").splitlines()), 1)
 
     def test_neutral_signal_is_not_appended(self):
         with tempfile.TemporaryDirectory() as td:

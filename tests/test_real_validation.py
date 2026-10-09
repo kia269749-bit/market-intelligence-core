@@ -3,8 +3,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from mi_core.models import MarketBar
 from mi_core.real_validation import (
+    _aggregate,
     _directional_metrics,
+    _non_overlapping_result,
+    _validate_horizon,
     _oos_integrity_metrics,
     _path_excursion_metrics,
     _opportunity_tier,
@@ -122,6 +126,87 @@ class RealValidationTests(unittest.TestCase):
         self.assertFalse(short["signal_eligible"])
         self.assertTrue(long["signal_eligible"])
         self.assertEqual(short["accepted_assets"], 0)
+
+
+    def test_economic_metrics_use_non_overlapping_horizon_rows(self):
+        result = {"predictions": [
+            {"ts": i * 60_000, "pred": 1, "actual_return_pct": 0.5}
+            for i in range(6)
+        ]}
+        selected = _non_overlapping_result(result, horizon=2)
+        self.assertEqual(selected["economic_overlap_policy"], "first_prediction_then_wait_full_horizon")
+        self.assertEqual(selected["economic_source_predictions"], 6)
+        self.assertEqual(selected["economic_non_overlapping_predictions"], 3)
+        self.assertEqual([x["ts"] for x in selected["predictions"]], [0, 120_000, 240_000])
+
+
+    def test_non_overlap_policy_infers_hourly_bar_interval(self):
+        result = {"predictions": [
+            {"ts": i * 3_600_000, "pred": 1, "actual_return_pct": 0.5}
+            for i in range(7)
+        ]}
+        selected = _non_overlapping_result(result, horizon=2)
+        self.assertEqual(selected["economic_non_overlapping_predictions"], 4)
+        self.assertEqual(
+            [x["ts"] for x in selected["predictions"]],
+            [0, 7_200_000, 14_400_000, 21_600_000],
+        )
+
+
+    def test_aggregate_handles_skipped_assets(self):
+        scored = {
+            "prediction_metrics": {"resolved": 10, "accuracy": 0.6},
+            "capital_metrics": {"resolved_directional": 4, "min_target_hit_rate": 0.5,
+                                "preferred_target_hit_rate": 0.25},
+            "economic_metrics": {"net_profit_usd": 10.0, "expectancy_usd": 2.0,
+                                 "directional_predictions": 5},
+        }
+        skipped = {"asset": "TOO_SHORT", "validation_status": "SKIPPED"}
+        result = _aggregate([scored, skipped])
+        self.assertEqual(result["assets_validated"], 2)
+        self.assertEqual(result["assets_scored"], 1)
+        self.assertEqual(result["assets_skipped"], 1)
+        self.assertEqual(result["oos_resolved"], 10)
+        self.assertEqual(result["net_profit_usd"], 10.0)
+
+
+    def test_horizon_report_separates_overlapping_edge_diagnostic(self):
+        bars = [
+            MarketBar(ts=i * 60_000, symbol="BTCUSDT", price=100.0 + i)
+            for i in range(200)
+        ]
+        predictions = [
+            {
+                "ts": i * 60_000,
+                "pred": 1,
+                "actual": 1,
+                "actual_return_pct": 0.8,
+                "p_up": 0.8,
+                "p_flat": 0.1,
+                "p_down": 0.1,
+                "favorable_mfe_pct": 1.0,
+                "adverse_mae_pct": 0.2,
+            }
+            for i in range(10)
+        ]
+        fake = {
+            "available": True,
+            "resolved": 10,
+            "accuracy": 1.0,
+            "predictions": predictions,
+            "research_only": True,
+            "live_orders": False,
+        }
+        with patch("mi_core.real_validation.walk_forward_forecast", return_value=fake):
+            report = _validate_horizon(
+                {"BTCUSDT": bars}, [{"symbol": "BTCUSDT"}], 60,
+                500.0, 4.0, 10.0, 0.35,
+            )
+        asset = report["assets"][0]
+        self.assertEqual(asset["edge_diagnostic"]["samples"], 1)
+        self.assertEqual(asset["overlapping_forecast_diagnostic"]["samples"], 10)
+        self.assertFalse(asset["trade_ready"])
+        self.assertEqual(report["trade_ready_assets"], 0)
 
 if __name__ == "__main__":
     unittest.main()

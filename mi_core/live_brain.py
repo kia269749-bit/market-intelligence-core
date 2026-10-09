@@ -158,12 +158,13 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
                 continue
     except OSError:
         return {"available":False,"reason":"history_read_error"}
-    path_result=forecast_path(bars, horizons=(5,10,20,50), min_history=140)
+    path_result=forecast_path(bars, horizons=(5,10,20,50,60,120), min_history=140)
     if path_result is None:
         return {"available":False,"reason":"insufficient_history","samples":len(bars)}
-    economics=path_to_economic_opportunity(path_result, capital_usd=500.0,
-                                           round_trip_cost_pct=0.35,
-                                           min_profit_usd=4.0, preferred_profit_usd=10.0)
+    economics=path_to_economic_opportunity(
+        path_result,
+        round_trip_cost_pct=0.35,
+    )
     return {
         "available":True, "asset":asset, "samples":len(bars),
         "price":path_result.price, "regime":path_result.regime,
@@ -177,6 +178,9 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
         } for x in path_result.horizons],
         "economic":economics,
         "selected":economics.get("best") or {},
+        "long_term_selected":economics.get("long_term_best") or {},
+        "profit_ladder":(economics.get("best") or {}).get("profit_ladder", []),
+        "current_price":path_result.price,
         "method":"strictly-historical multi-horizon path forecast",
         "research_only":True, "live_orders":False
     }
@@ -473,11 +477,18 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     top=fomo.get("candidates",[])[:3]
     capital_economics={"available":False,"reason":"no_forecast"}
     timing={"state":"WAIT","reason":"no_forecast","research_only":True,"live_orders":False}
+    forecast_economics=(forecast.get("economic") or {}) if isinstance(forecast,dict) else {}
+    forecast_selected=(forecast.get("selected") or {}) if isinstance(forecast,dict) else {}
+    if forecast and forecast.get("available") and forecast_selected.get("direction") in ("UP","DOWN"):
+        fbias="BULLISH" if forecast_selected.get("direction")=="UP" else "BEARISH"
+        fconf=max(0.0,min(1.0,_num(forecast_selected.get("confidence"),0.0)))
+        if forecast_selected.get("tier") in ("STRONG","VIABLE") and fconf>=0.55:
+            votes.append((fbias,fconf))
     combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money,candle_evidence,market_context)
     if forecast and forecast.get("available"):
-        selected=forecast.get("selected") or {}
-        eco=evaluate_capital_target(_num(selected.get("expected_move_pct", abs(_num(selected.get("expected_return_pct"))))),
-                                    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
+        selected=forecast_selected
+        expected_move=_num(selected.get("expected_return_pct",selected.get("expected_move_pct")))
+        eco=evaluate_capital_target(expected_move,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         capital_economics={"available":True,"approved":eco.approved,
                            "expected_move_pct":eco.expected_move_pct,
                            "required_move_pct":eco.required_move_pct,
@@ -485,8 +496,9 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
                            "net_move_pct":eco.net_move_pct,
                            "modeled_profit_usd":eco.modeled_profit_usd,
                            "round_trip_cost_pct":eco.round_trip_cost_pct,
-                           "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,"reason":eco.reason}
-        timing=evaluate_entry_timing(confidence=_num(selected.get("confidence")), expected_move_pct=_num(selected.get("expected_return_pct")), current_move_pct=_num(selected.get("current_move_pct")), required_move_pct=_num(eco.required_move_pct), agreement=combined_preview.get("agreement",0.0), quality_score=quality.get("score",0.0), regime=regime.get("name","UNKNOWN"))
+                           "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,"reason":eco.reason,
+                           "role":"reporting_only","signal_gate_uses_capital":False}
+        timing=evaluate_entry_timing(confidence=_num(selected.get("confidence")), expected_move_pct=_num(selected.get("expected_return_pct")), current_move_pct=_num(selected.get("current_move_pct")), required_move_pct=0.35, agreement=combined_preview.get("agreement",0.0), quality_score=quality.get("score",0.0), regime=regime.get("name","UNKNOWN"))
     # Raw FOMO candidates are discovery evidence only. They are not allowed to
     # cast a directional market vote until Leader->Follower evidence confirms them.
     # This prevents a token pump from masquerading as broad smart-money confirmation.
@@ -507,10 +519,12 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         no_trade["blocked"]=True
         no_trade["reasons"]=list(no_trade.get("reasons",[]))+["unsafe_data"]
     if no_trade["blocked"]: combined["actionable"]=False
-    if capital_economics.get("available") and not capital_economics.get("approved"):
-        combined["actionable"]=False
-        no_trade["blocked"]=True
-        no_trade["reasons"]=list(no_trade.get("reasons",[]))+["economic_floor_not_met"]
+    if forecast and forecast.get("available"):
+        tier=str((forecast.get("economic") or {}).get("best",{}).get("tier","REJECT"))
+        if tier not in ("STRONG","VIABLE"):
+            combined["actionable"]=False
+            no_trade["blocked"]=True
+            no_trade["reasons"]=list(no_trade.get("reasons",[]))+["forecast_edge_not_viable"]
     if micro["divergence"]=="CONFLICT":
         combined["confidence"]=round(combined["confidence"]*.70,4); combined["actionable"]=False
     elif micro["divergence"] in ("BULLISH_DIVERGENCE","BEARISH_DIVERGENCE"):

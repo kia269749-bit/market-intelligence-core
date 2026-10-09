@@ -29,6 +29,48 @@ def _num(v, default=0.0):
         return default
 
 
+def _non_overlapping_result(result, horizon):
+    """Select at most one horizon-end outcome per horizon window.
+
+    Forecast accuracy can use every OOS row, but economic totals must not treat
+    overlapping predictions as independent full-capital trades.
+    """
+    rows = list(result.get("predictions", []))
+    if not rows:
+        return {**result, "predictions": [], "economic_overlap_policy": "non_overlapping"}
+    if all(isinstance(row.get("ts"), (int, float)) for row in rows):
+        ordered = sorted(rows, key=lambda row: row["ts"])
+        deltas = [
+            int(b["ts"]) - int(a["ts"])
+            for a, b in zip(ordered, ordered[1:])
+            if int(b["ts"]) > int(a["ts"])
+        ]
+        if deltas:
+            deltas.sort()
+            bar_interval = deltas[len(deltas) // 2]
+        else:
+            bar_interval = 60_000
+        selected = []
+        last_ts = None
+        min_gap = max(1, int(horizon)) * max(1, bar_interval)
+        for row in ordered:
+            ts = int(row["ts"])
+            if last_ts is None or ts - last_ts >= min_gap:
+                selected.append(row)
+                last_ts = ts
+    else:
+        # Test fixtures or external callers without timestamps use row order.
+        step = max(1, int(horizon))
+        selected = rows[::step]
+    return {
+        **result,
+        "predictions": selected,
+        "economic_overlap_policy": "first_prediction_then_wait_full_horizon",
+        "economic_source_predictions": len(rows),
+        "economic_non_overlapping_predictions": len(selected),
+    }
+
+
 def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
     rows = [
         r for r in result.get("predictions", [])
@@ -112,29 +154,39 @@ def _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, int
     return "NO_TRADE"
 
 def _aggregate(asset_results):
-    resolved = sum(int(x["prediction_metrics"].get("resolved", 0)) for x in asset_results)
+    # Some assets may be skipped for insufficient history. Aggregate only
+    # successfully scored assets, while reporting skipped/scored counts.
+    scored = [
+        x for x in asset_results
+        if isinstance(x.get("prediction_metrics"), dict)
+        and isinstance(x.get("capital_metrics"), dict)
+        and isinstance(x.get("economic_metrics"), dict)
+    ]
+    resolved = sum(int(x["prediction_metrics"].get("resolved", 0)) for x in scored)
     correct = sum(
         int(round(_num(x["prediction_metrics"].get("accuracy")) *
                   int(x["prediction_metrics"].get("resolved", 0))))
-        for x in asset_results
+        for x in scored
     )
-    directional = sum(int(x["capital_metrics"].get("resolved_directional", 0)) for x in asset_results)
+    directional = sum(int(x["capital_metrics"].get("resolved_directional", 0)) for x in scored)
     min_hits = sum(
         round(_num(x["capital_metrics"].get("min_target_hit_rate")) *
               int(x["capital_metrics"].get("resolved_directional", 0)))
-        for x in asset_results
+        for x in scored
     )
     pref_hits = sum(
         round(_num(x["capital_metrics"].get("preferred_target_hit_rate")) *
               int(x["capital_metrics"].get("resolved_directional", 0)))
-        for x in asset_results
+        for x in scored
     )
-    total_net = sum(_num(x["economic_metrics"].get("net_profit_usd")) for x in asset_results)
+    total_net = sum(_num(x["economic_metrics"].get("net_profit_usd")) for x in scored)
     total_exp = sum(_num(x["economic_metrics"].get("expectancy_usd")) *
                     int(x["economic_metrics"].get("directional_predictions", 0))
-                    for x in asset_results)
+                    for x in scored)
     return {
         "assets_validated": len(asset_results),
+        "assets_scored": len(scored),
+        "assets_skipped": len(asset_results) - len(scored),
         "oos_resolved": resolved,
         "oos_accuracy": round(correct / resolved, 6) if resolved else 0.0,
         "directional_predictions": directional,
@@ -145,7 +197,6 @@ def _aggregate(asset_results):
         "research_only": True,
         "live_orders": False,
     }
-
 
 def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, preferred_profit_usd, round_trip_cost_pct):
     signal_eligible = int(horizon) >= SHORT_HORIZON_SIGNAL_CUTOFF
@@ -163,15 +214,27 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                 "research_only": True, "live_orders": False,
             })
             continue
+        # Directional accuracy remains a forecast diagnostic over every OOS row.
+        # Economic totals use only non-overlapping horizon outcomes.
+        economic_result = _non_overlapping_result(result, horizon)
         prediction_metrics = score_predictions(result)
-        capital_metrics = score_capital_targets(result, capital_usd=capital_usd,
+        capital_metrics = score_capital_targets(economic_result, capital_usd=capital_usd,
                                                  min_profit_usd=min_profit_usd,
                                                  preferred_profit_usd=preferred_profit_usd,
                                                  round_trip_cost_pct=round_trip_cost_pct)
-        economic_metrics = _directional_metrics(result, capital_usd=capital_usd,
+        economic_metrics = _directional_metrics(economic_result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
         path_metrics = _path_excursion_metrics(result)
+        # Economic edge is computed on non-overlapping outcomes. Keep the
+        # all-rows calculation only as an explicitly labeled diagnostic.
         edge_diagnostic = diagnose_economic_edge(
+            economic_result,
+            capital_usd=capital_usd,
+            round_trip_cost_pct=round_trip_cost_pct,
+            min_profit_usd=min_profit_usd,
+            preferred_profit_usd=preferred_profit_usd,
+        )
+        overlapping_edge_diagnostic = diagnose_economic_edge(
             result,
             capital_usd=capital_usd,
             round_trip_cost_pct=round_trip_cost_pct,
@@ -188,22 +251,35 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             tier = "DIAGNOSTIC_ONLY"
         elif integrity_metrics.get("class_collapse"):
             tier = "NO_TRADE"
-        elif gate.get("accepted"):
-            tier = "TRADE"
         else:
+            # This runner validates forecasts and non-overlapping horizon outcomes,
+            # not intrahorizon execution with ordered TP/SL. Never label TRADE here.
             tier = _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, integrity_metrics)
         asset_results.append({
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
-            "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
-            "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
+            "edge_diagnostic": edge_diagnostic,
+            "overlapping_forecast_diagnostic": overlapping_edge_diagnostic,
+            "integrity_metrics": integrity_metrics,
+            "economic_overlap_policy": economic_result.get("economic_overlap_policy"),
+            "economic_source_predictions": economic_result.get("economic_source_predictions", len(result.get("predictions", []))),
+            "economic_non_overlapping_predictions": economic_result.get("economic_non_overlapping_predictions", len(economic_result.get("predictions", []))),
+            "opportunity_tier": tier, "signal_eligible": signal_eligible,
+            "forecast_gate_passed": bool(gate.get("accepted")),
+            "trade_ready": False,
+            "trade_readiness_reason": "requires_actual_clock_execution_validation_with_ordered_costs_and_TP_SL",
+            "acceptance_gate": gate,
         })
     aggregate = _aggregate(asset_results)
     return {
         "horizon_bars": horizon, "validated_assets": len(asset_results),
         "signal_eligible": signal_eligible,
-        "accepted_assets": sum(bool(x["acceptance_gate"].get("accepted")) and signal_eligible for x in asset_results),
+        # Backward-compatible alias: this counts forecast-gate passes, not executable trades.
+        "accepted_assets": sum(bool(x.get("forecast_gate_passed")) and signal_eligible for x in asset_results),
+        "forecast_gate_passed_assets": sum(bool(x.get("forecast_gate_passed")) and signal_eligible for x in asset_results),
+        "trade_ready_assets": 0,
+        "trade_readiness_policy": "actual_clock_execution_validation_required; forecast acceptance is not trade acceptance",
         "aggregate": aggregate, "assets": asset_results,
     }
 
@@ -228,7 +304,11 @@ def validate_project60(
         "assets_seen": len(series), "eligible_assets": len(ranked),
         "selected_assets": [x["symbol"] for x in ranked[:max(1, int(top_n))]],
         "validated_assets": primary["validated_assets"],
+        # Backward-compatible alias: forecast-gate passes are not trade-ready signals.
         "accepted_assets": primary["accepted_assets"],
+        "forecast_gate_passed_assets": primary.get("forecast_gate_passed_assets", primary["accepted_assets"]),
+        "trade_ready_assets": primary.get("trade_ready_assets", 0),
+        "trade_readiness_policy": primary.get("trade_readiness_policy", "actual_clock_execution_validation_required"),
         "aggregate": primary["aggregate"], "assets": primary["assets"],
         "horizon_results": results,
         "signal_horizon_policy": {"minimum_signal_horizon_bars": SHORT_HORIZON_SIGNAL_CUTOFF, "shorter_horizons": "diagnostic_only"},

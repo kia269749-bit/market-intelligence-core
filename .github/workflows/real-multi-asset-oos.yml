@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
   validate:
@@ -27,6 +29,15 @@ jobs:
       - name: Run walk-forward OOS validation
         run: |
           python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --out reports/${{ matrix.symbol }}_1h_forecast_validation.json
+      - name: Download finer-resolution bars for actual-clock validation
+        run: |
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 5m --bars 5000 --out data/real/${{ matrix.symbol }}_5m.jsonl --report reports/${{ matrix.symbol }}_5m.json
+      - name: Run actual-clock economic path validation
+        run: |
+          python tools/economic_path_validation.py \
+            --input data/real/${{ matrix.symbol }}_5m.jsonl \
+            --out reports/${{ matrix.symbol }}_actual_clock_economic.json \
+            --min-history 300 --step 96 --max-evals 40
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -34,21 +45,38 @@ jobs:
           from pathlib import Path
           x=json.loads(Path("reports/${{ matrix.symbol }}_1h_forecast_validation.json").read_text())
           edge=x.get("economic_edge",{})
+          overlap=x.get("overlapping_forecast_diagnostic",{})
           metrics=x.get("metrics",{})
           gate=x.get("acceptance_gate",{})
+          clock=json.loads(Path("reports/${{ matrix.symbol }}_actual_clock_economic.json").read_text())
+          clock_metrics=clock.get("cost_sensitivity",{}).get("0.35",{})
+          horizon_metrics=clock_metrics.get("by_horizon",{})
+          exploratory_horizon_candidates={
+            horizon: metrics for horizon, metrics in horizon_metrics.items()
+            if int(metrics.get("accepted_signals",0)) >= 20
+            and float(metrics.get("fixed_horizon_close_expectancy_pct",0.0)) > 0
+            and float(metrics.get("positive_net_rate",0.0)) >= 0.55
+            and float(metrics.get("close_based_target_hit_rate",0.0)) >= 0.30
+          }
+          path_candidate_passed=bool(exploratory_horizon_candidates)
           print(json.dumps({
             "symbol":"${{ matrix.symbol }}",
             "accuracy":metrics.get("accuracy"),
             "high_conf_accuracy":metrics.get("high_conf_accuracy"),
             "samples":edge.get("samples"),
             "direction_correct_rate":edge.get("direction_correct_rate"),
-            "positive_net_rate":edge.get("positive_net_rate"),
-            "expectancy_usd":edge.get("expectancy_usd"),
-            "net_profit_usd":edge.get("net_profit_usd"),
+            "non_overlapping_economic_net_profit_usd":edge.get("net_profit_usd"),
+            "non_overlapping_economic_expectancy_usd":edge.get("expectancy_usd"),
+            "overlapping_forecast_diagnostic_net_profit_usd":overlap.get("net_profit_usd"),
+            "overlapping_forecast_diagnostic_expectancy_usd":overlap.get("expectancy_usd"),
             "usd4_hit_rate":edge.get("usd4_hit_rate"),
             "usd10_hit_rate":edge.get("usd10_hit_rate"),
-            "adverse_0_50_rate":edge.get("adverse_0_50_rate"),
-            "accepted":gate.get("accepted"),
+            "forecast_gate_passed":gate.get("accepted"),
+            "exploratory_horizon_candidates":exploratory_horizon_candidates,
+            "path_candidate_passed":path_candidate_passed,
+            "trade_ready":False,
+            "trade_readiness_reason":"ordered TP/SL execution and full portfolio simulation are not yet validated",
+            "actual_clock_0_35":clock_metrics,
             "research_only":x.get("research_only"),
             "live_orders":x.get("live_orders")
           },sort_keys=True))
@@ -59,8 +87,72 @@ jobs:
           name: market-intelligence-${{ matrix.symbol }}-oos
           path: |
             data/real/${{ matrix.symbol }}_1h.jsonl
+            data/real/${{ matrix.symbol }}_5m.jsonl
             reports/${{ matrix.symbol }}_1h.json
+            reports/${{ matrix.symbol }}_5m.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
+            reports/${{ matrix.symbol }}_actual_clock_economic.json
+
+  rank_opportunities:
+    name: Cross-asset economic opportunity ranking
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download OOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: market-intelligence-*-oos
+          merge-multiple: true
+          path: artifact-data
+      - name: Rank real opportunities
+        run: |
+          python tools/real_opportunity_scan.py \
+            --files "BTCUSDT=artifact-data/data/real/BTCUSDT_1h.jsonl,ETHUSDT=artifact-data/data/real/ETHUSDT_1h.jsonl,SOLUSDT=artifact-data/data/real/SOLUSDT_1h.jsonl,BNBUSDT=artifact-data/data/real/BNBUSDT_1h.jsonl,XRPUSDT=artifact-data/data/real/XRPUSDT_1h.jsonl" \
+            --cost-pct 0.35 \
+            --top 5 | tee opportunity_scan.json
+      - name: Summarize actual-clock economic validation
+        run: |
+          python - <<'PY' | tee actual_clock_cross_asset.json
+          import json
+          from pathlib import Path
+          symbols=["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT"]
+          out={}
+          for s in symbols:
+              p=Path("artifact-data/reports")/(s+"_actual_clock_economic.json")
+              x=json.loads(p.read_text())
+              costs=x.get("cost_sensitivity",{}).get("0.35",{})
+              horizon_metrics=costs.get("by_horizon",{})
+              exploratory_candidates={
+                h: m for h, m in horizon_metrics.items()
+                if int(m.get("accepted_signals",0)) >= 20
+                and float(m.get("fixed_horizon_close_expectancy_pct",0.0)) > 0
+                and float(m.get("positive_net_rate",0.0)) >= 0.55
+                and float(m.get("close_based_target_hit_rate",0.0)) >= 0.30
+              }
+              out[s]={
+                "status":x.get("status"),
+                "evaluation_points":x.get("evaluation_points"),
+                "exploratory_horizon_candidates":exploratory_candidates,
+                "forecast_path_candidate_passed":bool(exploratory_candidates),
+                "trade_ready":False,
+                "trade_readiness_reason":"ordered TP/SL execution and full portfolio simulation are not yet validated",
+                "cost_sensitivity":x.get("cost_sensitivity",{}),
+                "horizon_results":x.get("horizon_results",{})
+              }
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+      - name: Upload cross-asset opportunity report
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-intelligence-opportunity-ranking
+          path: |
+            opportunity_scan.json
+            actual_clock_cross_asset.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
