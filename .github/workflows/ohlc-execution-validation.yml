@@ -41,6 +41,7 @@ jobs:
       fail-fast: false
       matrix:
         symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+        horizon_bars: [12, 24, 48, 96]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -52,17 +53,18 @@ jobs:
           python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 5m --bars 5000 --out data/real/${{ matrix.symbol }}_5m.jsonl --report reports/${{ matrix.symbol }}_5m.json
       - name: Run execution-aware walk-forward backtest
         run: |
-          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m.jsonl --out reports/${{ matrix.symbol }}_execution_backtest.json --horizon-bars 96 --step-bars 48 --max-evals 60 --min-history 300 --cost-pct 0.35 --capital 500
+          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m.jsonl --out reports/${{ matrix.symbol }}_${{ matrix.horizon_bars }}_execution_backtest.json --horizon-bars ${{ matrix.horizon_bars }} --step-bars 24 --max-evals 40 --min-history 300 --cost-pct 0.35 --capital 500
       - name: Print compact metrics
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path("reports/${{ matrix.symbol }}_execution_backtest.json")
+          p=Path("reports/${{ matrix.symbol }}_${{ matrix.horizon_bars }}_execution_backtest.json")
           x=json.loads(p.read_text())
           print(json.dumps({
             "symbol": x.get("symbol"),
             "bars": x.get("bars"),
+            "horizon_bars": x.get("horizon_bars"),
             "evaluation_points": x.get("evaluation_points"),
             "trade_ready": x.get("trade_ready"),
             "research_only": x.get("research_only"),
@@ -79,7 +81,7 @@ jobs:
       - name: Publish report
         uses: actions/upload-artifact@v4
         with:
-          name: ohlc-execution-${{ matrix.symbol }}
+          name: ohlc-execution-${{ matrix.symbol }}-${{ matrix.horizon_bars }}
           path: |
             data/real/${{ matrix.symbol }}_5m.jsonl
-            reports/${{ matrix.symbol }}_execution_backtest.json
+            reports/${{ matrix.symbol }}_${{ matrix.horizon_bars }}_execution_backtest.json
