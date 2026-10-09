@@ -195,12 +195,15 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                 "research_only": True, "live_orders": False,
             })
             continue
+        # Directional accuracy remains a forecast diagnostic over every OOS row.
+        # Economic totals use only non-overlapping horizon outcomes.
+        economic_result = _non_overlapping_result(result, horizon)
         prediction_metrics = score_predictions(result)
-        capital_metrics = score_capital_targets(result, capital_usd=capital_usd,
+        capital_metrics = score_capital_targets(economic_result, capital_usd=capital_usd,
                                                  min_profit_usd=min_profit_usd,
                                                  preferred_profit_usd=preferred_profit_usd,
                                                  round_trip_cost_pct=round_trip_cost_pct)
-        economic_metrics = _directional_metrics(result, capital_usd=capital_usd,
+        economic_metrics = _directional_metrics(economic_result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
         path_metrics = _path_excursion_metrics(result)
         edge_diagnostic = diagnose_economic_edge(
@@ -220,22 +223,33 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             tier = "DIAGNOSTIC_ONLY"
         elif integrity_metrics.get("class_collapse"):
             tier = "NO_TRADE"
-        elif gate.get("accepted"):
-            tier = "TRADE"
         else:
+            # This runner validates forecasts and non-overlapping horizon outcomes,
+            # not intrahorizon execution with ordered TP/SL. Never label TRADE here.
             tier = _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, integrity_metrics)
         asset_results.append({
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
             "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
-            "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
+            "economic_overlap_policy": economic_result.get("economic_overlap_policy"),
+            "economic_source_predictions": economic_result.get("economic_source_predictions", len(result.get("predictions", []))),
+            "economic_non_overlapping_predictions": economic_result.get("economic_non_overlapping_predictions", len(economic_result.get("predictions", []))),
+            "opportunity_tier": tier, "signal_eligible": signal_eligible,
+            "forecast_gate_passed": bool(gate.get("accepted")),
+            "trade_ready": False,
+            "trade_readiness_reason": "requires_actual_clock_execution_validation_with_ordered_costs_and_TP_SL",
+            "acceptance_gate": gate,
         })
     aggregate = _aggregate(asset_results)
     return {
         "horizon_bars": horizon, "validated_assets": len(asset_results),
         "signal_eligible": signal_eligible,
-        "accepted_assets": sum(bool(x["acceptance_gate"].get("accepted")) and signal_eligible for x in asset_results),
+        # Backward-compatible alias: this counts forecast-gate passes, not executable trades.
+        "accepted_assets": sum(bool(x.get("forecast_gate_passed")) and signal_eligible for x in asset_results),
+        "forecast_gate_passed_assets": sum(bool(x.get("forecast_gate_passed")) and signal_eligible for x in asset_results),
+        "trade_ready_assets": 0,
+        "trade_readiness_policy": "actual_clock_execution_validation_required; forecast acceptance is not trade acceptance",
         "aggregate": aggregate, "assets": asset_results,
     }
 
