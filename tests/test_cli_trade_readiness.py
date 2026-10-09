@@ -43,7 +43,7 @@ class ForecastTradeReadinessTests(unittest.TestCase):
                 cli.main()
                 report = writer.call_args.args[0]
 
-        self.assertTrue(report["forecast_gate_passed"] or not report["forecast_gate_passed"])
+        self.assertIsInstance(report["forecast_gate_passed"], bool)
         self.assertFalse(report["trade_ready"])
         self.assertIn("actual_clock_execution_validation", report["trade_readiness_reason"])
         self.assertEqual(report["overlapping_forecast_diagnostic"]["samples"], 9)
