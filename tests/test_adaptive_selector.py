@@ -31,7 +31,7 @@ class AdaptiveSelectorTests(unittest.TestCase):
         )
         self.assertTrue(result["available"])
         self.assertEqual(len(result["candidates"]), 6)
-        self.assertIn(result["status"], ("EDGE_VALIDATED", "EDGE_UNPROVEN"))
+        self.assertIn(result["status"], ("OOS_EDGE_PASSED", "EDGE_UNPROVEN"))
         self.assertIn("walk_forward_oos", result)
         self.assertGreaterEqual(result["walk_forward_oos"]["trades"], 0)
         self.assertTrue(result["research_only"])
