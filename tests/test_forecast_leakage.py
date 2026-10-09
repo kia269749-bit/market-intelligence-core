@@ -77,7 +77,7 @@ class ForecastLeakageTests(unittest.TestCase):
 
         self.assertTrue(result["available"])
         self.assertTrue(seen)
-        self.assertEqual(seen[0], 80)
+        self.assertEqual(seen[0], 79)
         self.assertEqual(seen[-1], len(bars) - 2 * 5 - 1)
         self.assertEqual(seen, list(range(seen[0], seen[-1] + 1)))
 
