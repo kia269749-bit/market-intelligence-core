@@ -2,9 +2,9 @@ name: FOMO public decoder tests
 
 on:
   push:
-    branches: [feat/fomo-multisource-public-collector]
+    branches: [feat/fomo-multisource-public-collector, fix/fomo-syntax-imports-20261009]
   pull_request:
-    branches: [main]
+    branches: [main, feat/fomo-multisource-public-collector]
 
 jobs:
   test:
