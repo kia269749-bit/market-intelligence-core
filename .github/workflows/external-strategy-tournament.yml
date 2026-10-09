@@ -5,6 +5,8 @@ on:
     branches: [main, 'research/**']
     paths:
       - "tools/external_strategy_tournament.py"
+      - "tools/cross_market_macro_research.py"
+      - "tests/test_cross_market_macro_research.py"
       - "tests/test_external_strategy_tournament.py"
       - ".github/workflows/external-strategy-tournament.yml"
       - "mi_core/real_data.py"
@@ -31,6 +33,33 @@ jobs:
           python-version: "3.11"
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+
+  cross-market-macro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download BTC daily OHLC data
+        run: |
+          mkdir -p data/real reports/external-strategy
+          python -m mi_core.cli real --symbol BTCUSDT --interval 1d --bars 2500 --out data/real/BTCUSDT_1d_macro.jsonl --report reports/external-strategy/BTCUSDT_1d_macro_data.json
+      - name: Evaluate lagged USD, equities, gold, oil and volatility data
+        run: |
+          python tools/cross_market_macro_research.py \
+            --crypto-input data/real/BTCUSDT_1d_macro.jsonl \
+            --out reports/external-strategy/BTC_cross_market_macro_oos.json \
+            --cost-round-trip-pct 0.35 --capital 500
+      - name: Publish cross-market report
+        uses: actions/upload-artifact@v4
+        with:
+          name: cross-market-macro-BTC
+          path: |
+            data/real/BTCUSDT_1d_macro.jsonl
+            reports/external-strategy/BTCUSDT_1d_macro_data.json
+            reports/external-strategy/BTC_cross_market_macro_oos.json
 
   real-data-tournament:
     runs-on: ubuntu-latest
