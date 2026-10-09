@@ -6,7 +6,10 @@ from mi_core.validated_forecast import (
     forecast_now,
     walk_forward_forecast,
     non_overlapping_predictions,
+    score_predictions,
+    score_capital_targets,
 )
+from mi_core.economic_edge import diagnose_economic_edge
 
 
 class ForecastLeakageTests(unittest.TestCase):
@@ -53,6 +56,23 @@ class ForecastLeakageTests(unittest.TestCase):
         self.assertEqual(seen[0], 80)
         self.assertEqual(seen[-1], len(bars) - 2 * 5 - 1)
         self.assertEqual(seen, list(range(seen[0], seen[-1] + 1)))
+
+    def test_economic_metrics_do_not_count_overlapping_forecasts_as_trades(self):
+        result = {
+            "horizon_bars": 3,
+            "predictions": [{
+                "ts": i, "actual": 1, "pred": 1,
+                "actual_return_pct": 1.5, "favorable_mfe_pct": 1.7,
+                "adverse_mae_pct": 0.2, "p_up": 0.8, "p_flat": 0.1, "p_down": 0.1,
+            } for i in range(12)],
+        }
+        metrics = score_predictions(result)
+        capital = score_capital_targets(result)
+        edge = diagnose_economic_edge(result)
+        self.assertEqual(metrics["resolved"], 4)
+        self.assertEqual(metrics["all_forecasts"], 12)
+        self.assertEqual(capital["resolved_directional"], 4)
+        self.assertEqual(edge["samples"], 4)
 
     def test_non_overlapping_predictions_respect_horizon(self):
         result = {
