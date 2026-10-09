@@ -19,6 +19,7 @@ from .validated_forecast import (
     score_capital_targets,
     score_predictions,
     walk_forward_forecast,
+    non_overlapping_predictions,
 )
 
 
@@ -86,22 +87,50 @@ def _oos_integrity_metrics(result, horizon):
     majority_accuracy=majority/n if n else 0.0
     prediction_classes=sum(v>0 for v in pred_counts.values())
     actual_classes=sum(v>0 for v in actual_counts.values())
-    pairs=0
-    overlapping_pairs=0
-    ts=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
-    for a,b in zip(ts,ts[1:]):
-        pairs+=1
-        if b-a < int(horizon)*60_000:
-            overlapping_pairs+=1
-    overlap_rate=overlapping_pairs/pairs if pairs else 0.0
+    indexed = [x for x in rows if isinstance(x.get("bar_index"), int)]
+    pairs = max(0, len(indexed) - 1)
+    overlapping_pairs = sum(
+        int(b["bar_index"]) - int(a["bar_index"]) < int(horizon)
+        for a, b in zip(indexed, indexed[1:])
+    ) if len(indexed) == len(rows) else 0
+    overlap_available = bool(rows) and len(indexed) == len(rows)
+    overlap_rate = (overlapping_pairs / pairs) if overlap_available and pairs else (0.0 if overlap_available else None)
     return {"resolved":n,"actual_class_counts":actual_counts,"prediction_class_counts":pred_counts,
             "actual_class_count":actual_classes,"prediction_class_count":prediction_classes,
             "majority_class":majority_class,"majority_baseline_accuracy":round(majority_accuracy,6),
             "model_vs_majority_accuracy_lift":round(float(result.get("accuracy",0.0))-majority_accuracy,6),
             "overlapping_adjacent_pairs":overlapping_pairs,"adjacent_pairs":pairs,
-            "overlap_rate":round(overlap_rate,6),"horizon_bars":int(horizon),
+            "overlap_rate":round(overlap_rate,6) if overlap_rate is not None else None,
+            "overlap_measurement":"bar_index" if overlap_available else "unavailable_missing_bar_index",
+            "horizon_bars":int(horizon),
             "class_collapse": actual_classes < 2 or prediction_classes < 2,
             "research_only":True,"live_orders":False}
+
+
+def _time_window_metrics(result):
+    """Summarize real elapsed time and irregular gaps for forecast horizons."""
+    rows = [
+        x for x in result.get("predictions", [])
+        if isinstance(x.get("elapsed_seconds"), (int, float))
+    ]
+    if not rows:
+        return {"available": False, "reason": "elapsed_time_not_recorded"}
+    elapsed = sorted(float(x["elapsed_seconds"]) for x in rows)
+    n = len(elapsed)
+    q = lambda p: round(elapsed[min(n - 1, int((n - 1) * p))], 1)
+    long_gap_windows = sum(int(x.get("window_gap_count_over_300s", 0)) > 0 for x in rows)
+    return {
+        "available": True,
+        "samples": n,
+        "elapsed_median_seconds": round((elapsed[(n - 1) // 2] + elapsed[n // 2]) / 2, 1),
+        "elapsed_p90_seconds": q(0.90),
+        "elapsed_p99_seconds": q(0.99),
+        "windows_with_gap_over_300s": long_gap_windows,
+        "windows_with_gap_over_300s_rate": round(long_gap_windows / n, 6),
+        "max_gap_seconds": max(int(x.get("window_max_gap_seconds", 0)) for x in rows),
+        "research_only": True,
+        "live_orders": False,
+    }
 
 
 def _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, integrity_metrics=None):
@@ -163,16 +192,22 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                 "research_only": True, "live_orders": False,
             })
             continue
+        # Forecast quality uses the full chronological OOS series; economic
+        # outcomes use non-overlapping horizon windows and are reported separately.
+        economic_result = {
+            **result,
+            "predictions": non_overlapping_predictions(result, require_actual=False),
+        }
         prediction_metrics = score_predictions(result)
-        capital_metrics = score_capital_targets(result, capital_usd=capital_usd,
+        capital_metrics = score_capital_targets(economic_result, capital_usd=capital_usd,
                                                  min_profit_usd=min_profit_usd,
                                                  preferred_profit_usd=preferred_profit_usd,
                                                  round_trip_cost_pct=round_trip_cost_pct)
-        economic_metrics = _directional_metrics(result, capital_usd=capital_usd,
+        economic_metrics = _directional_metrics(economic_result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
         path_metrics = _path_excursion_metrics(result)
         edge_diagnostic = diagnose_economic_edge(
-            result,
+            economic_result,
             capital_usd=capital_usd,
             round_trip_cost_pct=round_trip_cost_pct,
             min_profit_usd=min_profit_usd,
@@ -196,7 +231,12 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
-            "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
+            "edge_diagnostic": edge_diagnostic,
+            "economic_overlap_policy": "non_overlapping_bar_windows",
+            "economic_source_predictions": len(result.get("predictions", [])),
+            "economic_non_overlapping_predictions": len(economic_result.get("predictions", [])),
+            "time_window_metrics": _time_window_metrics(result),
+            "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
         })
     aggregate = _aggregate(asset_results)
