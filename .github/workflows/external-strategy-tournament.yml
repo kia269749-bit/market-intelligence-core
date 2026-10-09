@@ -47,7 +47,7 @@ jobs:
       - name: Download real daily OHLC data
         run: |
           mkdir -p data/real reports/external-strategy
-          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1d --bars 1500 --out data/real/${{ matrix.symbol }}_1d.jsonl --report reports/external-strategy/${{ matrix.symbol }}_1d_data.json
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1d --bars 2500 --out data/real/${{ matrix.symbol }}_1d.jsonl --report reports/external-strategy/${{ matrix.symbol }}_1d_data.json
       - name: Compare fixed external strategy families after costs
         run: |
           set -e
