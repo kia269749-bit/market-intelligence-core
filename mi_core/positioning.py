@@ -27,6 +27,14 @@ def _signed_pressure(long_value: float | None, short_value: float | None) -> flo
     return 0.0 if total <= 0 else _clamp((short_value - long_value) / total)
 
 
+def _taker_pressure(buy_value: float | None, sell_value: float | None) -> float:
+    """Positive means aggressive buyers dominate; negative means sellers dominate."""
+    buy_value = float(buy_value or 0.0)
+    sell_value = float(sell_value or 0.0)
+    total = buy_value + sell_value
+    return 0.0 if total <= 0 else _clamp((buy_value - sell_value) / total)
+
+
 def analyze_positioning(data: Mapping[str, float | int | None]) -> dict:
     """Score derivatives positioning from point-in-time inputs.
 
