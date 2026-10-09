@@ -35,6 +35,30 @@ class ForecastLeakageTests(unittest.TestCase):
         self.assertTrue(result["available"])
         self.assertEqual(seen, [len(bars) - 1 - 5])
 
+    def test_live_expected_return_uses_probability_weighted_matured_class_means(self):
+        bars = self._bars(120)
+        features = [[i] for i in range(len(bars))]
+        labels = [1] * len(bars)
+        with patch("mi_core.validated_forecast._feature_cache", return_value=features), \
+             patch("mi_core.validated_forecast._labels_cache", return_value=labels), \
+             patch("mi_core.validated_forecast._fit", return_value="model"), \
+             patch("mi_core.validated_forecast._predict", return_value={1: 0.8, 0: 0.1, -1: 0.1}):
+            result = forecast_now(bars, horizon=5, train_window=100)
+        self.assertTrue(result["available"])
+        expected = result["class_mean_return_pct"]["1"] * 0.8
+        self.assertAlmostEqual(result["expected_return_pct"], expected, places=3)
+        self.assertEqual(result["confidence"], result["p_up"])
+
+    def test_live_confidence_matches_the_selected_return_direction(self):
+        result = forecast_now(self._bars(150), horizon=5)
+        self.assertTrue(result["available"])
+        if result["direction"] == "UP":
+            self.assertEqual(result["confidence"], result["p_up"])
+        elif result["direction"] == "DOWN":
+            self.assertEqual(result["confidence"], result["p_down"])
+        else:
+            self.assertEqual(result["confidence"], result["p_flat"])
+
     def test_walk_forward_never_trains_on_unresolved_forward_labels(self):
         bars = self._bars(180)
         features = [[i] for i in range(len(bars))]
