@@ -45,6 +45,8 @@ def _rsi(closes, period=14):
 def _signal(bars: Sequence[MarketBar], i: int, strategy: str) -> int:
     if i < 30:
         return 0
+    if strategy in ("ema_trend_slow", "breakout_50") and i < 51:
+        return 0
     closes = [float(b.price) for b in bars[max(0, i - 60):i + 1]]
     if any(not math.isfinite(x) or x <= 0 for x in closes):
         return 0
