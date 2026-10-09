@@ -78,7 +78,7 @@ jobs:
           PY
       - name: Screen fixed strategy families on recent non-overlapping OOS holdout
         run: |
-          python tools/strategy_tournament_diagnostics.py \
+          PYTHONPATH=. python tools/strategy_tournament_diagnostics.py \
             --input data/real/${{ matrix.symbol }}_1h.jsonl \
             --horizon 24 --cost-pct 0.35 --holdout-bars 1000 --windows 3 \
             --out reports/${{ matrix.symbol }}_strategy_screen.json
