@@ -22,7 +22,7 @@ def _get(params, timeout=20):
     with urlopen(req, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
-def fetch_klines(symbol="BTCUSDT", interval="1h", limit=1000, start_ms=None, end_ms=None):
+def fetch_klines(symbol="BTCUSDT", interval="1h", limit=1000, start_ms=None, end_ms=None, timeout=20):
     symbol = symbol.upper()
     if interval not in INTERVAL_MS:
         raise ValueError(f"unsupported interval: {interval}")
@@ -33,7 +33,7 @@ def fetch_klines(symbol="BTCUSDT", interval="1h", limit=1000, start_ms=None, end
         params["startTime"] = int(start_ms)
     if end_ms is not None:
         params["endTime"] = int(end_ms)
-    rows = _get(params)
+    rows = _get(params, timeout=timeout)
     if not isinstance(rows, list):
         raise RuntimeError(f"unexpected Binance response: {rows}")
     return rows
