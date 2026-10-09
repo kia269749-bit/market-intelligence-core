@@ -119,7 +119,12 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         return False
     expected_move=economics.get("expected_move_pct")
     if expected_move is None:
-        expected_move=selected.get("expected_move_pct",abs(float(selected.get("expected_return_pct") or 0.0)))
+        expected_move=selected.get("expected_move_pct")
+    if expected_move is None:
+        try:
+            expected_move=abs(float(selected.get("expected_return_pct") or 0.0))
+        except (TypeError,ValueError):
+            return False
     try:
         expected_move=float(expected_move)
         capital_usd=float(economics.get("capital_usd") or 500.0)
