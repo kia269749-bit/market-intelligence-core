@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import Iterable, Sequence
 
 from .fomo_smart_money import TraderFill
-from .fomo_solana_decoder import SolanaSwapCandidate\nfrom .fomo_solana_direction import infer_user_direction
+from .fomo_solana_decoder import SolanaSwapCandidate
+from .fomo_solana_direction import infer_user_direction
 
 
 @dataclass(frozen=True)
