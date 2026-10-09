@@ -67,8 +67,8 @@ class LiveBrainTests(unittest.TestCase):
             {"symbol":"ETHUSDT","change_24h_pct":-10.0,"exchange":"a"},
             {"symbol":"ETHUSDT","change_24h_pct":-9.0,"exchange":"b"},
         ]}
-        btc,btc_score=_market_bias(snapshot,"BTCUSDT")
-        eth,eth_score=_market_bias(snapshot,"ETHUSDT")
+        btc,btc_score=_market_bias(snapshot,"BTC")
+        eth,eth_score=_market_bias(snapshot,"ETH")
         self.assertEqual(btc,"BULLISH")
         self.assertEqual(eth,"BEARISH")
         self.assertGreater(btc_score,0.0)
