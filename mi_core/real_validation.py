@@ -274,7 +274,11 @@ def validate_project60(
         "assets_seen": len(series), "eligible_assets": len(ranked),
         "selected_assets": [x["symbol"] for x in ranked[:max(1, int(top_n))]],
         "validated_assets": primary["validated_assets"],
+        # Backward-compatible alias: forecast-gate passes are not trade-ready signals.
         "accepted_assets": primary["accepted_assets"],
+        "forecast_gate_passed_assets": primary.get("forecast_gate_passed_assets", primary["accepted_assets"]),
+        "trade_ready_assets": primary.get("trade_ready_assets", 0),
+        "trade_readiness_policy": primary.get("trade_readiness_policy", "actual_clock_execution_validation_required"),
         "aggregate": primary["aggregate"], "assets": primary["assets"],
         "horizon_results": results,
         "signal_horizon_policy": {"minimum_signal_horizon_bars": SHORT_HORIZON_SIGNAL_CUTOFF, "shorter_horizons": "diagnostic_only"},
