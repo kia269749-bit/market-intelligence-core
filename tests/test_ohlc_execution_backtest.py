@@ -27,6 +27,14 @@ class OhlcExecutionTests(unittest.TestCase):
         self.assertEqual(trades[0]["exit_price"], 102.0)
         self.assertLess(trades[0]["gross_return_pct"], 0)
 
+    def test_contrarian_mode_reverses_direction_for_diagnostic(self):
+        bars = [bar(0, 100), bar(1, 100), bar(2, 99, op=100, high=100.2, low=98.5)]
+        candidate = [{"index": 0, "ts": 0, "direction": "UP", "confidence": .8, "target_probability": .7}]
+        trades = _simulate(bars, candidate, 1.0, .5, .35, horizon_bars=2, direction_mode="contrarian")
+        self.assertEqual(trades[0]["direction"], "DOWN")
+        self.assertEqual(trades[0]["exit_reason"], "TARGET")
+        self.assertGreater(trades[0]["net_return_pct"], 0.0)
+
     def test_close_only_data_is_rejected(self):
         bars = [MarketBar(ts=i, symbol="BTCUSDT", price=100.0) for i in range(500)]
         result = backtest(bars, min_history=300, horizon_bars=96)
