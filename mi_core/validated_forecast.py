@@ -227,24 +227,43 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
     label_cache = _labels_cache(bars, horizon, flat_band)
     X = []
     y = []
+    train_returns_by_class = {-1: [], 0: [], 1: []}
+    train_records = []
     # Do not train on labels whose forward horizon has not finished yet.
     for j in range(max(20, i - train_window), i - horizon + 1):
         f = feature_cache[j]
         lab = label_cache[j]
         if f is not None and lab is not None:
+            realized = _ret(bars[j + horizon].price, bars[j].price) * 100.0
             X.append(f)
             y.append(lab)
+            train_returns_by_class[lab].append(realized)
+            train_records.append((j, lab, realized))
     if len(X) < 60 or feature_cache[i] is None:
         return {"available": False, "reason": "insufficient_training_samples", "samples": len(X)}
     p = _predict(_fit(X, y), feature_cache[i])
-    direction = {1: "UP", 0: "FLAT", -1: "DOWN"}[max(p, key=p.get)]
+    class_mean_return = {
+        label: statistics.fmean(values) if values else 0.0
+        for label, values in train_returns_by_class.items()
+    }
+    # Expected return is the probability-weighted realized return of mature
+    # training outcomes in each class, not probability difference times volatility.
+    exp = sum(float(p[label]) * class_mean_return[label] for label in (-1, 0, 1))
+    direction = "UP" if exp > 0 else "DOWN" if exp < 0 else "FLAT"
     rs = [_ret(bars[k].price, bars[k - 1].price) for k in range(max(1, i - 19), i + 1)]
     vol = statistics.pstdev(rs) or 1e-8
-    exp = (p[1] - p[-1]) * vol * math.sqrt(horizon) * 100
     band = 1.96 * vol * math.sqrt(horizon) * 100
     short = sum(rs[-5:])
     reversal = (short < 0 and direction == "UP") or (short > 0 and direction == "DOWN")
-    breakout = min(.95, max(.05, .5 + abs(short) / (vol * 5) * .12))
+    current_strength = float(feature_cache[i][0])
+    similar = [
+        realized for j, lab, realized in train_records
+        if feature_cache[j] is not None
+        and current_strength * float(feature_cache[j][0]) > 0
+        and abs(abs(current_strength) - abs(float(feature_cache[j][0]))) <= 0.75
+    ]
+    continuation_hits = sum((value > 0 if current_strength > 0 else value < 0) for value in similar)
+    breakout = (continuation_hits + 1.0) / (len(similar) + 2.0) if similar and current_strength != 0 else 0.5
     current_move_pct = short * 100.0
     return {
         "available": True,
@@ -261,8 +280,12 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
         "confidence": round(max(p.values()), 4),
         "reversal_warning": reversal,
         "breakout_probability": round(breakout, 4),
+        "continuation_probability": round(breakout, 4),
+        "continuation_analogue_samples": len(similar),
+        "confidence_source": "model_class_probability_not_independently_calibrated",
+        "class_mean_return_pct": {str(k): round(v, 4) for k, v in class_mean_return.items()},
         "current_move_pct": round(current_move_pct, 4),
-        "model_version": "wf-logit-v2",
+        "model_version": "wf-logit-v3-mature-labels",
         "research_only": True,
         "live_orders": False,
     }
