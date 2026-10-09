@@ -272,7 +272,7 @@ def evaluate_adaptive_selection(
         "walk_forward_oos": oos,
         "oos_strategy_counts": {name: oos_choices.count(name) for name in STRATEGIES},
         "accepted": accepted,
-        "status": "EDGE_VALIDATED" if accepted else "EDGE_UNPROVEN",
+        "status": "OOS_EDGE_PASSED" if accepted else "EDGE_UNPROVEN",
         "reasons": reasons,
         "candidates": candidates,
         "selection_method": "rolling net-expectancy + lower-confidence-bound; nested walk-forward selection",
