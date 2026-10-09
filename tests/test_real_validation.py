@@ -136,5 +136,18 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(selected["economic_non_overlapping_predictions"], 3)
         self.assertEqual([x["ts"] for x in selected["predictions"]], [0, 120_000, 240_000])
 
+
+    def test_non_overlap_policy_infers_hourly_bar_interval(self):
+        result = {"predictions": [
+            {"ts": i * 3_600_000, "pred": 1, "actual_return_pct": 0.5}
+            for i in range(7)
+        ]}
+        selected = _non_overlapping_result(result, horizon=2)
+        self.assertEqual(selected["economic_non_overlapping_predictions"], 4)
+        self.assertEqual(
+            [x["ts"] for x in selected["predictions"]],
+            [0, 7_200_000, 14_400_000, 21_600_000],
+        )
+
 if __name__ == "__main__":
     unittest.main()
