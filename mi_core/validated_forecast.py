@@ -268,18 +268,22 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
     }
 
 
-def non_overlapping_predictions(result):
+def non_overlapping_predictions(result, require_actual=False):
     """Sample at most one resolved forecast per horizon to avoid overlapping outcomes."""
-    rows = [x for x in result.get("predictions", []) if x.get("actual") is not None]
+    rows = [
+        x for x in result.get("predictions", [])
+        if x.get("actual") is not None or x.get("actual_return_pct") is not None
+    ]
     rows.sort(key=lambda x: x.get("ts", 0))
     horizon = max(1, int(result.get("horizon_bars", 1) or 1))
-    return rows[::horizon]
+    sampled = rows[::horizon]
+    return [x for x in sampled if x.get("actual") is not None] if require_actual else sampled
 
 
 def score_predictions(result):
     """Score non-overlapping OOS forecasts; retain all-bar accuracy as a diagnostic."""
     all_rows = [x for x in result.get("predictions", []) if x.get("actual") is not None]
-    rows = non_overlapping_predictions(result)
+    rows = non_overlapping_predictions(result, require_actual=True)
     if not rows:
         return {"resolved": 0, "all_forecasts": len(all_rows), "accuracy": 0.0,
                 "all_forecast_accuracy": 0.0, "precision": {}, "recall": {}, "high_conf_accuracy": 0.0}
