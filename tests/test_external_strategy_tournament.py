@@ -2,7 +2,7 @@ import math
 import unittest
 
 from mi_core.models import MarketBar
-from tools.external_strategy_tournament import STRATEGY_NAMES, build_signals, tournament
+from tools.external_strategy_tournament import STRATEGY_NAMES, _metrics, build_signals, tournament
 
 
 def make_bars(n=800):
@@ -43,6 +43,14 @@ class ExternalStrategyTournamentTests(unittest.TestCase):
             self.assertIn("holdout_oos", item)
             self.assertIn("full_sample", item)
             self.assertGreater(item["holdout_oos"]["bars"], 0)
+
+    def test_each_segment_charges_entry_cost_from_flat_start(self):
+        bars = make_bars()
+        positions = [1.0] * len(bars)
+        result = _metrics(bars, positions, cost_pct=0.35, capital_usd=500,
+                          start_index=200, end_index=250)
+        self.assertAlmostEqual(result["estimated_cost_sum_pct"], 0.175, places=8)
+        self.assertEqual(result["position_changes"], 1)
 
     def test_insufficient_data_is_not_accepted(self):
         result = tournament(make_bars(500))
