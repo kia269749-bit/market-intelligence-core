@@ -36,6 +36,8 @@ jobs:
           python-version: "3.11"
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+      - name: ATR exit-policy regression tests
+        run: python -m unittest discover -s tests -p 'test_regime_exit_tournament.py' -v
       - name: Download real market data
         run: |
           mkdir -p data/real reports
