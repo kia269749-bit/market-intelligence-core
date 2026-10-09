@@ -107,6 +107,16 @@ def _oos_integrity_metrics(result, horizon):
             "research_only":True,"live_orders":False}
 
 
+def _gap_clean_predictions(rows, max_gap_seconds=300):
+    """Keep only rows with measured gap metadata and no gap above the threshold."""
+    return [
+        row for row in rows
+        if isinstance(row.get("window_gap_count_over_300s"), int)
+        and row["window_gap_count_over_300s"] == 0
+        and int(row.get("window_max_gap_seconds", 0)) <= max_gap_seconds
+    ]
+
+
 def _time_window_metrics(result):
     """Summarize real elapsed time and irregular gaps for forecast horizons."""
     rows = [
@@ -200,10 +210,7 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         }
         # Sensitivity analysis: separately score non-overlapping windows without
         # any >5-minute source-data gap. This is diagnostic and does not tune gates.
-        gap_clean_predictions = [
-            x for x in economic_result["predictions"]
-            if int(x.get("window_gap_count_over_300s", 0)) == 0
-        ]
+        gap_clean_predictions = _gap_clean_predictions(economic_result["predictions"])
         gap_clean_result = {**economic_result, "predictions": gap_clean_predictions}
         prediction_metrics = score_predictions(result)
         capital_metrics = score_capital_targets(economic_result, capital_usd=capital_usd,
