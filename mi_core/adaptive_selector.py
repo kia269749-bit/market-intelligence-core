@@ -11,7 +11,11 @@ from typing import Sequence
 
 from .models import MarketBar
 
-STRATEGIES = ("momentum_5", "ema_trend", "breakout_20", "mean_reversion_14", "flow_5", "consensus_3")
+STRATEGIES = (
+    "momentum_5", "ema_trend", "ema_trend_slow", "breakout_20", "breakout_50",
+    "mean_reversion_14", "flow_5", "oi_funding_5", "funding_crowding",
+    "consensus_3", "consensus_4",
+)
 
 
 def _ema(values, period):
@@ -56,12 +60,21 @@ def _signal(bars: Sequence[MarketBar], i: int, strategy: str) -> int:
     ema8 = _ema(closes, 8)[-1]
     ema21 = _ema(closes, 21)[-1]
     trend_side = 1 if closes[-1] > ema8 > ema21 else -1 if closes[-1] < ema8 < ema21 else 0
+    ema20 = _ema(closes, 20)[-1]
+    ema50 = _ema(closes, 50)[-1]
+    slow_trend_side = 1 if closes[-1] > ema20 > ema50 else -1 if closes[-1] < ema20 < ema50 else 0
 
     prior = bars[max(0, i - 20):i]
     prior_high = max(float(b.high if b.high is not None else b.price) for b in prior)
     prior_low = min(float(b.low if b.low is not None else b.price) for b in prior)
     current = float(bars[i].price)
     breakout_side = 1 if current > prior_high * 1.0002 else -1 if current < prior_low * 0.9998 else 0
+    prior50 = bars[max(0, i - 50):i]
+    breakout50_side = 0
+    if len(prior50) >= 50:
+        high50 = max(float(b.high if b.high is not None else b.price) for b in prior50)
+        low50 = min(float(b.low if b.low is not None else b.price) for b in prior50)
+        breakout50_side = 1 if current > high50 * 1.0002 else -1 if current < low50 * 0.9998 else 0
 
     rsi = _rsi(closes, 14)
     mean_reversion_side = 1 if rsi <= 30.0 else -1 if rsi >= 70.0 else 0
@@ -76,19 +89,52 @@ def _signal(bars: Sequence[MarketBar], i: int, strategy: str) -> int:
     flow = statistics.fmean(flow_values) if flow_values else 0.0
     flow_side = 1 if flow >= 0.15 else -1 if flow <= -0.15 else 0
 
+    oi_now = bars[i].oi
+    oi_prev = bars[max(0, i - 5)].oi
+    oi_change = 0.0
+    if oi_now is not None and oi_prev not in (None, 0):
+        oi_change = float(oi_now) / float(oi_prev) - 1.0
+    funding = float(bars[i].funding or 0.0)
+    oi_funding_side = 0
+    if oi_change >= 0.002 and momentum > threshold:
+        oi_funding_side = 1 if funding < 0.0003 else 0
+    elif oi_change >= 0.002 and momentum < -threshold:
+        oi_funding_side = -1 if funding > -0.0003 else 0
+    elif oi_change <= -0.002 and momentum > threshold and flow > 0.10:
+        oi_funding_side = 1
+    elif oi_change <= -0.002 and momentum < -threshold and flow < -0.10:
+        oi_funding_side = -1
+
+    funding_crowding_side = 0
+    if oi_change > 0.002 and funding >= 0.0003 and rsi >= 65.0:
+        funding_crowding_side = -1
+    elif oi_change > 0.002 and funding <= -0.0003 and rsi <= 35.0:
+        funding_crowding_side = 1
+
     if strategy == "momentum_5":
         return momentum_side
     if strategy == "ema_trend":
         return trend_side
+    if strategy == "ema_trend_slow":
+        return slow_trend_side
     if strategy == "breakout_20":
         return breakout_side
+    if strategy == "breakout_50":
+        return breakout50_side
     if strategy == "mean_reversion_14":
         return mean_reversion_side
     if strategy == "flow_5":
         return flow_side
+    if strategy == "oi_funding_5":
+        return oi_funding_side
+    if strategy == "funding_crowding":
+        return funding_crowding_side
     if strategy == "consensus_3":
         score = momentum_side + trend_side + breakout_side
         return 1 if score >= 2 else -1 if score <= -2 else 0
+    if strategy == "consensus_4":
+        score = momentum_side + trend_side + breakout_side + flow_side + oi_funding_side
+        return 1 if score >= 3 else -1 if score <= -3 else 0
     return 0
 
 
