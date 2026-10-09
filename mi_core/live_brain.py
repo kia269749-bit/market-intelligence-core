@@ -673,7 +673,9 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     execution_ready=bool(
         combined.get("actionable") and not no_trade.get("blocked")
         and capital_economics.get("approved") and forecast_alignment.get("approved")
-        and timing.get("state")=="EARLY"
+        and timing.get("state")=="EARLY" and quality_status=="HEALTHY"
+        and mtf.get("available") and mtf_bias==str(forecast_alignment.get("direction","")).upper()
+        and _num(mtf.get("aligned_timeframes"))>=2
     )
     return {"ts":int(time.time()),"market":market,"fomo":fomo,
         "evidence":{"execution_ready":execution_ready,
