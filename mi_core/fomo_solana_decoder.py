@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-from .fomo_public_sources import _balance_map\nfrom .fomo_solana_protocols import classify_protocol
+from .fomo_public_sources import _balance_map
+from .fomo_solana_protocols import classify_protocol
 
 DEX_PROGRAMS = {
     "Jupiter": {"JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", "JUP4Fb2cqiRUcaTHdrPC8h2gNsA2ETXiPDD33WcGuJB"},
