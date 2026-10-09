@@ -4,6 +4,19 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/real-multi-asset-oos.yml"
+      - "mi_core/real_validation.py"
+      - "mi_core/path_forecast.py"
+      - "mi_core/cli.py"
+      - "tools/economic_path_validation.py"
+      - "tools/real_opportunity_scan.py"
+      - "tests/**"
+
+permissions:
+  contents: read
 
 jobs:
   validate:
