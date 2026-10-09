@@ -14,4 +14,4 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: python -m unittest tests.test_fomo_public_sources tests.test_fomo_solana_decoder -v
+      - run: python -m unittest tests.test_fomo_public_sources tests.test_fomo_solana_decoder tests.test_fomo_solana_protocols tests.test_fomo_solana_trade_adapter -v
