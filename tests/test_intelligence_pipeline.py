@@ -1,5 +1,6 @@
 from mi_core.intelligence_pipeline import analyze_market
 from mi_core.models import MarketBar
+from unittest.mock import patch
 
 
 def _bars(n=40):
@@ -103,4 +104,20 @@ def test_pipeline_exposes_opportunity_rank_without_fabricating_costs():
     assert opportunity["live_orders"] is False
     assert opportunity["cost_status"] == "UNAVAILABLE"
     assert "signal_gate" in report
+
+def test_opportunity_rank_does_not_override_failed_quality_gate():
+    opportunity = {
+        "eligible": True,
+        "status": "EARLY_OPPORTUNITY",
+        "cost_status": "UNAVAILABLE",
+        "research_only": True,
+        "live_orders": False,
+    }
+    with patch("mi_core.intelligence_pipeline.signal_quality_gate",
+               return_value={"eligible": False, "checks": {}, "reasons": ("decay",), "diagnostic_only": True}), \
+         patch("mi_core.intelligence_pipeline.select_opportunity", return_value=opportunity):
+        report = analyze_market(_bars())
+    assert report["opportunity_selection"]["eligible"] is True
+    assert report["signal_summary"]["gate_eligible"] is False
+    assert report["signal_summary"]["status"] == "FILTERED"
 
