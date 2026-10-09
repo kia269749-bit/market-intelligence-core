@@ -12,6 +12,7 @@ on:
       - "mi_core/path_forecast.py"
       - "mi_core/adaptive_selector.py"
       - "mi_core/real_data.py"
+      - "tools/strategy_tournament_diagnostics.py"
       - "mi_core/cli.py"
       - "tools/economic_path_validation.py"
       - "tools/real_opportunity_scan.py"
@@ -35,6 +36,8 @@ jobs:
           python-version: "3.11"
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+      - name: ATR exit-policy regression tests
+        run: python -m unittest discover -s tests -p 'test_regime_exit_tournament.py' -v
       - name: Download real market data
         run: |
           mkdir -p data/real reports
@@ -75,6 +78,26 @@ jobs:
               "reasons": result.get("reasons"),
           }, sort_keys=True))
           PY
+      - name: Screen fixed strategy families across multiple horizons on untouched holdout
+        run: |
+          for cost in 0.35 0.50; do
+            cost_tag=$(printf '%s' "${cost}" | tr '.' 'p')
+            for horizon in 4 8 12 24; do
+              PYTHONPATH=. python tools/strategy_tournament_diagnostics.py \
+                --input data/real/${{ matrix.symbol }}_1h.jsonl \
+                --horizon "${horizon}" --cost-pct "${cost}" --holdout-bars 1000 --windows 3 \
+                --out "reports/${{ matrix.symbol }}_strategy_screen_h${horizon}_c${cost_tag}.json"
+            done
+          done
+      - name: Screen ATR stop-target exits on training-selected entry families
+        run: |
+          for cost in 0.35 0.50; do
+            cost_tag=$(printf '%s' "${cost}" | tr '.' 'p')
+            PYTHONPATH=. python tools/regime_exit_tournament.py \
+              --input data/real/${{ matrix.symbol }}_1h.jsonl \
+              --horizon 24 --cost-pct "${cost}" --holdout-bars 1000 \
+              --out "reports/${{ matrix.symbol }}_exit_screen_h24_c${cost_tag}.json"
+          done
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -110,6 +133,8 @@ jobs:
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
             reports/${{ matrix.symbol }}_adaptive_selector_oos.json
+            reports/${{ matrix.symbol }}_strategy_screen_h*.json
+            reports/${{ matrix.symbol }}_exit_screen_h*.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
