@@ -1,6 +1,7 @@
 import unittest
+from types import SimpleNamespace
 from mi_core.models import MarketBar
-from tools.economic_path_validation import validate, _path_stats
+from tools.economic_path_validation import validate, _path_stats, _future_index
 
 
 class TestEconomicPathValidation(unittest.TestCase):
@@ -19,6 +20,21 @@ class TestEconomicPathValidation(unittest.TestCase):
         self.assertFalse(r["live_orders"])
         self.assertIn("cost_sensitivity",r)
         self.assertIn("horizon_results",r)
+
+    def test_future_index_respects_millisecond_wall_clock_horizon(self):
+        bars = [
+            SimpleNamespace(ts=1_800_000_000_000 + i * 3_600_000)
+            for i in range(4)
+        ]
+        # A 15-minute horizon on hourly data must resolve at the next hourly bar,
+        # not compare milliseconds to seconds and silently act like a 1-bar horizon.
+        self.assertEqual(_future_index(bars, 0, 15 * 60), 1)
+        self.assertEqual(_future_index(bars, 0, 2 * 60 * 60), 2)
+
+    def test_future_index_supports_second_timestamps(self):
+        bars = [SimpleNamespace(ts=10_000 + i * 3_600) for i in range(4)]
+        self.assertEqual(_future_index(bars, 0, 15 * 60), 1)
+        self.assertEqual(_future_index(bars, 0, 2 * 60 * 60), 2)
 
     def test_short_adverse_excursion_tracks_upward_move(self):
         bars = [
