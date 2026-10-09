@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from mi_core.real_validation import (
+    _aggregate,
     _directional_metrics,
     _non_overlapping_result,
     _oos_integrity_metrics,
@@ -148,6 +149,23 @@ class RealValidationTests(unittest.TestCase):
             [x["ts"] for x in selected["predictions"]],
             [0, 7_200_000, 14_400_000, 21_600_000],
         )
+
+
+    def test_aggregate_handles_skipped_assets(self):
+        scored = {
+            "prediction_metrics": {"resolved": 10, "accuracy": 0.6},
+            "capital_metrics": {"resolved_directional": 4, "min_target_hit_rate": 0.5,
+                                "preferred_target_hit_rate": 0.25},
+            "economic_metrics": {"net_profit_usd": 10.0, "expectancy_usd": 2.0,
+                                 "directional_predictions": 5},
+        }
+        skipped = {"asset": "TOO_SHORT", "validation_status": "SKIPPED"}
+        result = _aggregate([scored, skipped])
+        self.assertEqual(result["assets_validated"], 2)
+        self.assertEqual(result["assets_scored"], 1)
+        self.assertEqual(result["assets_skipped"], 1)
+        self.assertEqual(result["oos_resolved"], 10)
+        self.assertEqual(result["net_profit_usd"], 10.0)
 
 if __name__ == "__main__":
     unittest.main()
