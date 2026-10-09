@@ -29,6 +29,38 @@ def _num(v, default=0.0):
         return default
 
 
+def _non_overlapping_result(result, horizon):
+    """Select at most one horizon-end outcome per horizon window.
+
+    Forecast accuracy can use every OOS row, but economic totals must not treat
+    overlapping predictions as independent full-capital trades.
+    """
+    rows = list(result.get("predictions", []))
+    if not rows:
+        return {**result, "predictions": [], "economic_overlap_policy": "non_overlapping"}
+    if all(isinstance(row.get("ts"), (int, float)) for row in rows):
+        ordered = sorted(rows, key=lambda row: row["ts"])
+        selected = []
+        last_ts = None
+        min_gap_ms = max(1, int(horizon)) * 60_000
+        for row in ordered:
+            ts = int(row["ts"])
+            if last_ts is None or ts - last_ts >= min_gap_ms:
+                selected.append(row)
+                last_ts = ts
+    else:
+        # Test fixtures or external callers without timestamps use row order.
+        step = max(1, int(horizon))
+        selected = rows[::step]
+    return {
+        **result,
+        "predictions": selected,
+        "economic_overlap_policy": "first_prediction_then_wait_full_horizon",
+        "economic_source_predictions": len(rows),
+        "economic_non_overlapping_predictions": len(selected),
+    }
+
+
 def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
     rows = [
         r for r in result.get("predictions", [])
