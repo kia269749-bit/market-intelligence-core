@@ -11,6 +11,22 @@ class LiveBrainTests(unittest.TestCase):
         self.assertTrue(result["approved"])
         self.assertEqual(result["state"],"ALIGNED")
 
+    def test_forecast_alignment_gate_requires_walk_forward_edge_for_real_path_forecasts(self):
+        forecast={"available":True,"asset":"BTC","regime":"TREND",
+                  "selected":{"direction":"UP","expected_return_pct":2.0,"tier":"STRONG","target_hit_probability":0.7},
+                  "adaptive_validation":{"available":True,"accepted":False,"reasons":["walk_forward_oos_edge_not_proven"]}}
+        result=_forecast_alignment_gate(forecast,"BULLISH")
+        self.assertFalse(result["approved"])
+        self.assertEqual(result["state"],"EDGE_UNPROVEN")
+        self.assertIn("walk_forward_oos_edge_not_proven",result["reason"])
+
+    def test_forecast_alignment_gate_rejects_conflict_with_validated_adaptive_model(self):
+        forecast={"available":True,"selected":{"direction":"UP","expected_return_pct":2.0,"tier":"STRONG","target_hit_probability":0.7},
+                  "adaptive_validation":{"available":True,"accepted":True,"direction":"BEARISH"}}
+        result=_forecast_alignment_gate(forecast,"BULLISH")
+        self.assertFalse(result["approved"])
+        self.assertEqual(result["state"],"ADAPTIVE_CONFLICT")
+
     def test_forecast_alignment_gate_rejects_direction_conflict(self):
         forecast={"available":True,"selected":{"direction":"DOWN","expected_return_pct":-1.8,
                    "tier":"STRONG","target_hit_probability":0.65}}
