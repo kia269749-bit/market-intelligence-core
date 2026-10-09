@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from mi_core.models import MarketBar
 from tools.cross_market_macro_research import (
@@ -17,7 +17,7 @@ def make_bars(n=500):
         close = 100.0 + 0.02 * i + 1.5 * math.sin(i / 8.0)
         op = close * (1.0 + 0.001 * math.sin(i / 3.0))
         bars.append(MarketBar(
-            ts=int((start + timedelta(days=i)).strftime("%s")) * 1000,
+            ts=int(datetime.combine(start + timedelta(days=i), datetime.min.time(), tzinfo=timezone.utc).timestamp() * 1000),
             symbol="BTCUSDT", price=close, open=op,
             high=max(close, op) * 1.01, low=min(close, op) * 0.99,
         ))
