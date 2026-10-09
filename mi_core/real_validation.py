@@ -198,6 +198,13 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             **result,
             "predictions": non_overlapping_predictions(result, require_actual=False),
         }
+        # Sensitivity analysis: separately score non-overlapping windows without
+        # any >5-minute source-data gap. This is diagnostic and does not tune gates.
+        gap_clean_predictions = [
+            x for x in economic_result["predictions"]
+            if int(x.get("window_gap_count_over_300s", 0)) == 0
+        ]
+        gap_clean_result = {**economic_result, "predictions": gap_clean_predictions}
         prediction_metrics = score_predictions(result)
         capital_metrics = score_capital_targets(economic_result, capital_usd=capital_usd,
                                                  min_profit_usd=min_profit_usd,
@@ -205,6 +212,16 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                                                  round_trip_cost_pct=round_trip_cost_pct)
         economic_metrics = _directional_metrics(economic_result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
+        gap_clean_capital_metrics = score_capital_targets(
+            gap_clean_result, capital_usd=capital_usd,
+            min_profit_usd=min_profit_usd,
+            preferred_profit_usd=preferred_profit_usd,
+            round_trip_cost_pct=round_trip_cost_pct,
+        )
+        gap_clean_economic_metrics = _directional_metrics(
+            gap_clean_result, capital_usd=capital_usd,
+            round_trip_cost_pct=round_trip_cost_pct,
+        )
         path_metrics = _path_excursion_metrics(result)
         edge_diagnostic = diagnose_economic_edge(
             economic_result,
@@ -237,6 +254,10 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "economic_overlap_policy": "non_overlapping_bar_windows",
             "economic_source_predictions": len(result.get("predictions", [])),
             "economic_non_overlapping_predictions": len(economic_result.get("predictions", [])),
+            "gap_clean_window_policy": "non_overlapping_windows_without_any_gap_over_300_seconds",
+            "gap_clean_window_count": len(gap_clean_predictions),
+            "gap_clean_capital_metrics": gap_clean_capital_metrics,
+            "gap_clean_economic_metrics": gap_clean_economic_metrics,
             "time_window_metrics": _time_window_metrics(result),
             "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
