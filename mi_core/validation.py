@@ -54,4 +54,4 @@ def validate_oos_robustness(oos_report: dict, trade_returns: Sequence[float], **
         oos_return=float(oos_report.get("oos_return_total",0.0)),
         oos_positive_rate=float(oos_report.get("oos_positive_rate",0.0)),
         oos_probability_of_loss=mc.probability_of_loss)
-    return {"oos":oos_report,"monte_carlo":mc,"anti_overfitting":anti,"research_only":True,"live_orders":False}
+    return {"oos":oos_report,"monte_carlo":asdict(mc),"anti_overfitting":anti,"research_only":True,"live_orders":False}
