@@ -40,12 +40,22 @@ def _non_overlapping_result(result, horizon):
         return {**result, "predictions": [], "economic_overlap_policy": "non_overlapping"}
     if all(isinstance(row.get("ts"), (int, float)) for row in rows):
         ordered = sorted(rows, key=lambda row: row["ts"])
+        deltas = [
+            int(b["ts"]) - int(a["ts"])
+            for a, b in zip(ordered, ordered[1:])
+            if int(b["ts"]) > int(a["ts"])
+        ]
+        if deltas:
+            deltas.sort()
+            bar_interval = deltas[len(deltas) // 2]
+        else:
+            bar_interval = 60_000
         selected = []
         last_ts = None
-        min_gap_ms = max(1, int(horizon)) * 60_000
+        min_gap = max(1, int(horizon)) * max(1, bar_interval)
         for row in ordered:
             ts = int(row["ts"])
-            if last_ts is None or ts - last_ts >= min_gap_ms:
+            if last_ts is None or ts - last_ts >= min_gap:
                 selected.append(row)
                 last_ts = ts
     else:
