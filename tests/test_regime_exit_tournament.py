@@ -31,7 +31,7 @@ class RegimeExitTournamentTests(unittest.TestCase):
                         stop_atr=1.0, target_atr=1.5)
         self.assertIsNotNone(result)
         self.assertEqual(result["reason"], "both_stop_first")
-        self.assertAlmostEqual(result["net_pct"], -2.35, places=5)
+        self.assertAlmostEqual(result["net_pct"], ((entry - 2.0) / entry - 1.0) * 100.0 - 0.35, places=5)
 
     def test_train_trades_cannot_exit_across_split_boundary(self):
         bars = self._bars(420)
