@@ -20,6 +20,11 @@ class TestEconomicPathValidation(unittest.TestCase):
         self.assertFalse(r["live_orders"])
         self.assertIn("cost_sensitivity",r)
         self.assertIn("horizon_results",r)
+        self.assertFalse(r["portfolio_simulated"])
+        self.assertFalse(r["trade_ready"])
+        self.assertIn("by_horizon", r["cost_sensitivity"]["0.35"])
+        self.assertIn("fixed_horizon_close_expectancy_pct", r["horizon_results"]["60"])
+        self.assertIn("max_drawdown_pct_points", r["horizon_results"]["60"])
 
     def test_future_index_respects_millisecond_wall_clock_horizon(self):
         bars = [
