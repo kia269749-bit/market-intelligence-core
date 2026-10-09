@@ -14,13 +14,7 @@ class OhlcExecutionTests(unittest.TestCase):
     def test_stop_wins_when_target_and_stop_touch_same_bar(self):
         bars = [bar(0, 100), bar(1, 100), bar(2, 100, high=102, low=99)]
         candidate = [{"index": 0, "ts": 0, "direction": "UP", "confidence": .8, "target_probability": .7}]
-        import tools.ohlc_execution_backtest as engine
-        old_horizon = engine.horizon_bars_global
-        engine.horizon_bars_global = 2
-        try:
-            trades = _simulate(bars, candidate, 1.0, .5, .35)
-        finally:
-            engine.horizon_bars_global = old_horizon
+        trades = _simulate(bars, candidate, 1.0, .5, .35, horizon_bars=2)
         self.assertEqual(trades[0]["exit_reason"], "STOP")
         self.assertAlmostEqual(trades[0]["exit_price"], 99.5)
         self.assertAlmostEqual(trades[0]["net_return_pct"], -0.85)
@@ -28,13 +22,7 @@ class OhlcExecutionTests(unittest.TestCase):
     def test_short_stop_gap_uses_worse_open(self):
         bars = [bar(0, 100), bar(1, 100), bar(2, 102, op=102, high=103, low=101)]
         candidate = [{"index": 0, "ts": 0, "direction": "DOWN", "confidence": .8, "target_probability": .7}]
-        import tools.ohlc_execution_backtest as engine
-        old_horizon = engine.horizon_bars_global
-        engine.horizon_bars_global = 2
-        try:
-            trades = _simulate(bars, candidate, 1.0, .5, .35)
-        finally:
-            engine.horizon_bars_global = old_horizon
+        trades = _simulate(bars, candidate, 1.0, .5, .35, horizon_bars=2)
         self.assertEqual(trades[0]["exit_reason"], "STOP")
         self.assertEqual(trades[0]["exit_price"], 100.5)
         self.assertLess(trades[0]["gross_return_pct"], 0)
