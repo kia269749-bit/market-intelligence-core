@@ -55,29 +55,63 @@ def validate(bars,minutes=DEFAULT_MINUTES,costs=DEFAULT_COSTS,min_history=300,st
                     "realized_pct":round(realized,6),"mfe_pct":round(mfe,6),"mae_pct":round(mae,6),
                     "target_hit":bool(direction in ("UP","DOWN") and target>0 and mfe>=target),
                     "net_pct":round(realized-cost,6),"cost_pct":cost})
+    def metrics_for(accepted):
+        ordered=sorted(accepted,key=lambda x:x["ts"])
+        nets=[float(x["net_pct"]) for x in ordered]
+        gross_profit=sum(x for x in nets if x>0)
+        gross_loss=-sum(x for x in nets if x<0)
+        equity=peak=drawdown=0.0
+        for value in nets:
+            equity+=value
+            peak=max(peak,equity)
+            drawdown=max(drawdown,peak-equity)
+        return {
+            "accepted_signals":len(ordered),
+            "positive_net_rate":round(sum(x>0 for x in nets)/len(nets),4) if nets else 0.0,
+            "fixed_horizon_close_expectancy_pct":round(statistics.fmean(nets),6) if nets else 0.0,
+            "fixed_horizon_close_net_sum_pct":round(sum(nets),6),
+            "profit_factor":round(gross_profit/gross_loss,4) if gross_loss>0 else (None if gross_profit==0 else "infinite"),
+            "max_drawdown_pct_points":round(drawdown,6),
+            "close_based_target_hit_rate":round(sum(x["target_hit"] for x in ordered)/len(ordered),4) if ordered else 0.0,
+            "avg_mfe_close_pct":round(statistics.fmean(x["mfe_pct"] for x in ordered),6) if ordered else 0.0,
+            "avg_mae_close_pct":round(statistics.fmean(x["mae_pct"] for x in ordered),6) if ordered else 0.0,
+            "exit_policy":"fixed_horizon_close_after_requested_clock_horizon; no TP/SL simulation",
+            "target_hit_policy":"close-only path; intrabar high/low are unavailable"
+        }
+
     by_cost={}
     for cost in costs:
         xs=[x for x in rows if x["cost_pct"]==cost and x["direction"] in ("UP","DOWN")]
-        accepted=[x for x in xs if x["tier"] in ("STRONG","VIABLE")]
-        by_cost[str(cost)]={"directional_samples":len(xs),"accepted_signals":len(accepted),
-            "positive_net_rate":round(sum(x["net_pct"]>0 for x in accepted)/len(accepted),4) if accepted else 0.0,
-            "expectancy_pct":round(statistics.fmean(x["net_pct"] for x in accepted),6) if accepted else 0.0,
-            "net_sum_pct":round(sum(x["net_pct"] for x in accepted),6),
-            "target_hit_rate":round(sum(x["target_hit"] for x in accepted)/len(accepted),4) if accepted else 0.0,
-            "avg_mfe_pct":round(statistics.fmean(x["mfe_pct"] for x in accepted),6) if accepted else 0.0,
-            "avg_mae_pct":round(statistics.fmean(x["mae_pct"] for x in accepted),6) if accepted else 0.0}
-    by_horizon={}
-    for mins in minutes:
-        xs=[x for x in rows if x["minutes"]==mins and x["cost_pct"]==costs[-1]]
-        accepted=[x for x in xs if x["tier"] in ("STRONG","VIABLE")]
-        by_horizon[str(mins)]={"evaluated":len(xs),"accepted":len(accepted),
-            "expectancy_pct":round(statistics.fmean(x["net_pct"] for x in accepted),6) if accepted else 0.0,
-            "target_hit_rate":round(sum(x["target_hit"] for x in accepted)/len(accepted),4) if accepted else 0.0,
-            "avg_mfe_pct":round(statistics.fmean(x["mfe_pct"] for x in accepted),6) if accepted else 0.0,
-            "avg_mae_pct":round(statistics.fmean(x["mae_pct"] for x in accepted),6) if accepted else 0.0}
-    return {"status":"ok","symbol":bars[-1].symbol,"bars":len(bars),"evaluation_points":len(eval_points),
+        by_horizon_cost={}
+        for mins in minutes:
+            horizon_rows=[x for x in xs if x["minutes"]==mins]
+            accepted=[x for x in horizon_rows if x["tier"] in ("STRONG","VIABLE")]
+            by_horizon_cost[str(mins)]={
+                "directional_samples":len(horizon_rows),
+                **metrics_for(accepted)
+            }
+        # Different holding horizons are separate strategies. Do not pool their
+        # PnL or count overlapping horizons as independent trades.
+        by_cost[str(cost)]={
+            "by_horizon":by_horizon_cost,
+            "pooled_pnl_reported":False,
+            "note":"Metrics are separated by holding horizon; do not sum horizons."
+        }
+    by_horizon={
+        str(mins):{
+            "at_cost_pct":costs[-1],
+            "directional_samples":sum(1 for x in rows if x["minutes"]==mins and x["cost_pct"]==costs[-1] and x["direction"] in ("UP","DOWN")),
+            **metrics_for([x for x in rows if x["minutes"]==mins and x["cost_pct"]==costs[-1] and x["direction"] in ("UP","DOWN") and x["tier"] in ("STRONG","VIABLE")])
+        }
+        for mins in minutes
+    }
+    return {
+        "status":"ok","symbol":bars[-1].symbol,"bars":len(bars),"evaluation_points":len(eval_points),
         "step_bars":step,"minutes":list(minutes),"costs":list(costs),"cost_sensitivity":by_cost,
-        "horizon_results":by_horizon,"research_only":True,"live_orders":False}
+        "horizon_results":by_horizon,"research_only":True,"live_orders":False,
+        "portfolio_simulated":False,"trade_ready":False,
+        "trade_readiness_reason":"fixed-horizon close outcomes are not ordered TP/SL execution or a portfolio simulation"
+    }
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--input",required=True); ap.add_argument("--out",required=True)
