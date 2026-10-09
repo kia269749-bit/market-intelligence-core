@@ -1,6 +1,14 @@
 name: OHLC Execution Validation
 
 on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - "mi_core/models.py"
+      - "mi_core/real_data.py"
+      - "tools/ohlc_execution_backtest.py"
+      - "tests/**"
+      - ".github/workflows/ohlc-execution-validation.yml"
   pull_request:
     branches: [main]
     paths:
