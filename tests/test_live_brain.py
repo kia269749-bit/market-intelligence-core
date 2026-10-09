@@ -44,6 +44,48 @@ class LiveBrainTests(unittest.TestCase):
         self.assertEqual(bias,"NEUTRAL")
         self.assertEqual(confidence,.25)
 
+    def test_market_bias_uses_asset_specific_cross_exchange_consensus(self):
+        snapshot={"rows":[
+            {"symbol":"BTCUSDT","change_24h_pct":4.0,"exchange":"a"},
+            {"symbol":"BTCUSDT","change_24h_pct":3.0,"exchange":"b"},
+            {"symbol":"ETHUSDT","change_24h_pct":-10.0,"exchange":"a"},
+            {"symbol":"ETHUSDT","change_24h_pct":-9.0,"exchange":"b"},
+        ]}
+        btc,btc_score=_market_bias(snapshot,"BTCUSDT")
+        eth,eth_score=_market_bias(snapshot,"ETHUSDT")
+        self.assertEqual(btc,"BULLISH")
+        self.assertEqual(eth,"BEARISH")
+        self.assertGreater(btc_score,0.0)
+        self.assertGreater(eth_score,0.0)
+
+    def test_market_bias_does_not_treat_exchange_rows_as_independent_assets(self):
+        snapshot={"rows":[
+            {"symbol":"BTCUSDT","change_24h_pct":5.0,"exchange":"a"},
+            {"symbol":"BTCUSDT","change_24h_pct":5.1,"exchange":"b"},
+            {"symbol":"BTCUSDT","change_24h_pct":4.9,"exchange":"c"},
+            {"symbol":"ETHUSDT","change_24h_pct":-4.0,"exchange":"a"},
+        ]}
+        bias,_=_market_bias(snapshot)
+        self.assertEqual(bias,"NEUTRAL")
+
+    def test_ticker_cross_sectional_dispersion_is_not_a_volatility_regime(self):
+        market={"rows":[
+            {"symbol":"BTCUSDT","change_24h_pct":20.0},
+            {"symbol":"ETHUSDT","change_24h_pct":-18.0},
+            {"symbol":"SOLUSDT","change_24h_pct":15.0},
+            {"symbol":"XRPUSDT","change_24h_pct":-14.0},
+        ]}
+        self.assertEqual(_regime(market)["name"],"UNKNOWN")
+        self.assertEqual(_regime(market,{"regime":"HIGH_VOL"})["name"],"HIGH_VOLATILITY")
+
+    def test_fallback_data_quality_statuses_are_normalized(self):
+        market={"rows":[{"symbol":"BTCUSDT","change_24h_pct":0.0,"price":100.0}]}
+        with patch("mi_core.live_brain.fetch_snapshot",return_value=market), \
+             patch("mi_core.live_brain.scan_boosted",return_value={"candidates":[]}):
+            snap=run_once()
+        self.assertEqual(snap["evidence"]["data_quality"]["status"],"HEALTHY")
+        self.assertEqual(snap["evidence"]["market_data_gate"],"HEALTHY")
+
     def test_headline_uses_combined_decision(self):
         snap={"ts":0,"market":{"rows":[]},"fomo":{"candidates":[]},"evidence":{
             "market":{"bias":"NEUTRAL","confidence":0.5,"sources":1},
@@ -114,12 +156,12 @@ class LiveBrainTests(unittest.TestCase):
 
     def test_regime_blocks_high_volatility_action(self):
         market={"rows":[
-            {"change_24h_pct":20.0,"price":100},
-            {"change_24h_pct":-18.0,"price":100},
-            {"change_24h_pct":15.0,"price":100},
-            {"change_24h_pct":-14.0,"price":100},
+            {"symbol":"BTCUSDT","change_24h_pct":20.0,"price":100},
+            {"symbol":"ETHUSDT","change_24h_pct":-18.0,"price":100},
+            {"symbol":"SOLUSDT","change_24h_pct":15.0,"price":100},
+            {"symbol":"XRPUSDT","change_24h_pct":-14.0,"price":100},
         ]}
-        regime=_regime(market)
+        regime=_regime(market,{"regime":"HIGH_VOL","trend_score":2.0})
         self.assertEqual(regime["name"],"HIGH_VOLATILITY")
         fused=_fuse([("BULLISH",.9)],1.0,regime)
         self.assertFalse(fused["actionable"])
