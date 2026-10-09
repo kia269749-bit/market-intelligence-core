@@ -23,7 +23,7 @@ def _path_stats(bars,start,end,direction):
     if base<=0 or end<=start: return 0.0,0.0,0.0
     rets=[(float(bars[i].price)/base-1.0)*100.0 for i in range(start+1,end+1)]
     if direction=="UP": return rets[-1],max(0.0,max(rets)),max(0.0,-min(rets))
-    if direction=="DOWN": return -rets[-1],max(0.0,max(-x for x in rets)),max(0.0,min(rets))
+    if direction=="DOWN": return -rets[-1],max(0.0,max(-x for x in rets)),max(0.0,max(rets))
     return rets[-1],0.0,0.0
 
 def validate(bars,minutes=DEFAULT_MINUTES,costs=DEFAULT_COSTS,min_history=300,step=12,max_evals=160):
