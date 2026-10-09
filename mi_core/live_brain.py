@@ -670,8 +670,14 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     if quality_status=="UNSAFE":
         combined={"bias":"NEUTRAL","confidence":0.0,"agreement":combined["agreement"],"actionable":False,
                   "regime":regime["name"],"outcome_memory":_outcome_adjustment(outcome_memory)}
+    execution_ready=bool(
+        combined.get("actionable") and not no_trade.get("blocked")
+        and capital_economics.get("approved") and forecast_alignment.get("approved")
+        and timing.get("state")=="EARLY"
+    )
     return {"ts":int(time.time()),"market":market,"fomo":fomo,
-        "evidence":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
+        "evidence":{"execution_ready":execution_ready,
+          "market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
           "project60":{"available":bool(project60 and project60.get("available")),"bias":p60_bias,"confidence":round(p60_conf,4)},
           "data_quality":quality,"market_data_gate":quality_status,"regime":regime,"microstructure":micro,"combined":combined,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
@@ -735,7 +741,10 @@ def print_live(snapshot):
                 "BUY" if row.get("current_direction",0)>0 else "SELL" if row.get("current_direction",0)<0 else "WAIT"
             ) for row in ranked))
     tm=e.get("timing",{})
-    print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}%".format(tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0))))
+    print("TIMING state={} reason={} remaining={:.2f}% consumed={:.0f}% | EXECUTION_READY={}".format(
+        tm.get("state","WAIT"),tm.get("reason",""),tm.get("remaining_move_pct",0.0),
+        tm.get("consumed_pct",min(100.0,tm.get("extension_ratio",0.0)*100.0)),
+        e.get("execution_ready",False)))
     fc=e.get("forecast",{})
     if fc.get("available"):
         if isinstance(fc.get("horizons"),list):
