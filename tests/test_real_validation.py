@@ -51,6 +51,17 @@ class RealValidationTests(unittest.TestCase):
         )
         self.assertEqual([x["bar_index"] for x in sampled], [0, 3, 6, 9])
 
+    def test_gap_clean_predictions_excludes_long_and_unmeasured_gaps(self):
+        from mi_core.real_validation import _gap_clean_predictions
+        rows = [
+            {"bar_index": 0, "window_gap_count_over_300s": 0, "window_max_gap_seconds": 83},
+            {"bar_index": 60, "window_gap_count_over_300s": 1, "window_max_gap_seconds": 420},
+            {"bar_index": 120, "window_gap_count_over_300s": 0, "window_max_gap_seconds": 301},
+            {"bar_index": 180},
+        ]
+        clean = _gap_clean_predictions(rows)
+        self.assertEqual([x["bar_index"] for x in clean], [0])
+
     def test_path_excursion_metrics_measure_targets_and_adverse_move(self):
         result = _path_excursion_metrics({"predictions": [
             {"pred": 1, "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
