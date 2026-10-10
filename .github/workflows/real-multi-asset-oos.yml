@@ -15,6 +15,10 @@ on:
       - "mi_core/cli.py"
       - "tools/economic_path_validation.py"
       - "tools/real_opportunity_scan.py"
+      - "tools/pbo_real_ohlc.py"
+      - "tools/ohlc_execution_backtest.py"
+      - "mi_core/pbo.py"
+      - "mi_core/storage.py"
       - "tests/**"
 
 permissions:
@@ -75,6 +79,14 @@ jobs:
               "reasons": result.get("reasons"),
           }, sort_keys=True))
           PY
+      - name: Run real-OHLC CSCV/PBO selection-overfit diagnostic
+        env:
+          SYMBOL: ${{ matrix.symbol }}
+        run: |
+          python tools/pbo_real_ohlc.py \
+            --input data/real/${SYMBOL}_1h.jsonl \
+            --out reports/${SYMBOL}_pbo_cscv.json \
+            --blocks 8 --max-evals 40 --cost-pct 0.35
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -110,6 +122,7 @@ jobs:
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
             reports/${{ matrix.symbol }}_adaptive_selector_oos.json
+            reports/${{ matrix.symbol }}_pbo_cscv.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
