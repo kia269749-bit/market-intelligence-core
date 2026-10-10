@@ -34,7 +34,8 @@ class TestPathForecast(unittest.TestCase):
             self.assertGreater(x.analog_samples, 0)
             self.assertLessEqual(-100.0, x.lower_return_pct)
             self.assertLessEqual(x.lower_return_pct, x.upper_return_pct)
-            self.assertLessEqual(x.target_hit_probability, 1.0)
+            self.assertLessEqual(x.terminal_target_probability, 1.0)
+            self.assertEqual(x.target_hit_probability, x.terminal_target_probability)
 
     def test_best_horizon_prioritizes_viability_over_raw_move_size(self):
         from mi_core.path_forecast import HorizonForecast, PathForecast
