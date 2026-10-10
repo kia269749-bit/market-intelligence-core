@@ -247,7 +247,7 @@ def path_to_economic_opportunity(
     tier_rank = {"STRONG": 3, "VIABLE": 2, "WATCH": 1, "REJECT": 0}
     best = max(
         rows,
-        key=lambda r: (tier_rank[r["tier"]], r["target_hit_probability"],
+        key=lambda r: (tier_rank[r["tier"]], r["terminal_target_probability"],
                        r["risk_reward_ratio"], r["modeled_net_profit_usd"]),
         default=None,
     )
