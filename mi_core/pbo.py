@@ -17,7 +17,8 @@ def _sharpe(values: Sequence[float]) -> float:
         return 0.0
     vol = stdev(values)
     if vol == 0:
-        return 0.0 if avg == 0 else (float("inf") if avg > 0 else float("-inf"))
+        # A zero-volatility Sharpe is undefined; keep reports valid JSON.
+        return 0.0
     return avg / vol
 
 
