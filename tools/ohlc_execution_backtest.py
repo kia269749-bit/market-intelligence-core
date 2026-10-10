@@ -113,7 +113,7 @@ def _forecast_candidates(bars, indices, target_pct, horizon_bars, min_history):
             "ts": int(bars[idx].ts),
             "direction": f.direction,
             "confidence": float(f.confidence),
-            "target_probability": float(f.target_hit_probability),
+            "terminal_target_probability": float(f.terminal_target_probability),
         })
     return candidates
 
@@ -128,7 +128,8 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
         direction = candidate["direction"]
         if direction not in ("UP", "DOWN"):
             continue
-        if candidate["confidence"] < confidence_min or candidate["target_probability"] < probability_min:
+        terminal_probability = candidate.get("terminal_target_probability", candidate.get("target_probability", 0.0))
+        if candidate["confidence"] < confidence_min or terminal_probability < probability_min:
             continue
 
         entry_idx = idx + 1
@@ -188,7 +189,7 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
             "exit_ts": int(bars[exit_idx].ts),
             "direction": direction,
             "confidence": round(candidate["confidence"], 4),
-            "target_probability": round(candidate["target_probability"], 4),
+            "terminal_target_probability": round(terminal_probability, 4),
             "entry_price": round(entry, 8),
             "exit_price": round(exit_price, 8),
             "target_pct": target_pct,
@@ -224,7 +225,7 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
             for cohort, conf_min, prob_min in (
                 ("all_directional", 0.0, 0.0),
                 ("confidence_ge_0_60", 0.60, 0.0),
-                ("confidence_ge_0_55_and_target_probability_ge_0_45", 0.55, 0.45),
+                ("confidence_ge_0_55", 0.55, 0.0),
             ):
                 trades = _simulate(bars, candidates, float(target_pct), float(stop_pct), float(cost_pct),
                                    horizon_bars=horizon_bars, confidence_min=conf_min, probability_min=prob_min)
