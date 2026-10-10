@@ -28,8 +28,13 @@ class HorizonForecast:
     upper_return_pct: float
     favorable_target_pct: float
     adverse_move_pct: float
-    target_hit_probability: float
+    terminal_target_probability: float
     analog_samples: int
+
+    @property
+    def target_hit_probability(self) -> float:
+        """Deprecated alias for terminal-return threshold frequency, not TP-first odds."""
+        return self.terminal_target_probability
 
 
 @dataclass(frozen=True)
@@ -164,7 +169,7 @@ def _forecast_one(
         upper_return_pct=round(upper, 4),
         favorable_target_pct=round(favorable, 4),
         adverse_move_pct=round(adverse, 4),
-        target_hit_probability=round(_clamp(hit_prob, 0.0, 1.0), 4),
+        terminal_target_probability=round(_clamp(hit_prob, 0.0, 1.0), 4),
         analog_samples=len(vals),
     )
 
@@ -208,11 +213,12 @@ def path_to_economic_opportunity(
     for f in path.horizons:
         expected_net = abs(f.expected_return_pct) - round_trip_cost_pct
         modeled_profit = capital_usd * expected_net / 100.0
-        if f.target_hit_probability >= 0.55 and abs(f.expected_return_pct) >= preferred_move:
+        risk_reward = abs(f.expected_return_pct) / max(f.adverse_move_pct, 1e-6)
+        if f.confidence >= 0.60 and abs(f.expected_return_pct) >= preferred_move and risk_reward >= 1.5:
             tier = "STRONG"
-        elif f.target_hit_probability >= 0.45 and abs(f.expected_return_pct) >= min_move:
+        elif f.confidence >= 0.55 and abs(f.expected_return_pct) >= min_move and risk_reward >= 1.0:
             tier = "VIABLE"
-        elif f.target_hit_probability >= 0.35 and abs(f.expected_return_pct) >= min_move:
+        elif f.confidence >= 0.50 and abs(f.expected_return_pct) >= min_move:
             tier = "WATCH"
         else:
             tier = "REJECT"
@@ -222,17 +228,17 @@ def path_to_economic_opportunity(
             "confidence": f.confidence,
             "expected_return_pct": f.expected_return_pct,
             "expected_move_pct": abs(f.expected_return_pct),
-            "target_hit_probability": f.target_hit_probability,
+            "terminal_target_probability": f.terminal_target_probability,
             "analog_samples": f.analog_samples,
             "adverse_move_pct": f.adverse_move_pct,
             "risk_reward_ratio": round(abs(f.expected_return_pct) / max(f.adverse_move_pct, 1e-6), 4),
             "modeled_net_profit_usd": round(modeled_profit, 2),
             "tier": tier,
             "tier_reason": {
-                "STRONG": "target_probability_and_preferred_net_profit_pass",
-                "VIABLE": "target_probability_and_minimum_net_profit_pass",
-                "WATCH": "marginal_target_probability",
-                "REJECT": "insufficient_empirical_target_probability_or_net_move",
+                "STRONG": "confidence_preferred_net_move_and_risk_reward_pass",
+                "VIABLE": "confidence_minimum_net_move_and_risk_reward_pass",
+                "WATCH": "marginal_confidence_or_net_move",
+                "REJECT": "insufficient_confidence_or_net_move",
             }[tier],
         })
 
