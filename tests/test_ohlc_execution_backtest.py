@@ -43,5 +43,27 @@ class OhlcExecutionTests(unittest.TestCase):
         self.assertIn("holdout_oos", result["results"][0])
 
 
+    def test_development_trade_crossing_holdout_is_purged(self):
+        from tools.ohlc_execution_backtest import _partition_trades
+        trades = [
+            {"signal_ts": 10, "entry_ts": 11, "exit_ts": 19, "net_return_pct": 1.0},
+            {"signal_ts": 20, "entry_ts": 21, "exit_ts": 25, "net_return_pct": -1.0},
+            {"signal_ts": 19, "entry_ts": 20, "exit_ts": 21, "net_return_pct": 2.0},
+        ]
+        dev, holdout, purged = _partition_trades(trades, 20)
+        self.assertEqual(len(dev), 1)
+        self.assertEqual(len(holdout), 1)
+        self.assertEqual(purged, 1)
+        self.assertLess(dev[0]["exit_ts"], 20)
+        self.assertGreaterEqual(holdout[0]["signal_ts"], 20)
+
+    def test_impossible_ohlc_and_duplicate_timestamps_are_rejected(self):
+        from tools.ohlc_execution_backtest import _ohlc_ready
+        impossible = [bar(0, 100, op=100, high=99, low=98)]
+        duplicate_ts = [bar(0, 100), bar(0, 101)]
+        self.assertFalse(_ohlc_ready(impossible))
+        self.assertFalse(_ohlc_ready(duplicate_ts))
+
+
 if __name__ == "__main__":
     unittest.main()
