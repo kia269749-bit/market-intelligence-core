@@ -43,8 +43,6 @@ def summarize_coverage(symbol: str, bars: list, now_ms: int | None = None) -> di
         }
     ordered = sorted({int(b.ts): b for b in bars}.values(), key=lambda b: int(b.ts))
     timestamps = [int(b.ts) for b in ordered]
-    # Daily candles are timestamped at UTC open. Exclude the current UTC day's
-    # potentially unfinished candle from the usable historical sample.
     current_day_open = (now_ms // DAY_MS) * DAY_MS
     complete = [b for b in ordered if int(b.ts) < current_day_open]
     complete_ts = [int(b.ts) for b in complete]
@@ -60,7 +58,6 @@ def summarize_coverage(symbol: str, bars: list, now_ms: int | None = None) -> di
                 "before_date_utc": datetime.fromtimestamp(right / 1000, timezone.utc).date().isoformat(),
                 "missing_days": max(0, delta // DAY_MS - 1),
             })
-    history_days = expected
     return {
         "symbol": symbol,
         "status": "ok" if complete else "no_complete_daily_bars",
@@ -71,11 +68,11 @@ def summarize_coverage(symbol: str, bars: list, now_ms: int | None = None) -> di
             datetime.fromtimestamp(last_complete_ts / 1000, timezone.utc).date().isoformat()
             if last_complete_ts is not None else None
         ),
-        "history_days": history_days,
+        "history_days": expected,
         "missing_daily_bars_estimate": max(0, expected - len(complete)),
         "gap_count": len(gaps),
         "gaps": gaps[:100],
-        "five_year_history_available": history_days >= FIVE_YEARS_DAYS,
+        "five_year_history_available": expected >= FIVE_YEARS_DAYS,
         "current_utc_day_candle_excluded": len(ordered) > len(complete),
     }
 
@@ -95,7 +92,7 @@ def build_report(rows: list[dict], requested_bars: int = 2200) -> dict:
         "research_only": True,
         "live_orders": False,
         "survivorship_bias": (
-            "Material. Universe is selected from currently listed liquid USDT spot pairs. "
+            "Survivorship bias is material. Universe is selected from currently listed liquid USDT spot pairs. "
             "Delisted, failed, renamed, or historically illiquid assets are not fully represented; "
             "this coverage audit does not remove that bias."
         ),
@@ -131,7 +128,7 @@ def run(out_dir: Path, report_path: Path, requested_bars: int = 2200) -> dict:
                 "history_days": row["history_days"],
                 "gap_count": row["gap_count"],
             }, sort_keys=True))
-        except Exception as exc:  # one unavailable symbol must not hide others
+        except Exception as exc:
             row = {
                 "symbol": symbol, "status": "fetch_error", "raw_rows": 0,
                 "usable_complete_daily_rows": 0, "first_date_utc": None,
