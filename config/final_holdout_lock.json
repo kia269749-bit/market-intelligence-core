@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "dataset_start": "2020-10-05",
+  "dataset_end_inclusive": "2026-10-12",
+  "development_start": "2020-10-05",
+  "development_end_inclusive": "2025-07-29",
+  "final_holdout_start": "2025-07-30",
+  "final_holdout_end_inclusive": "2026-10-12",
+  "calendar_days_inclusive": 2199,
+  "development_days": 1759,
+  "final_holdout_days": 440,
+  "development_fraction": 0.799909049568,
+  "final_holdout_fraction": 0.200090950432,
+  "final_holdout_access": "explicit_final_step_only",
+  "note": "Calendar-date lock. Development loader must stop before final_holdout_start; final holdout is accessible only via explicit final-step mode."
+}
