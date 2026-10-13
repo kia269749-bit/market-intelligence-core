@@ -1,12 +1,20 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
+from math import isfinite
 class TradeDirection(str, Enum):
     BUY="BUY"; SELL="SELL"; UNKNOWN="UNKNOWN"
 @dataclass(frozen=True)
 class DirectionEvidence:
     source:str; direction:TradeDirection; strength:float; detail:str=""
-def _clip(v): return max(0.0,min(1.0,float(v)))
+def _clip(v):
+    try:
+        number = float(v)
+    except (TypeError, ValueError):
+        return 0.0
+    if not isfinite(number):
+        return 0.0
+    return max(0.0, min(1.0, number))
 def infer_direction(*,target_token_delta:float,quote_token_delta:float|None=None,dex_direction=None,pool_direction=None,clmm_is_base_input=None,min_reliable_confidence=.60):
     ev=[]
     if target_token_delta>0: ev.append(DirectionEvidence("token_delta",TradeDirection.BUY,1.0 if quote_token_delta is not None and quote_token_delta<0 else .70))
