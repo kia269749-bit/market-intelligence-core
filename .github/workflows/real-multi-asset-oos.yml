@@ -16,6 +16,7 @@ on:
       - "tools/economic_path_validation.py"
       - "tools/real_opportunity_scan.py"
       - "tools/pbo_real_ohlc.py"
+      - "tools/cost_sensitivity_ohlc.py"
       - "tools/ohlc_execution_backtest.py"
       - "mi_core/pbo.py"
       - "mi_core/storage.py"
@@ -27,7 +28,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -87,6 +88,14 @@ jobs:
             --input data/real/${SYMBOL}_1h.jsonl \
             --out reports/${SYMBOL}_pbo_cscv.json \
             --blocks 8 --max-evals 40 --cost-pct 0.35
+      - name: Run fixed-cost sensitivity on real OHLC
+        env:
+          SYMBOL: ${{ matrix.symbol }}
+        run: |
+          python tools/cost_sensitivity_ohlc.py \
+            --input data/real/${SYMBOL}_1h.jsonl \
+            --out reports/${SYMBOL}_cost_sensitivity.json \
+            --costs 0,0.05,0.10,0.20,0.35 --capital 500
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -123,6 +132,7 @@ jobs:
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
             reports/${{ matrix.symbol }}_adaptive_selector_oos.json
             reports/${{ matrix.symbol }}_pbo_cscv.json
+            reports/${{ matrix.symbol }}_cost_sensitivity.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
