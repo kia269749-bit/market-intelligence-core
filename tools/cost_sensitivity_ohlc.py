@@ -8,7 +8,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+# Direct execution (`python tools/cost_sensitivity_ohlc.py`) puts `tools/`,
+# not the repository root, on sys.path. Add the root so package imports work
+# both in GitHub Actions and when invoked directly from the repository.
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from mi_core.storage import load_bars
 from tools.ohlc_execution_backtest import backtest
