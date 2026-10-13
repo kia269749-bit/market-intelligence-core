@@ -66,7 +66,7 @@ def _random_baseline(bars, start, end, horizon, trade_count, cost, seed, iterati
     if count == 0:
         return {"trades_per_iteration": 0, "iterations": iterations,
                 "mean_net_pct_median": 0.0, "p05_mean_net_pct": 0.0,
-                "p95_mean_net_pct": 0.0, "strategy_mean_ge_random_p": 1.0}
+                "p95_mean_net_pct": 0.0, "random_mean_ge_strategy_p": 1.0}
     means = []
     for _ in range(iterations):
         order = candidates[:]
@@ -89,7 +89,7 @@ def _random_baseline(bars, start, end, horizon, trade_count, cost, seed, iterati
     if not means:
         return {"trades_per_iteration": 0, "iterations": iterations,
                 "mean_net_pct_median": 0.0, "p05_mean_net_pct": 0.0,
-                "p95_mean_net_pct": 0.0, "strategy_mean_ge_random_p": 1.0}
+                "p95_mean_net_pct": 0.0, "random_mean_ge_strategy_p": 1.0}
     def quantile(q):
         return means[min(len(means) - 1, max(0, int((len(means) - 1) * q)))]
     return {
@@ -98,7 +98,7 @@ def _random_baseline(bars, start, end, horizon, trade_count, cost, seed, iterati
         "mean_net_pct_median": round(statistics.median(means), 6),
         "p05_mean_net_pct": round(quantile(0.05), 6),
         "p95_mean_net_pct": round(quantile(0.95), 6),
-        "strategy_mean_ge_random_p": round(
+        "random_mean_ge_strategy_p": round(
             (1 + sum(x >= strategy_mean for x in means)) / (len(means) + 1), 6
         ),
     }
