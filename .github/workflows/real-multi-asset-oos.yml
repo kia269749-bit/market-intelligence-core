@@ -15,6 +15,7 @@ on:
       - "mi_core/cli.py"
       - "tools/economic_path_validation.py"
       - "tools/real_opportunity_scan.py"
+      - "tools/strategy_family_leaderboard.py"
       - "tests/**"
 
 permissions:
@@ -75,6 +76,14 @@ jobs:
               "reasons": result.get("reasons"),
           }, sort_keys=True))
           PY
+      - name: Build strategy-family leaderboard on chronological real-OHLC splits
+        env:
+          SYMBOL: ${{ matrix.symbol }}
+        run: |
+          python tools/strategy_family_leaderboard.py \
+            --input data/real/${SYMBOL}_1h.jsonl \
+            --out reports/${SYMBOL}_strategy_family_leaderboard.json \
+            --horizon-bars 24 --cost-pct 0.35 --min-development-trades 20
       - name: Print comparable metrics
         run: |
           python - <<'PY'
@@ -110,6 +119,7 @@ jobs:
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
             reports/${{ matrix.symbol }}_adaptive_selector_oos.json
+            reports/${{ matrix.symbol }}_strategy_family_leaderboard.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
