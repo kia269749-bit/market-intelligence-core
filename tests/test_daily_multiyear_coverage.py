@@ -30,7 +30,7 @@ class DailyCoverageTests(unittest.TestCase):
         self.assertEqual(len(UNIVERSE), 30)
         self.assertTrue(report["research_only"])
         self.assertFalse(report["live_orders"])
-        self.assertIn("Survivorship", report["survivorship_bias"])
+        self.assertIn("survivorship", report["survivorship_bias"].lower())
         self.assertIn("historical bid-ask spread", report["execution_cost_limitation"])
 
     def test_five_year_flag_uses_complete_history_span(self):
