@@ -189,8 +189,23 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         future_min = min(future_returns) if future_returns else 0.0
         favorable_mfe = future_max if pred == 1 else -future_min
         adverse_mae = -future_min if pred == 1 else future_max
+        window_gaps = [
+            max(0, int(bars[k].ts) - int(bars[k - 1].ts))
+            for k in range(i + 1, i + horizon + 1)
+            if isinstance(bars[k].ts, (int, float)) and isinstance(bars[k - 1].ts, (int, float))
+        ]
+        elapsed_seconds = (
+            max(0, int(bars[i + horizon].ts) - int(bars[i].ts))
+            if isinstance(bars[i + horizon].ts, (int, float)) and isinstance(bars[i].ts, (int, float))
+            else None
+        )
         preds.append({
             "ts": bars[i].ts,
+            "bar_index": i,
+            "exit_ts": bars[i + horizon].ts,
+            "elapsed_seconds": elapsed_seconds,
+            "window_gap_count_over_300s": sum(g > 300 for g in window_gaps),
+            "window_max_gap_seconds": max(window_gaps, default=0),
             "pred": pred,
             "actual": actual,
             "actual_return_pct": round(_ret(bars[i + horizon].price, bars[i].price) * 100, 6)
@@ -297,9 +312,19 @@ def non_overlapping_predictions(result, require_actual=False):
         x for x in result.get("predictions", [])
         if x.get("actual") is not None or x.get("actual_return_pct") is not None
     ]
-    rows.sort(key=lambda x: x.get("ts", 0))
     horizon = max(1, int(result.get("horizon_bars", 1) or 1))
-    sampled = rows[::horizon]
+    if rows and all(isinstance(x.get("bar_index"), int) for x in rows):
+        rows.sort(key=lambda x: x["bar_index"])
+        sampled = []
+        last_index = None
+        for row in rows:
+            idx = row["bar_index"]
+            if last_index is None or idx - last_index >= horizon:
+                sampled.append(row)
+                last_index = idx
+    else:
+        rows.sort(key=lambda x: x.get("ts", 0))
+        sampled = rows[::horizon]
     return [x for x in sampled if x.get("actual") is not None] if require_actual else sampled
 
 

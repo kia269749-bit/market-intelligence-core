@@ -28,6 +28,56 @@ class RealValidationTests(unittest.TestCase):
         self.assertLess(result["expectancy_usd"], 0.0)
         self.assertEqual(result["positive_net_outcomes"], 1)
 
+    def test_time_window_metrics_report_elapsed_time_and_gaps(self):
+        from mi_core.real_validation import _time_window_metrics
+        metrics = _time_window_metrics({"predictions": [
+            {"elapsed_seconds": 3600, "window_gap_count_over_300s": 0, "window_max_gap_seconds": 83},
+            {"elapsed_seconds": 5400, "window_gap_count_over_300s": 1, "window_max_gap_seconds": 420},
+            {"elapsed_seconds": 7200, "window_gap_count_over_300s": 1, "window_max_gap_seconds": 600},
+        ]})
+        self.assertTrue(metrics["available"])
+        self.assertEqual(metrics["samples"], 3)
+        self.assertEqual(metrics["windows_with_gap_over_300s"], 2)
+        self.assertEqual(metrics["max_gap_seconds"], 600)
+
+    def test_non_overlapping_predictions_use_bar_indices(self):
+        from mi_core.validated_forecast import non_overlapping_predictions
+        rows = [
+            {"bar_index": i, "ts": 1790000000 + i * 83, "pred": 1, "actual": 1}
+            for i in range(10)
+        ]
+        sampled = non_overlapping_predictions(
+            {"horizon_bars": 3, "predictions": rows}, require_actual=True
+        )
+        self.assertEqual([x["bar_index"] for x in sampled], [0, 3, 6, 9])
+
+    def test_gap_clean_predictions_excludes_long_and_unmeasured_gaps(self):
+        from mi_core.real_validation import _gap_clean_predictions
+        rows = [
+            {"bar_index": 0, "window_gap_count_over_300s": 0, "window_max_gap_seconds": 83},
+            {"bar_index": 60, "window_gap_count_over_300s": 1, "window_max_gap_seconds": 420},
+            {"bar_index": 120, "window_gap_count_over_300s": 0, "window_max_gap_seconds": 301},
+            {"bar_index": 180},
+        ]
+        clean = _gap_clean_predictions(rows)
+        self.assertEqual([x["bar_index"] for x in clean], [0])
+
+    def test_side_diagnostics_compare_long_short_and_baselines_after_costs(self):
+        from mi_core.real_validation import _side_and_baseline_diagnostics
+        result = _side_and_baseline_diagnostics({"predictions": [
+            {"pred": 1, "actual_return_pct": 1.0},
+            {"pred": -1, "actual_return_pct": -0.8},
+            {"pred": 0, "actual_return_pct": 0.2},
+        ]}, capital_usd=500.0, round_trip_cost_pct=0.35)
+        self.assertEqual(result["model_long"]["trades"], 1)
+        self.assertEqual(result["model_short"]["trades"], 1)
+        self.assertAlmostEqual(result["model_long"]["net_profit_usd"], 3.25, places=4)
+        self.assertAlmostEqual(result["model_short"]["net_profit_usd"], 2.25, places=4)
+        self.assertEqual(result["always_long_same_windows"]["trades"], 3)
+        self.assertEqual(result["model_abstained_windows"], 1)
+        self.assertTrue(result["research_only"])
+        self.assertFalse(result["live_orders"])
+
     def test_path_excursion_metrics_measure_targets_and_adverse_move(self):
         result = _path_excursion_metrics({"predictions": [
             {"pred": 1, "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
@@ -50,7 +100,7 @@ class RealValidationTests(unittest.TestCase):
         result = {
             "accuracy": 1.0,
             "predictions": [
-                {"ts": i * 60_000, "pred": -1, "actual": -1}
+                {"ts": 1790000000 + i * 83, "bar_index": i, "pred": -1, "actual": -1}
                 for i in range(10)
             ],
         }
@@ -66,10 +116,10 @@ class RealValidationTests(unittest.TestCase):
         result = {
             "accuracy": 0.75,
             "predictions": [
-                {"ts": 0, "pred": -1, "actual": -1},
-                {"ts": 120 * 60_000, "pred": 1, "actual": 1},
-                {"ts": 240 * 60_000, "pred": -1, "actual": 1},
-                {"ts": 360 * 60_000, "pred": 1, "actual": -1},
+                {"ts": 1790000000, "bar_index": 0, "pred": -1, "actual": -1},
+                {"ts": 1790007200, "bar_index": 120, "pred": 1, "actual": 1},
+                {"ts": 1790014400, "bar_index": 240, "pred": -1, "actual": 1},
+                {"ts": 1790021600, "bar_index": 360, "pred": 1, "actual": -1},
             ],
         }
         metrics = _oos_integrity_metrics(result, 120)
