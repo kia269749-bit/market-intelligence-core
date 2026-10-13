@@ -17,6 +17,7 @@ on:
       - "tools/real_opportunity_scan.py"
       - "tools/pbo_real_ohlc.py"
       - "tools/cost_sensitivity_ohlc.py"
+      - "tools/strategy_family_leaderboard.py"
       - "tools/ohlc_execution_backtest.py"
       - "mi_core/pbo.py"
       - "mi_core/storage.py"
@@ -80,6 +81,14 @@ jobs:
               "reasons": result.get("reasons"),
           }, sort_keys=True))
           PY
+      - name: Build strategy-family leaderboard on chronological real-OHLC splits
+        env:
+          SYMBOL: ${{ matrix.symbol }}
+        run: |
+          python tools/strategy_family_leaderboard.py \
+            --input data/real/${SYMBOL}_1h.jsonl \
+            --out reports/${SYMBOL}_strategy_family_leaderboard.json \
+            --horizon-bars 24 --cost-pct 0.35 --min-development-trades 20
       - name: Run real-OHLC CSCV/PBO selection-overfit diagnostic
         env:
           SYMBOL: ${{ matrix.symbol }}
@@ -133,6 +142,7 @@ jobs:
             reports/${{ matrix.symbol }}_adaptive_selector_oos.json
             reports/${{ matrix.symbol }}_pbo_cscv.json
             reports/${{ matrix.symbol }}_cost_sensitivity.json
+            reports/${{ matrix.symbol }}_strategy_family_leaderboard.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
