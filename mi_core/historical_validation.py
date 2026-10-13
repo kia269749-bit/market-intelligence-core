@@ -19,29 +19,43 @@ def _summary(result: dict) -> dict:
             "profit_factor":round(float(result["profit_factor"]),6) if result["profit_factor"] != float("inf") else "inf",
             "expectancy":round(float(result["expectancy"]),8),"cost_total":round(float(result["cost_total"]),8)}
 
+def _monte_carlo_summary(mc) -> dict | None:
+    if mc is None:
+        return None
+    return {"simulations":mc.simulations,"p05_return":mc.p05_return,"median_return":mc.median_return,
+            "p95_return":mc.p95_return,"probability_of_loss":mc.probability_of_loss,
+            "p95_max_drawdown":mc.p95_max_drawdown}
+
 def evaluate_historical_evidence(bars: Sequence, *, entry_threshold: float=0.60, initial: float=10000.0,
     fee_bps: float=5.0, slippage_bps: float=3.0, latency_bars: int=1, hold_bars: int=1,
     risk_fraction: float=0.10, train_ratio: float=0.70, simulations: int=1000, seed: int=42) -> dict:
     if len(bars)<20: raise ValueError("at least 20 bars are required for historical evidence")
     if not 0.50<=train_ratio<1.0: raise ValueError("train_ratio must be in [0.50, 1.0)")
+    if simulations < 100: raise ValueError("simulations must be at least 100")
     signals=_signals(bars,entry_threshold)
-    full=run_backtest(bars,signals,initial=initial,fee_bps=fee_bps,slippage_bps=slippage_bps,latency_bars=latency_bars,hold_bars=hold_bars,risk_fraction=risk_fraction)
+    kwargs=dict(initial=initial,fee_bps=fee_bps,slippage_bps=slippage_bps,
+                latency_bars=latency_bars,hold_bars=hold_bars,risk_fraction=risk_fraction)
+    full=run_backtest(bars,signals,**kwargs)
     split=max(10,min(len(bars)-1,int(len(bars)*train_ratio)))
     train_bars,test_bars=bars[:split],bars[split:]
-    train_signals=signals[:split]
-    test_signals=signals[split:]
-    train=run_backtest(train_bars,train_signals,initial=initial,fee_bps=fee_bps,slippage_bps=slippage_bps,latency_bars=latency_bars,hold_bars=hold_bars,risk_fraction=risk_fraction)
-    oos=run_backtest(test_bars,test_signals,initial=initial,fee_bps=fee_bps,slippage_bps=slippage_bps,latency_bars=latency_bars,hold_bars=hold_bars,risk_fraction=risk_fraction)
-    trade_returns=[float(t.pnl)/initial for t in full["trades"] if float(t.pnl)/initial>-1.0]
-    mc=monte_carlo_bootstrap(trade_returns,simulations=simulations,seed=seed) if trade_returns else None
+    train=run_backtest(train_bars,signals[:split],**kwargs)
+    oos=run_backtest(test_bars,signals[split:],**kwargs)
+
+    full_returns=[float(t.pnl)/initial for t in full["trades"] if float(t.pnl)/initial>-1.0]
+    oos_returns=[float(t.pnl)/initial for t in oos["trades"] if float(t.pnl)/initial>-1.0]
+    mc_full=monte_carlo_bootstrap(full_returns,simulations=simulations,seed=seed) if full_returns else None
+    # The OOS robustness estimate must use OOS trades only. Using full-period
+    # returns here would leak in-sample outcomes into the out-of-sample gate.
+    mc_oos=monte_carlo_bootstrap(oos_returns,simulations=simulations,seed=seed+1) if oos_returns else None
     oos_trades=oos["trades"]
     oos_positive_rate=(sum(float(t.pnl)>0 for t in oos_trades)/len(oos_trades)) if oos_trades else 0.0
-    oos_loss_probability=mc.probability_of_loss if mc else 1.0
+    oos_loss_probability=mc_oos.probability_of_loss if mc_oos else 1.0
     robustness=anti_overfitting_score(train_return=float(train["return"]),oos_return=float(oos["return"]),
         oos_positive_rate=oos_positive_rate,oos_probability_of_loss=oos_loss_probability)
     folds=walk_forward(bars,[b.ts for b in bars],train_size=max(10,split//2),test_size=max(5,(len(bars)-split)//2))
     return {"full":_summary(full),"train":_summary(train),"oos":_summary(oos),
         "oos_positive_trade_rate":round(oos_positive_rate,6),
-        "monte_carlo":{"simulations":mc.simulations,"p05_return":mc.p05_return,"median_return":mc.median_return,
-          "p95_return":mc.p95_return,"probability_of_loss":mc.probability_of_loss,"p95_max_drawdown":mc.p95_max_drawdown} if mc else None,
-        "anti_overfitting":robustness,"walk_forward_folds":len(folds),"research_only":True,"live_orders":False}
+        "monte_carlo":_monte_carlo_summary(mc_full),
+        "monte_carlo_oos":_monte_carlo_summary(mc_oos),
+        "anti_overfitting":robustness,"walk_forward_folds":len(folds),
+        "research_only":True,"live_orders":False}

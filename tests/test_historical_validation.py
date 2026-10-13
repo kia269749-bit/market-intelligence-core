@@ -10,7 +10,11 @@ def test_historical_evidence_flags_research_only():
     assert result["walk_forward_folds"]>0
     assert result["research_only"] is True
     assert result["live_orders"] is False
+    assert "monte_carlo_oos" in result
 
 def test_oos_positive_trade_rate_is_bounded():
-    result=evaluate_historical_evidence(_bars(),simulations=20)
+    result=evaluate_historical_evidence(_bars(),simulations=100)
     assert 0.0 <= result["oos_positive_trade_rate"] <= 1.0
+    mc = result["monte_carlo_oos"]
+    if mc is not None:
+        assert 0.0 <= mc["probability_of_loss"] <= 1.0
