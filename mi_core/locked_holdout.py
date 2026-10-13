@@ -1,4 +1,4 @@
-"""Chronological dataset gate: development and final holdout are separate modes."""
+"""Chronological dataset gate: development and final holdout are separate files/modes."""
 from __future__ import annotations
 import csv
 import json
@@ -19,10 +19,12 @@ def read_lock(path=LOCK_PATH):
     return lock
 
 def load_rows(path, *, step="development", lock_path=LOCK_PATH):
-    """Read sorted CSV rows. Development stops at the first holdout timestamp.
+    """Load exactly one partition file.
 
-    The final segment is deliberately unavailable unless step='final-step' is
-    passed explicitly. Input must be sorted by timestamp ascending.
+    Development mode opens only a development-partition file and rejects any
+    row beyond development_end_inclusive. Final holdout rows require a separate
+    explicit call with step='final-step' and a path to the holdout partition.
+    No single-file scan crosses the boundary.
     """
     if step not in ("development", "final-step"):
         raise ValueError("step must be 'development' or explicit 'final-step'")
@@ -31,6 +33,7 @@ def load_rows(path, *, step="development", lock_path=LOCK_PATH):
     dev_end = date.fromisoformat(lock["development_end_inclusive"])
     holdout_start = date.fromisoformat(lock["final_holdout_start"])
     end = date.fromisoformat(lock["final_holdout_end_inclusive"])
+    lower, upper = (start, dev_end) if step == "development" else (holdout_start, end)
     result = []
     previous = None
     with open(path, newline="", encoding="utf-8") as f:
@@ -42,16 +45,9 @@ def load_rows(path, *, step="development", lock_path=LOCK_PATH):
             if previous is not None and current < previous:
                 raise ValueError("input CSV must be sorted by date ascending")
             previous = current
-            if step == "development" and current >= holdout_start:
-                break
-            if step == "final-step":
-                if current < holdout_start:
-                    continue
-                if current > end:
-                    break
-                result.append(row)
-            elif start <= current <= dev_end:
-                result.append(row)
+            if not lower <= current <= upper:
+                raise ValueError(f"{step} partition contains out-of-range date: {current.isoformat()}")
+            result.append(row)
     return result
 
 def availability_counts(coverage_rows, *, start="2020-10-05", end="2026-10-12"):
