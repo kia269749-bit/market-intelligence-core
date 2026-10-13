@@ -1,9 +1,9 @@
-name: Daily Lightweight Research CI
+name: Hourly Lightweight Research CI
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "23 * * * *"
   pull_request:
     branches: [main]
     paths:
@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: daily-light-ci-${{ github.ref }}
+  group: hourly-light-ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
