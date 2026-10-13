@@ -79,7 +79,11 @@ def build_leaderboard(bars, *, horizon=24, cost_pct=0.35, min_development_trades
             "rank_basis": "development_only",
         })
 
+    # Zero-trade families must not float to the top because empty metrics are zero.
+    # Prefer passing development gates, then strategies with actual observations.
     rows.sort(key=lambda row: (
+        row["development_gate"],
+        row["development"]["trades"] > 0,
         row["development"]["ci_lower_pct"],
         row["development"]["mean_net_pct"],
         row["development"]["profit_factor"],
@@ -98,6 +102,15 @@ def build_leaderboard(bars, *, horizon=24, cost_pct=0.35, min_development_trades
             "untouched_holdout": {"start_index": validation_end, "end_index_exclusive": n},
         },
         "rank_basis": "development only; validation and holdout metrics do not affect ordering",
+        "metric_definitions": {
+            "mean_net_pct": "Arithmetic mean of trade percentage returns after subtracting the assumed round-trip cost.",
+            "profit_factor": "Sum of positive net trade returns divided by absolute sum of negative net trade returns; 99.0 is a capped sentinel when there are gains and no losses.",
+            "ci_lower_pct": "Normal-approximation lower bound: mean - 1.96 * sample standard deviation / sqrt(n); assumes independent observations and is not a dependence-robust bootstrap interval.",
+            "recent_mean_net_pct": "Arithmetic mean of the last 20 realized trades, or all trades if fewer than 20.",
+            "max_drawdown_pct": "Peak-to-trough decline of cumulative per-trade percentage returns, not compounded equity drawdown.",
+            "holdout_expectancy_pct": "Mean net return per trade in the final chronological 20%; diagnostic only and never used for ranking.",
+            "median": "This report does not use a median; mean_net_pct is the arithmetic mean across trades.",
+        },
         "min_development_trades": min_development_trades,
         "development_gate_pass_count": sum(row["development_gate"] for row in rows),
         "leaderboard": rows,
