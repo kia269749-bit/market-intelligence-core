@@ -63,13 +63,37 @@ def _metrics(trades, starting_capital=500.0):
 
 
 def _ohlc_ready(bars):
-    return all(
-        _bar_value(b, "open") is not None
-        and _bar_value(b, "high") is not None
-        and _bar_value(b, "low") is not None
-        and float(b.price) > 0
-        for b in bars
-    )
+    """Reject missing, impossible, or time-disordered OHLC input."""
+    previous_ts = None
+    for b in bars:
+        op = _bar_value(b, "open")
+        hi = _bar_value(b, "high")
+        lo = _bar_value(b, "low")
+        close = _bar_value(b, "price")
+        if None in (op, hi, lo, close):
+            return False
+        if lo > min(op, close) or hi < max(op, close) or lo > hi:
+            return False
+        ts = int(b.ts)
+        if previous_ts is not None and ts <= previous_ts:
+            return False
+        previous_ts = ts
+    return True
+
+
+def _partition_trades(trades, holdout_ts):
+    """Purge development trades whose outcomes cross the OOS boundary."""
+    development = []
+    holdout = []
+    purged = 0
+    for trade in trades:
+        if int(trade["signal_ts"]) >= holdout_ts:
+            holdout.append(dict(trade))
+        elif int(trade["exit_ts"]) < holdout_ts:
+            development.append(dict(trade))
+        else:
+            purged += 1
+    return development, holdout, purged
 
 
 def _forecast_candidates(bars, indices, target_pct, horizon_bars, min_history):
@@ -89,7 +113,7 @@ def _forecast_candidates(bars, indices, target_pct, horizon_bars, min_history):
             "ts": int(bars[idx].ts),
             "direction": f.direction,
             "confidence": float(f.confidence),
-            "target_probability": float(f.target_hit_probability),
+            "terminal_target_probability": float(f.terminal_target_probability),
         })
     return candidates
 
@@ -104,7 +128,8 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
         direction = candidate["direction"]
         if direction not in ("UP", "DOWN"):
             continue
-        if candidate["confidence"] < confidence_min or candidate["target_probability"] < probability_min:
+        terminal_probability = candidate.get("terminal_target_probability", candidate.get("target_probability", 0.0))
+        if candidate["confidence"] < confidence_min or terminal_probability < probability_min:
             continue
 
         entry_idx = idx + 1
@@ -164,7 +189,7 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
             "exit_ts": int(bars[exit_idx].ts),
             "direction": direction,
             "confidence": round(candidate["confidence"], 4),
-            "target_probability": round(candidate["target_probability"], 4),
+            "terminal_target_probability": round(terminal_probability, 4),
             "entry_price": round(entry, 8),
             "exit_price": round(exit_price, 8),
             "target_pct": target_pct,
@@ -200,12 +225,11 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
             for cohort, conf_min, prob_min in (
                 ("all_directional", 0.0, 0.0),
                 ("confidence_ge_0_60", 0.60, 0.0),
-                ("confidence_ge_0_55_and_target_probability_ge_0_45", 0.55, 0.45),
+                ("confidence_ge_0_55", 0.55, 0.0),
             ):
                 trades = _simulate(bars, candidates, float(target_pct), float(stop_pct), float(cost_pct),
                                    horizon_bars=horizon_bars, confidence_min=conf_min, probability_min=prob_min)
-                dev = [dict(t) for t in trades if t["signal_ts"] < holdout_ts]
-                holdout = [dict(t) for t in trades if t["signal_ts"] >= holdout_ts]
+                dev, holdout, purged_boundary_trades = _partition_trades(trades, holdout_ts)
                 results.append({
                     "target_pct": float(target_pct),
                     "stop_pct": float(stop_pct),
@@ -213,6 +237,7 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
                     "cohort": cohort,
                     "development": _metrics(dev, starting_capital),
                     "holdout_oos": _metrics(holdout, starting_capital),
+                    "purged_boundary_trades": purged_boundary_trades,
                     "full_walk_forward": _metrics([dict(t) for t in trades], starting_capital),
                     "trades": trades,
                 })
@@ -221,6 +246,8 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
         "symbol": bars[-1].symbol,
         "bars": len(bars),
         "evaluation_points": len(indices),
+        "evaluation_sampling": "evenly spaced candidate indices; not a dense opportunity count" if len(raw_indices) > len(indices) else "all indices at configured step",
+        "raw_candidate_indices": len(raw_indices),
         "holdout_start_ts": holdout_ts,
         "horizon_bars": int(horizon_bars),
         "step_bars": int(step_bars),
