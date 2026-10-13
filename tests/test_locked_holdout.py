@@ -41,5 +41,29 @@ class LockedHoldoutTests(unittest.TestCase):
         self.assertEqual(monthly["2024-01"], 1)
         self.assertEqual(monthly["2024-02"], 2)
 
+    def test_final_holdout_file_is_not_wired_into_development_or_strategy_code(self):
+        # The final dataset path must not be embedded in any production Python
+        # module, and the explicit holdout loader must not be called by a
+        # development/strategy module. Tests and the gate implementation are
+        # excluded because they necessarily mention these APIs.
+        root = Path(__file__).resolve().parents[1]
+        forbidden = ("final_holdout.csv", "final_holdout.jsonl", "final_holdout.parquet")
+        violations = []
+        for source in root.rglob("*.py"):
+            relative = source.relative_to(root)
+            if relative.parts[0] in {"tests", ".git"}:
+                continue
+            if relative.as_posix() == "mi_core/locked_holdout.py":
+                continue
+            try:
+                content = source.read_text(encoding="utf-8")
+            except (OSError, UnicodeError):
+                continue
+            if any(token in content for token in forbidden):
+                violations.append(f"{relative}: final holdout dataset path literal")
+            if "load_rows(" in content or 'step="final-step"' in content or "step='final-step'" in content:
+                violations.append(f"{relative}: direct locked-holdout loader/mode reference")
+        self.assertEqual(violations, [], "final holdout wired into production code: " + "; ".join(violations))
+
 if __name__ == "__main__":
     unittest.main()
