@@ -58,7 +58,7 @@ def _buy_hold(bars, start, end, cost):
     return (exit_price / entry - 1.0) * 100.0 - cost
 
 
-def _random_baseline(bars, start, end, horizon, trade_count, cost, seed, iterations):
+def _random_baseline(bars, start, end, horizon, trade_count, cost, seed, iterations, strategy_mean):
     rng = random.Random(seed)
     candidates = list(range(max(start, 30), end - horizon - 1))
     max_trades = max(0, (len(candidates) // (horizon + 1)))
@@ -98,7 +98,9 @@ def _random_baseline(bars, start, end, horizon, trade_count, cost, seed, iterati
         "mean_net_pct_median": round(statistics.median(means), 6),
         "p05_mean_net_pct": round(quantile(0.05), 6),
         "p95_mean_net_pct": round(quantile(0.95), 6),
-        "strategy_mean_ge_random_p": None,
+        "strategy_mean_ge_random_p": round(
+            (1 + sum(x >= strategy_mean for x in means)) / (len(means) + 1), 6
+        ),
     }
 
 
@@ -131,16 +133,9 @@ def build_report(bars, horizon=24, iterations=500, seed=20261013):
                 random_result = _random_baseline(
                     bars, start, end, horizon, len(indices), cost,
                     seed + family_idx * 1009 + segment_idx * 97 + int(cost * 100),
-                    iterations,
+                    iterations, metric["mean_net_pct"],
                 )
                 random_result["strategy_mean_net_pct"] = metric["mean_net_pct"]
-                random_result["strategy_mean_ge_random_p"] = round(
-                    (1 + sum(
-                        # The baseline report exposes quantiles; p-value is computed
-                        # by the full sample helper below in a future refinement.
-                        0 for _ in ()
-                    )) / (iterations + 1), 6
-                )
                 segment["by_cost"][str(cost)] = {
                     "strategy_metrics": metric,
                     "random_entry_baseline": random_result,
