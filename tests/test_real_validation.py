@@ -78,6 +78,20 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(metrics["model_vs_majority_accuracy_lift"], 0.25)
         self.assertEqual(metrics["overlap_rate"], 0.0)
 
+    def test_oos_integrity_prefers_bar_indices_over_timestamp_units(self):
+        result = {
+            "accuracy": 0.75,
+            "predictions": [
+                {"ts": 1791570000, "bar_index": 100, "pred": -1, "actual": -1},
+                {"ts": 1791570084, "bar_index": 101, "pred": 1, "actual": 1},
+                {"ts": 1791570168, "bar_index": 220, "pred": -1, "actual": 1},
+            ],
+        }
+        metrics = _oos_integrity_metrics(result, 60)
+        self.assertEqual(metrics["adjacent_pairs"], 2)
+        self.assertEqual(metrics["overlapping_adjacent_pairs"], 1)
+        self.assertEqual(metrics["overlap_rate"], 0.5)
+
     def test_class_collapse_blocks_watch(self):
         tier = _opportunity_tier(
             {"high_conf_accuracy": 1.0},

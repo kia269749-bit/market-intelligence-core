@@ -15,6 +15,7 @@ from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
 from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals
+from .shadow_risk import build_risk_levels
 from .shadow_performance import summarize_performance, format_performance_line
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
 from .multi_asset_forecast import scan_project60, load_project60_assets
@@ -115,7 +116,25 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         entry_price=None
     if entry_price is None or entry_price <= 0:
         return False
-    signal_id=f"{asset}:{bias}:{round(entry_price,4)}"
+    try:
+        expected_move_pct = float(economics["expected_move_pct"])
+        round_trip_cost_pct = float(economics["round_trip_cost_pct"])
+        if (
+            not math.isfinite(expected_move_pct)
+            or expected_move_pct <= 0
+            or not math.isfinite(round_trip_cost_pct)
+            or round_trip_cost_pct < 0
+        ):
+            return False
+        risk_levels = build_risk_levels(
+            entry_price, bias, expected_move_pct
+        )
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return False
+
+    capital_usd = 500.0
+    signal_ts=selected.get("ts") or snapshot.get("ts")
+    signal_id=f"{str(asset).upper()}:{bias}:{signal_ts}:{round(entry_price,4)}"
     try:
         existing=Path(journal_path)
         if existing.exists():
@@ -143,7 +162,15 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
-        "expected_move_pct":economics.get("expected_move_pct"),
+        "stop":risk_levels["stop"],
+        "target":risk_levels["target"],
+        "risk_pct":risk_levels["risk_pct"],
+        "reward_pct":risk_levels["reward_pct"],
+        "risk_reward":risk_levels["risk_reward"],
+        "risk_model":risk_levels["model"],
+        "capital_usd":capital_usd,
+        "round_trip_cost_pct":round_trip_cost_pct,
+        "expected_move_pct":expected_move_pct,
         "required_move_pct":economics.get("required_move_pct"),
         "preferred_required_move_pct":economics.get("preferred_required_move_pct"),
         "modeled_profit_usd":economics.get("modeled_profit_usd"),
@@ -151,12 +178,13 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         "agreement":combined.get("agreement"),
         "regime":combined.get("regime"),
         "quality":(snapshot.get("evidence") or {}).get("data_quality",{}).get("status"),
+        "horizon_bars": selected.get("horizon_bars"),
+        "forecast_ts": selected.get("ts"),
         "forecast":forecast,
         "research_only":True,
         "live_orders":False,
     }
-    append_paper_signal(journal_path,signal)
-    return True
+    return append_paper_signal(journal_path,signal)
 
 def main():
     ap=argparse.ArgumentParser(description="Market Intelligence Core")
@@ -243,9 +271,9 @@ def main():
                     except (OSError,ValueError,TypeError,IndexError,json.JSONDecodeError):
                         current_prices={}
                 if current_prices:
-                    resolve_open_signals(x.outcome_journal, current_prices)
+                    resolve_open_signals(x.outcome_journal, current_prices, project60_path=x.project60_file)
                 elif current_price is not None:
-                    resolve_open_signals(x.outcome_journal, float(current_price))
+                    resolve_open_signals(x.outcome_journal, float(current_price), project60_path=x.project60_file)
             shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
             shadow_metrics=summarize_performance(x.outcome_journal) if x.outcome_journal else None
             print_live_brain(snap)

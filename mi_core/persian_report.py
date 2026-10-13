@@ -98,7 +98,7 @@ def render_persian(snapshot, project60=None):
                   "💰 محدوده خروج: {:.2f} تا {:.2f}".format(a["exit_low"],a["exit_high"]),
                   "🛑 حد بی‌اعتباری: {:.2f}".format(a["invalid"]),
                   "🎯 هدف: {:.2f}".format(a["target"]),
-                  "🧮 گیت سوددهی: PASS | R/R خالص {:.2f} | هزینه مدل {:.2f}%".format(gate.net_rr,gate.round_trip_cost_pct),
+                  "🧮 گیت سوددهی: PASS | R/R خالص {:.2f} | هزینه مدل {:.2f}%".format(gate.gate.net_rr,gate.gate.round_trip_cost_pct),
                   "💡 "+a["reason"]]
     else:
         if gate:

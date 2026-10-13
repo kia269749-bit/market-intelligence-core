@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from mi_core.cli import _append_shadow_if_actionable
-from mi_core.paper_journal import summarize
+from mi_core.paper_journal import summarize, resolve_open_signals
 
 
 class ShadowJournalTests(unittest.TestCase):
@@ -18,6 +18,7 @@ class ShadowJournalTests(unittest.TestCase):
                 "required_move_pct": 1.15,
                 "preferred_required_move_pct": 2.35,
                 "modeled_profit_usd": 10.75,
+                "round_trip_cost_pct": 0.35,
             },
             "evidence": {
                 "combined": {
@@ -44,7 +45,21 @@ class ShadowJournalTests(unittest.TestCase):
             self.assertEqual(row["entry_price"],100.0)
             self.assertTrue(row["research_only"])
             self.assertFalse(row["live_orders"])
-            self.assertEqual(summarize(path)["count"],1)
+            self.assertIn("stop", row)
+            self.assertIn("target", row)
+            self.assertAlmostEqual(row["round_trip_cost_pct"], 0.35)
+            self.assertEqual(row["capital_usd"], 500.0)
+            self.assertEqual(summarize(path)["count"], 1)
+
+            # Verify the actual CLI-created record can resolve and
+            # its net PnL includes the round-trip cost.
+            self.assertEqual(
+                resolve_open_signals(path, row["target"], now=456), 1
+            )
+            result = summarize(path)
+            self.assertEqual(result["resolved"], 1)
+            self.assertEqual(result["wins"], 1)
+            self.assertAlmostEqual(result["net_profit_usd"], 10.75, places=4)
 
     def test_duplicate_open_signal_is_not_appended(self):
         with tempfile.TemporaryDirectory() as td:

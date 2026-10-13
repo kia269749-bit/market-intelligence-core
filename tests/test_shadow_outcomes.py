@@ -31,6 +31,18 @@ class ShadowOutcomeTests(unittest.TestCase):
             self.assertEqual(s["wins"],1)
             self.assertAlmostEqual(s["net_profit_usd"],8.25,places=4)
 
+    def test_duplicate_signal_id_rejected_after_resolution(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=str(Path(td)/"shadow.jsonl")
+            signal={"signal_id":"unique-1","asset":"BTC",
+                    "direction":"BULLISH","entry_price":100.0,
+                    "stop":99.0,"target":102.0,"capital_usd":500.0,
+                    "round_trip_cost_pct":0.35,"research_only":True}
+            self.assertTrue(append_signal(p,signal))
+            self.assertEqual(resolve_open_signals(p,102.0,now=200),1)
+            self.assertFalse(append_signal(p,signal))
+            self.assertEqual(len(Path(p).read_text().splitlines()),1)
+
     def test_stop_resolution_records_loss(self):
         with tempfile.TemporaryDirectory() as td:
             p=str(Path(td)/"shadow.jsonl")

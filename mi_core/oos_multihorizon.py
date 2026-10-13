@@ -8,7 +8,7 @@ def evaluate_project60_multihorizon(bars,horizons=DEFAULT_HORIZONS,train_window=
     for horizon in horizons:
         h=int(horizon)
         window=min(int(train_window),max(60,len(bars)-h-1))
-        result=walk_forward_forecast(bars,horizon=h,train_window=window,min_train=60)
+        result=walk_forward_forecast(bars,horizon=h,train_window=window,min_train=60,fit_every=10)
         metrics=score_predictions(result)
         capital=score_capital_targets(result,capital_usd=capital_usd,min_profit_usd=min_profit_usd,preferred_profit_usd=preferred_profit_usd)
         gate=forecast_acceptance_gate(metrics,capital)

@@ -12,6 +12,30 @@ class ShadowPerformanceTests(unittest.TestCase):
             self.assertEqual(s["win_rate"],0.5); self.assertEqual(s["net_profit_usd"],12.0)
             self.assertEqual(s["expectancy_usd"],3.0); self.assertEqual(s["profit_ge_4_usd"],2); self.assertEqual(s["profit_ge_10_usd"],1)
             self.assertEqual(s["max_drawdown_usd"],6.0); self.assertEqual(s["profit_factor"],3.0)
+    def test_expired_records_do_not_change_resolved_expectancy(self):
+        with tempfile.TemporaryDirectory() as td:
+            s = summarize_performance(self._write(td, [
+                {"status":"TARGET","net_profit_usd":12.0},
+                {"status":"STOP","net_profit_usd":-4.0},
+                {"status":"EXPIRED","net_profit_usd":-2.0},
+                {"status":"OPEN","net_profit_usd":999.0},
+            ]))
+            self.assertEqual(s["resolved"], 2)
+            self.assertEqual(s["closed"], 3)
+            self.assertEqual(s["expired"], 1)
+            self.assertEqual(s["net_profit_usd"], 6.0)
+            self.assertEqual(s["expectancy_usd"], 4.0)
+            self.assertEqual(s["average_net_profit_usd"], 2.0)
+
+    def test_compact_line_shows_expiry_count_when_nonzero(self):
+        line = format_performance_line({
+            "resolved":2, "expired":1, "win_rate":0.5,
+            "net_profit_usd":6.0, "expectancy_usd":4.0,
+            "max_drawdown_usd":6.0,
+            "profit_ge_4_usd":1, "profit_ge_10_usd":1,
+        })
+        self.assertIn("2 resolved | 1 expired | Win 50%", line)
+
     def test_compact_live_line(self):
         line=format_performance_line({
             "resolved":4,"win_rate":0.5,"net_profit_usd":12.0,

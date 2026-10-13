@@ -88,11 +88,29 @@ def _oos_integrity_metrics(result, horizon):
     actual_classes=sum(v>0 for v in actual_counts.values())
     pairs=0
     overlapping_pairs=0
-    ts=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
-    for a,b in zip(ts,ts[1:]):
-        pairs+=1
-        if b-a < int(horizon)*60_000:
-            overlapping_pairs+=1
+    # Prefer sample indices: horizon is measured in bars, not wall-clock time.
+    indexed = [x.get("bar_index") for x in rows]
+    if rows and all(isinstance(v, int) and not isinstance(v, bool) for v in indexed):
+        positions = indexed
+        for a, b in zip(positions, positions[1:]):
+            pairs += 1
+            if 0 < b - a < int(horizon):
+                overlapping_pairs += 1
+    else:
+        # Legacy fallback: without bar_index, use a conservative one-minute
+        # bar assumption. Infer seconds vs milliseconds from typical spacing.
+        ts = [x.get("ts") for x in rows]
+        ts = [v for v in ts if isinstance(v, (int, float)) and not isinstance(v, bool)]
+        deltas = [b - a for a, b in zip(ts, ts[1:]) if b > a]
+        if deltas:
+            deltas_sorted = sorted(deltas)
+            median_delta = deltas_sorted[len(deltas_sorted) // 2]
+            bar_unit = 60_000 if median_delta >= 10_000 else 60
+            horizon_delta = int(horizon) * bar_unit
+            for a, b in zip(ts, ts[1:]):
+                pairs += 1
+                if 0 < b - a < horizon_delta:
+                    overlapping_pairs += 1
     overlap_rate=overlapping_pairs/pairs if pairs else 0.0
     return {"resolved":n,"actual_class_counts":actual_counts,"prediction_class_counts":pred_counts,
             "actual_class_count":actual_classes,"prediction_class_count":prediction_classes,

@@ -152,6 +152,15 @@ def _predict(m, x):
     return {cls[k]: p[k] for k in range(3)}
 
 
+def _directional_excursions(pred, future_max, future_min):
+    """Return non-negative favorable/adverse excursions in percent."""
+    if pred == 1:
+        return max(0.0, future_max), max(0.0, -future_min)
+    if pred == -1:
+        return max(0.0, -future_min), max(0.0, future_max)
+    return 0.0, 0.0
+
+
 def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_band=.0015, fit_every=1):
     if len(bars) < min_train + 25 + horizon:
         return {"available": False, "reason": "insufficient_history", "samples": len(bars)}
@@ -194,10 +203,12 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         ]
         future_max = max(future_returns) if future_returns else 0.0
         future_min = min(future_returns) if future_returns else 0.0
-        favorable_mfe = future_max if pred == 1 else -future_min
-        adverse_mae = -future_min if pred == 1 else future_max
+        favorable_mfe, adverse_mae = _directional_excursions(
+            pred, future_max, future_min
+        )
         preds.append({
             "ts": bars[i].ts,
+            "bar_index": i,
             "pred": pred,
             "actual": actual,
             "actual_return_pct": round(_ret(bars[i + horizon].price, bars[i].price) * 100, 6)

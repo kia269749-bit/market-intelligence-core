@@ -38,50 +38,104 @@ def fetch_klines(symbol="BTCUSDT", interval="1h", limit=1000, start_ms=None, end
         raise RuntimeError(f"unexpected Binance response: {rows}")
     return rows
 
-def rows_to_bars(rows, symbol):
+def rows_to_bars(rows, symbol, now_ms=None):
+    """Convert Binance klines, optionally excluding candles not yet closed."""
+    from math import isfinite
+
     bars = []
     for r in rows:
-        if len(r) < 11:
+        try:
+            if len(r) < 11:
+                continue
+
+            ts = int(r[0])
+            close_price = float(r[4])
+            volume = float(r[5])
+            close_time = int(r[6])
+            taker_buy = float(r[9])
+
+            if now_ms is not None and close_time >= int(now_ms):
+                continue
+
+            if not all(isfinite(x) for x in
+                       (close_price, volume, taker_buy)):
+                continue
+            if close_price <= 0 or volume < 0:
+                continue
+            if taker_buy < 0 or taker_buy > volume:
+                continue
+
+            bars.append(MarketBar(
+                ts=ts,
+                symbol=symbol.upper(),
+                price=close_price,
+                volume=volume,
+                buy_volume=taker_buy,
+                sell_volume=volume - taker_buy,
+            ))
+        except (TypeError, ValueError, IndexError, OverflowError):
             continue
-        volume = float(r[5])
-        taker_buy = float(r[9])
-        bars.append(MarketBar(
-            ts=int(r[0]),
-            symbol=symbol.upper(),
-            price=float(r[4]),
-            volume=volume,
-            buy_volume=taker_buy,
-            sell_volume=max(0.0, volume - taker_buy),
-        ))
+
     return bars
+
 
 def download(symbol="BTCUSDT", interval="1h", bars=1000, out="data/real/btcusdt_1h.jsonl", sleep_s=0.15):
     if bars < 1:
         raise ValueError("bars must be positive")
-    step = INTERVAL_MS[interval]
+    if interval not in INTERVAL_MS:
+        raise ValueError(f"unsupported interval: {interval}")
+
     remaining = bars
-    end_ms = int(time.time() * 1000)
+    reference_now_ms = int(time.time() * 1000)
+    end_ms = reference_now_ms
     all_bars = []
-    while remaining:
+
+    while remaining > 0:
         take = min(1000, remaining)
         rows = fetch_klines(symbol, interval, take, end_ms=end_ms)
-        chunk = rows_to_bars(rows, symbol)
-        if not chunk:
+
+        if not rows:
             break
-        all_bars = chunk + all_bars
-        remaining -= len(chunk)
-        end_ms = chunk[0].ts - 1
-        if len(chunk) < take:
+
+        # Count only closed, valid candles, but paginate using raw rows.
+        chunk = rows_to_bars(rows, symbol, now_ms=reference_now_ms)
+        if chunk:
+            all_bars.extend(chunk)
+
+        unique = {bar.ts: bar for bar in all_bars}
+        remaining = max(0, bars - len(unique))
+
+        # Move backwards using the oldest raw kline, even if the newest
+        # candle was filtered out because it is still open.
+        raw_timestamps = []
+        for row in rows:
+            try:
+                raw_timestamps.append(int(row[0]))
+            except (TypeError, ValueError, IndexError, OverflowError):
+                continue
+
+        if not raw_timestamps:
             break
-        if remaining:
+
+        oldest_ts = min(raw_timestamps)
+        if oldest_ts >= end_ms:
+            break
+        end_ms = oldest_ts - 1
+
+        # A short raw response means the API has no more rows for this page.
+        if len(rows) < take:
+            break
+
+        if remaining > 0:
             time.sleep(max(0.0, sleep_s))
-    # Deduplicate by timestamp and keep chronological order.
-    unique = {b.ts: b for b in all_bars}
-    result = [unique[k] for k in sorted(unique)]
-    result = result[-bars:]
+
+    unique = {bar.ts: bar for bar in all_bars}
+    result = [unique[ts] for ts in sorted(unique)][-bars:]
+
     path = Path(out)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("", encoding="utf-8")
     for bar in result:
         append_jsonl(path, bar.to_dict())
+
     return result, path

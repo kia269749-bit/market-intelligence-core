@@ -161,7 +161,13 @@ def _validated_forecast_from_project60(path, asset="BTC", max_rows=500):
     horizons={}
     for h in (5,15,60,240):
         result=forecast_now(bars,horizon=h,train_window=min(300,len(bars)-1))
-        if result.get("available"): horizons[str(h)]=result
+        if result.get("available"):
+            # Anchor forecast metadata to the exact latest Project60 bar.
+            result["ts"] = int(bars[-1].ts)
+            result["current_price"] = bars[-1].price
+            result["asset"] = asset
+            result["horizon_bars"] = int(result.get("horizon_bars", h))
+            horizons[str(h)] = result
     if not horizons:
         return {"available":False,"reason":"forecast_training_unavailable","samples":len(bars)}
     selected=next((horizons[k] for k in ("60","15","5","240") if k in horizons), None)
