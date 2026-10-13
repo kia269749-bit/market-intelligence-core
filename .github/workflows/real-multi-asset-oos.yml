@@ -92,7 +92,7 @@ jobs:
           python tools/strategy_baseline_cost_diagnostics.py \
             --input data/real/${SYMBOL}_1h.jsonl \
             --out reports/${SYMBOL}_strategy_baselines_costs.json \
-            --horizon-bars 24 --iterations 500 --seed 20261013
+            --horizon-bars 24 --iterations 1000 --seed 20261013
       - name: Print comparable metrics
         run: |
           python - <<'PY'
