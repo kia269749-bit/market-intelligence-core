@@ -55,6 +55,33 @@ def metrics(trades, cost_pct, capital):
     }
 
 
+def development_gate(metrics_row, min_trades=20, min_profit_factor=1.15, max_drawdown_pct=10.0):
+    """Screen candidates using development data only; never inspect holdout metrics."""
+    pf = metrics_row.get("profit_factor")
+    pf_ok = pf == "infinite" or (
+        isinstance(pf, (int, float)) and pf >= min_profit_factor
+    )
+    reasons = []
+    if metrics_row.get("trades", 0) < min_trades:
+        reasons.append("INSUFFICIENT_DEVELOPMENT_TRADES")
+    if metrics_row.get("expectancy_usd", 0.0) <= 0:
+        reasons.append("NON_POSITIVE_DEVELOPMENT_EXPECTANCY")
+    if not pf_ok:
+        reasons.append("PROFIT_FACTOR_BELOW_THRESHOLD")
+    if metrics_row.get("max_drawdown_pct", 100.0) > max_drawdown_pct:
+        reasons.append("DEVELOPMENT_DRAWDOWN_TOO_HIGH")
+    return {
+        "eligible": not reasons,
+        "thresholds": {
+            "min_trades": min_trades,
+            "min_profit_factor": min_profit_factor,
+            "max_drawdown_pct": max_drawdown_pct,
+            "expectancy_usd_must_be_positive": True,
+        },
+        "reasons": reasons,
+    }
+
+
 def run(input_path, costs, output_path, capital=500.0):
     bars = load_bars(Path(input_path))
     base = backtest(bars, cost_pct=0.0, starting_capital=capital)
@@ -86,12 +113,15 @@ def run(input_path, costs, output_path, capital=500.0):
                     development.append(trade)
                 else:
                     purged += 1
+            development_metrics = metrics(development, cost, capital)
+            holdout_metrics = metrics(holdout, cost, capital)
             configurations.append({
                 "target_pct": row["target_pct"],
                 "stop_pct": row["stop_pct"],
                 "cohort": row["cohort"],
-                "development": metrics(development, cost, capital),
-                "untouched_holdout_oos": metrics(holdout, cost, capital),
+                "development": development_metrics,
+                "development_gate": development_gate(development_metrics),
+                "untouched_holdout_oos": holdout_metrics,
                 "purged_boundary_trades": purged,
             })
         scenarios.append({
@@ -128,6 +158,7 @@ def run(input_path, costs, output_path, capital=500.0):
         brief.append({
             "cost_pct": cost,
             "configurations": len(rows),
+            "development_gate_eligible_configurations": sum(x["development_gate"]["eligible"] for x in rows),
             "profitable_holdout_configurations": sum(x["untouched_holdout_oos"]["net_profit_usd"] > 0 for x in rows),
             "holdout_return_pct_median": round(sorted(holdout_returns)[len(holdout_returns)//2], 4) if holdout_returns else None,
         })
