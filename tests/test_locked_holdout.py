@@ -1,5 +1,3 @@
-import csv
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,32 +12,24 @@ class LockedHoldoutTests(unittest.TestCase):
         self.assertEqual(lock["development_end_inclusive"], "2025-07-29")
         self.assertEqual(lock["final_holdout_start"], "2025-07-30")
 
-    def test_development_stops_before_reading_holdout_rows(self):
+    def test_development_opens_only_development_partition_and_rejects_leakage(self):
         with tempfile.TemporaryDirectory() as td:
-            path = Path(td) / "sorted.csv"
-            path.write_text(
-                "date,symbol,close\n"
-                "2025-07-29,BTCUSDT,100\n"
-                "2025-07-30,ETHUSDT,200\n"
-                "2026-10-12,POISON_SHOULD_NOT_BE_READ,999\n",
-                encoding="utf-8",
-            )
-            rows = load_rows(path, step="development")
+            dev = Path(td) / "development.csv"
+            dev.write_text("date,symbol,close\n2025-07-29,BTCUSDT,100\n", encoding="utf-8")
+            rows = load_rows(dev, step="development")
             self.assertEqual([r["symbol"] for r in rows], ["BTCUSDT"])
-            self.assertNotIn("POISON_SHOULD_NOT_BE_READ", str(rows))
+            bad = Path(td) / "contaminated-development.csv"
+            bad.write_text("date,symbol,close\n2025-07-30,POISON_SHOULD_NOT_BE_IN_DEV,999\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "out-of-range date: 2025-07-30"):
+                load_rows(bad, step="development")
 
-    def test_holdout_requires_explicit_final_step(self):
+    def test_holdout_requires_explicit_final_step_and_separate_file(self):
         with tempfile.TemporaryDirectory() as td:
-            path = Path(td) / "sorted.csv"
-            path.write_text(
-                "date,symbol,close\n"
-                "2025-07-29,BTCUSDT,100\n"
-                "2025-07-30,ETHUSDT,200\n",
-                encoding="utf-8",
-            )
+            final = Path(td) / "final_holdout.csv"
+            final.write_text("date,symbol,close\n2025-07-30,ETHUSDT,200\n", encoding="utf-8")
             with self.assertRaises(ValueError):
-                load_rows(path, step="final")
-            self.assertEqual([r["symbol"] for r in load_rows(path, step="final-step")], ["ETHUSDT"])
+                load_rows(final, step="final")
+            self.assertEqual([r["symbol"] for r in load_rows(final, step="final-step")], ["ETHUSDT"])
 
     def test_availability_counts_year_and_month(self):
         yearly, monthly = availability_counts([
