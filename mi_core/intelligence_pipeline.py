@@ -15,6 +15,7 @@ from .crowding import analyze_crowding
 from .meme_candidate_scoring import score_meme_candidate
 from .signal_gate import SignalQuality, signal_quality_gate, research_signal_summary
 from .signal_report import build_signal_report
+from .arena_evidence import evaluate_entry_discipline
 
 def _flow_report(bar)->dict:
     flow_imbalance=order_imbalance(bar.buy_volume,bar.sell_volume); whale_imbalance=order_imbalance(bar.whale_buy,bar.whale_sell)
@@ -47,6 +48,25 @@ def analyze_market(bars:Sequence,*,volume_history:Sequence[float]|None=None,trad
     fomo_score=fomo.get("event",{}).get("score",0) if isinstance(fomo,dict) and isinstance(fomo.get("event"),dict) else 0
     data_quality=1.0 if len(bars)>=30 else len(bars)/30; confidence=min(1,.70*signal.confidence+.30*max(signal.score,fomo_score))
     gate=signal_quality_gate(SignalQuality(score=signal.score,confidence=confidence,edge=signal.score-entry_threshold,data_quality=data_quality,regime_fit=macro_fit,decay=1.0))
+    # Arena evidence is a patience/readiness layer, not a copied trading strategy.
+    named_reason = bool(
+        abs(flow["composite_flow_score"]) >= 0.20
+        or abs(positioning["positioning_score"]) >= 0.20
+        or abs(microstructure["score"]) >= 0.20
+        or abs(exchange_confirmation["score"]) >= 0.20
+        or fomo_score >= 0.20
+    )
+    arena_discipline = evaluate_entry_discipline(
+        side=signal.side, confidence=confidence, agreement=confluence["agreement"],
+        confluence=confluence["effective_score"], cascade_risk=crowding["cascade_risk"],
+        edge_over_cost=None, named_reason=named_reason,
+        regime=(macro_report or {}).get("regime", "UNKNOWN") if isinstance(macro_report, dict) else "UNKNOWN",
+    )
+    # Do NOT hard-gate the signal on Arena evidence. Its live/paper results are
+    # regime- and model-dependent, so this remains advisory until our own OOS
+    # tests prove incremental net edge after costs.
+    gate["arena_discipline"] = arena_discipline
+    gate["arena_advisory"] = arena_discipline["eligible"]
     meme_report=None
     if meme is not None:
       meme_report=asdict(score_meme_candidate(meme.get("token",bar.symbol),liquidity_usd=float(meme["liquidity_usd"]),volume_24h_usd=float(meme["volume_24h_usd"]),
@@ -60,5 +80,5 @@ def analyze_market(bars:Sequence,*,volume_history:Sequence[float]|None=None,trad
       microstructure=microstructure,cross_exchange=exchange_confirmation,confluence=confluence,crowding=crowding,fomo=fomo,macro=macro_report,meme=meme_report,historical_evidence=historical_evidence)
     return {"timestamp":bar.ts,"symbol":bar.symbol,"price":bar.price,"flow":flow,"positioning":positioning,"crowding":crowding,"microstructure":microstructure,
       "cross_exchange":exchange_confirmation,"confluence":confluence,"signal":signal.to_dict(),"fomo":fomo,"macro":macro_report,"meme":meme_report,
-      "signal_gate":gate,"signal_summary":signal_summary,"historical_evidence":historical_evidence,"fomo_historical_evidence":fomo_history,
+      "signal_gate":gate,"arena_discipline":arena_discipline,"signal_summary":signal_summary,"historical_evidence":historical_evidence,"fomo_historical_evidence":fomo_history,
       "final_report":final_report,"research_only":True,"live_orders":False}

@@ -1,0 +1,23 @@
+name: arena-evidence-tests
+
+on:
+  push:
+    paths:
+      - "mi_core/arena_evidence.py"
+      - "mi_core/intelligence_pipeline.py"
+      - "tests/test_arena_evidence.py"
+  pull_request:
+    paths:
+      - "mi_core/arena_evidence.py"
+      - "mi_core/intelligence_pipeline.py"
+      - "tests/test_arena_evidence.py"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pytest -q tests/test_arena_evidence.py
