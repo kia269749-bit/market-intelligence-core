@@ -32,7 +32,7 @@ class LBankFuturesTests(unittest.TestCase):
         self.assertEqual(result["best_bid"], 100.0)
         self.assertEqual(result["best_ask"], 101.0)
         self.assertAlmostEqual(result["spread_pct"], (1 / 100.5) * 100)
-        self.assertAlmostEqual(result["volume_imbalance_pct"], 50.0)
+        self.assertAlmostEqual(result["volume_imbalance_pct"], (3 / 7) * 100)
         self.assertEqual(result["data_quality"], "HEALTHY")
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
