@@ -1,5 +1,5 @@
 from mi_core.models import MarketBar
-from mi_core.validated_forecast import _feat, _feature_cache, walk_forward_forecast
+from mi_core.validated_forecast import _feat, _feature_cache, score_capital_targets, walk_forward_forecast
 
 
 def _bars(n=140):
@@ -46,3 +46,9 @@ def test_walk_forward_uses_cached_features_and_stays_research_only():
     assert result["predictions"]
     assert result["research_only"] is True
     assert result["live_orders"] is False
+
+
+def test_capital_targets_use_central_lbank_round_trip_cost():
+    result = score_capital_targets({"predictions": []})
+    assert result["min_required_move_pct"] == 1.04
+    assert result["preferred_required_move_pct"] == 2.24
