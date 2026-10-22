@@ -19,6 +19,7 @@ MARKETS_CONFIG_PATH = ROOT / "config" / "markets.json"
 @dataclass(frozen=True)
 class CentralSettings:
     exchange: str
+    data_exchange: str
     market: str
     product_group: str
     symbols: tuple[str, ...]
@@ -56,10 +57,13 @@ def load_settings() -> CentralSettings:
         raise RuntimeError("fees and costs config sections must be objects")
 
     exchange = str(markets.get("primary_exchange", markets.get("exchange", "lbank"))).lower()
+    data_exchange = str(markets.get("market_data_exchange", "lbank")).lower()
     market = str(markets.get("market", "futures")).lower()
     product_group = str(markets.get("product_group", "SwapU"))
     if exchange != "lbank":
-        raise RuntimeError(f"unsupported primary exchange in central config: {exchange}")
+        raise RuntimeError(f"unsupported cost-model exchange in central config: {exchange}")
+    if data_exchange not in ("lbank", "hyperliquid"):
+        raise RuntimeError(f"unsupported market-data exchange in central config: {data_exchange}")
     if market != "futures":
         raise RuntimeError(f"unsupported market type in central config: {market}")
     if not product_group:
@@ -74,6 +78,7 @@ def load_settings() -> CentralSettings:
 
     settings = CentralSettings(
         exchange=exchange,
+        data_exchange=data_exchange,
         market=market,
         product_group=product_group,
         symbols=normalized_symbols,
