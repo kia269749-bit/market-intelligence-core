@@ -134,13 +134,13 @@ jobs:
           results["toobit"] = ticker_ok and book_ok
 
           print("=== OURBIT FUTURES ===")
-          ourbit_bases = ("https://futures.ourbit.com", "https://api.ourbit.com")
+          ourbit_bases = ("https://contract.ourbit.com",)
           ourbit_symbol = "BTC_USDT"
           ourbit_ticker_ok = False
           ourbit_book_ok = False
           for obase in ourbit_bases:
               print(f"  base={obase}")
-              detail = get_json(obase, "/api/v1/contract/detail")
+              detail = get_json(obase, "/api/v1/contract/detail", {"symbol": ourbit_symbol})
               detail_rows = rows(detail)
               for item in detail_rows:
                   if isinstance(item, dict):
