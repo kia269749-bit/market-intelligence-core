@@ -66,7 +66,7 @@ def real(symbol,interval,bars,out,report):
     data_path=Path(out); fetched,data_path=download_real(symbol,interval,bars,str(data_path))
     if len(fetched)<2: raise RuntimeError("real-data download returned fewer than two usable bars")
     result=train_test(fetched)
-    return write_report(result,report,{"mode":"real-market-data","venue":"Binance public market-data API","symbol":symbol.upper(),"interval":interval,"bars":len(fetched),"first_ts":fetched[0].ts,"last_ts":fetched[-1].ts,"data_path":str(data_path),"research_only":True,"live_orders":False})
+    return write_report(result,report,{"mode":"real-market-data","venue":"LBank Futures public market data","market":"futures","symbol":symbol.upper(),"interval":interval,"bars":len(fetched),"first_ts":fetched[0].ts,"last_ts":fetched[-1].ts,"data_path":str(data_path),"research_only":True,"live_orders":False})
 
 def intelligence(inp,out=None,pretty=False):
     bars=load_input(inp)
