@@ -78,6 +78,45 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(metrics["model_vs_majority_accuracy_lift"], 0.25)
         self.assertEqual(metrics["overlap_rate"], 0.0)
 
+    def test_oos_overlap_uses_project60_epoch_seconds(self):
+        result = {
+            "accuracy": 0.5,
+            "predictions": [
+                {"ts": 1_791_257_623, "pred": -1, "actual": -1},
+                {"ts": 1_791_264_823, "pred": 1, "actual": 1},  # two-hour gap
+                {"ts": 1_791_266_623, "pred": -1, "actual": 1},  # thirty-minute gap
+            ],
+        }
+        metrics = _oos_integrity_metrics(result, 60)
+        self.assertEqual(metrics["adjacent_pairs"], 2)
+        self.assertEqual(metrics["overlapping_adjacent_pairs"], 1)
+        self.assertEqual(metrics["overlap_rate"], 0.5)
+
+    def test_oos_overlap_keeps_millisecond_timestamps(self):
+        result = {
+            "accuracy": 0.5,
+            "predictions": [
+                {"ts": 1_791_257_623_000, "pred": -1, "actual": -1},
+                {"ts": 1_791_261_223_000, "pred": 1, "actual": 1},  # one-hour gap
+            ],
+        }
+        metrics = _oos_integrity_metrics(result, 60)
+        self.assertEqual(metrics["overlap_rate"], 0.0)
+
+    def test_oos_overlap_does_not_bridge_missing_timestamp_rows(self):
+        result = {
+            "accuracy": 0.5,
+            "predictions": [
+                {"ts": 1_791_257_623, "pred": -1, "actual": -1},
+                {"pred": 1, "actual": 1},
+                {"ts": 1_791_257_683, "pred": -1, "actual": 1},
+            ],
+        }
+        metrics = _oos_integrity_metrics(result, 60)
+        self.assertEqual(metrics["adjacent_pairs"], 0)
+        self.assertEqual(metrics["overlapping_adjacent_pairs"], 0)
+        self.assertEqual(metrics["overlap_rate"], 0.0)
+
     def test_class_collapse_blocks_watch(self):
         tier = _opportunity_tier(
             {"high_conf_accuracy": 1.0},

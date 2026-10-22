@@ -90,12 +90,32 @@ def _oos_integrity_metrics(result, horizon):
     majority_accuracy=majority/n if n else 0.0
     prediction_classes=sum(v>0 for v in pred_counts.values())
     actual_classes=sum(v>0 for v in actual_counts.values())
+    # Compare only truly adjacent prediction rows. Skipping a row with a
+    # missing timestamp must not create a synthetic adjacency between neighbors.
+    adjacent_timestamp_pairs=[
+        (a.get("ts"), b.get("ts"))
+        for a, b in zip(rows, rows[1:])
+        if isinstance(a.get("ts"), (int, float)) and isinstance(b.get("ts"), (int, float))
+    ]
+    positive_deltas=[b-a for a,b in adjacent_timestamp_pairs if b>a]
+    ts=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
+    # Project60 stores Unix timestamps in seconds; older synthetic fixtures and
+    # some imported candle datasets use milliseconds. Infer the unit before
+    # comparing adjacent prediction windows, otherwise seconds are mistaken
+    # for milliseconds and long gaps are falsely counted as overlapping.
+    if any(abs(value) >= 100_000_000_000 for value in ts):
+        timestamp_scale=1000  # milliseconds -> seconds
+    elif any(abs(value) >= 100_000_000 for value in ts):
+        timestamp_scale=1  # Unix seconds
+    else:
+        typical_delta=sorted(positive_deltas)[len(positive_deltas)//2] if positive_deltas else 0
+        timestamp_scale=1000 if typical_delta >= 1000 else 1
+    overlap_window_seconds=int(horizon)*60
     pairs=0
     overlapping_pairs=0
-    ts=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
-    for a,b in zip(ts,ts[1:]):
+    for a,b in adjacent_timestamp_pairs:
         pairs+=1
-        if b-a < int(horizon)*60_000:
+        if 0 < b-a < overlap_window_seconds*timestamp_scale:
             overlapping_pairs+=1
     overlap_rate=overlapping_pairs/pairs if pairs else 0.0
     return {"resolved":n,"actual_class_counts":actual_counts,"prediction_class_counts":pred_counts,
