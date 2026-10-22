@@ -43,6 +43,7 @@ jobs:
                           print(f"  HTTP {response.status} NON_JSON {url}")
                           return None
                       print(f"  HTTP {response.status} JSON {type(data).__name__} {url}")
+                      print("  BODY_PREVIEW " + json.dumps(data, separators=(",", ":"))[:360])
                       return data
               except urllib.error.HTTPError as exc:
                   print(f"  HTTP {exc.code} {url}")
@@ -67,12 +68,16 @@ jobs:
           def valid_levels(data):
               if not isinstance(data, dict):
                   return False
+              nested = data.get("data")
+              if isinstance(nested, dict) and valid_levels(nested):
+                  return True
               for bid_key, ask_key in (("b", "a"), ("bids", "asks")):
                   bids, asks = data.get(bid_key), data.get(ask_key)
                   if isinstance(bids, list) and isinstance(asks, list) and bids and asks:
                       try:
-                          bid = float(bids[0][0] if isinstance(bids[0], (list, tuple)) else bids[0].get("price"))
-                          ask = float(asks[0][0] if isinstance(asks[0], (list, tuple)) else asks[0].get("price"))
+                          bid0, ask0 = bids[0], asks[0]
+                          bid = float(bid0[0] if isinstance(bid0, (list, tuple)) else bid0.get("price", bid0.get("p")))
+                          ask = float(ask0[0] if isinstance(ask0, (list, tuple)) else ask0.get("price", ask0.get("p")))
                           return bid > 0 and ask > 0 and ask >= bid
                       except Exception:
                           pass
