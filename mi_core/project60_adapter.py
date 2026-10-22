@@ -170,6 +170,9 @@ def live_evidence(path: str):
                 "bias": "UNKNOWN", "confidence": 0.0, "assets": {}}
     return {
         "available": True,
+        "source": data.get("source"),
+        "market": data.get("market"),
+        "product_group": data.get("product_group"),
         "bias": data.get("bias", "UNKNOWN"),
         "confidence": data.get("confidence", 0.0),
         "assets": data.get("assets", {}),
