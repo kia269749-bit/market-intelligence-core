@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from .central_config import load_settings
+
 
 def _num(v, default=0.0):
     try:
@@ -38,13 +40,19 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.35,
+    round_trip_cost_pct=None,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
 ):
     """Explain where OOS economics succeed or fail."""
     rows = _directional_rows(result)
+    settings = load_settings()
+    if round_trip_cost_pct is None:
+        round_trip_cost_pct = 2.0 * (
+            settings.taker_fee_bps + settings.spread_bps
+            + settings.slippage_bps + settings.impact_bps
+        ) / 100.0
     min_required = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
     preferred_required = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
 
