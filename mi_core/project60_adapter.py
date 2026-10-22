@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .source_policy import is_lbank_futures_record
+
 
 def _last_jsonl(path: str):
     """Read only the final non-empty JSONL record without scanning the file."""
@@ -115,7 +117,9 @@ def read_snapshot(path: str):
         "available": True,
         "timestamp": raw.get("timestamp"),
         "datetime": raw.get("datetime"),
-        "source": raw.get("source"),
+        "source": raw.get("source") or raw.get("exchange"),
+        "market": raw.get("market") or raw.get("market_type"),
+        "product_group": raw.get("product_group") or raw.get("productGroup"),
         "assets": assets,
     }
 
@@ -148,6 +152,8 @@ def summarize(path: str):
         "timestamp": data.get("timestamp"),
         "datetime": data.get("datetime"),
         "source": data.get("source"),
+        "market": data.get("market"),
+        "product_group": data.get("product_group"),
         "assets": data["assets"],
         "bias": bias,
         "confidence": round(min(1.0, confidence), 4),
@@ -158,6 +164,10 @@ def live_evidence(path: str):
     data = summarize(path)
     if not data.get("available"):
         return {"available": False, "bias": "UNKNOWN", "confidence": 0.0, "assets": {}}
+    if not is_lbank_futures_record(data):
+        return {"available": False, "reason": "project60_source_not_lbank_futures",
+                "source": data.get("source"), "market": data.get("market"),
+                "bias": "UNKNOWN", "confidence": 0.0, "assets": {}}
     return {
         "available": True,
         "bias": data.get("bias", "UNKNOWN"),
