@@ -18,9 +18,11 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run existing strategy, cost, and LBank futures tests
+      - name: Install pytest for function-style backtest tests
+        run: python -m pip install pytest
+      - name: Run backtest and centralized cost/source tests
         run: |
-          python -m unittest discover -s tests -p 'test_backtest.py' -v
+          python -m pytest tests/test_backtest.py -q
           python -m unittest discover -s tests -p 'test_costs.py' -v
           python -m unittest discover -s tests -p 'test_trade_economics.py' -v
           python -m unittest discover -s tests -p 'test_central_config.py' -v
