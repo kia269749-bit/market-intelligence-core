@@ -77,11 +77,13 @@ def estimate_execution_cost(
     if any(v < 0 for v in values.values()):
         raise ValueError("cost assumptions must be non-negative")
 
+    # Each input is a per-side assumption. A round trip pays entry and exit
+    # friction; spread is modeled per side here for conservative consistency.
     components = {
-        "fee": notional * _bps(fee),
-        "spread": notional * _bps(spread),
-        "slippage": notional * _bps(slippage),
-        "impact": notional * _bps(impact),
+        "fee": notional * _bps(fee) * 2.0,
+        "spread": notional * _bps(spread) * 2.0,
+        "slippage": notional * _bps(slippage) * 2.0,
+        "impact": notional * _bps(impact) * 2.0,
     }
     total = sum(components.values())
     return ExecutionCost(
