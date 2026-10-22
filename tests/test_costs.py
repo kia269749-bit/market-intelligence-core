@@ -10,11 +10,11 @@ from mi_core.costs import (
 class ExecutionCostTests(unittest.TestCase):
     def test_default_components_are_explicit(self):
         cost = estimate_execution_cost(10_000.0)
-        self.assertAlmostEqual(cost.fee, 5.0)
+        self.assertAlmostEqual(cost.fee, 6.0)
         self.assertAlmostEqual(cost.spread, 2.0)
         self.assertAlmostEqual(cost.slippage, 3.0)
         self.assertAlmostEqual(cost.impact, 1.0)
-        self.assertAlmostEqual(cost.total, 11.0)
+        self.assertAlmostEqual(cost.total, 12.0)
 
     def test_custom_assumptions(self):
         cfg = ExecutionCostConfig(
@@ -32,7 +32,7 @@ class ExecutionCostTests(unittest.TestCase):
 
     def test_net_pnl(self):
         cost = estimate_execution_cost(10_000)
-        self.assertAlmostEqual(apply_cost_to_gross_pnl(25.0, cost), 14.0)
+        self.assertAlmostEqual(apply_cost_to_gross_pnl(25.0, cost), 13.0)
 
     def test_rejects_invalid_values(self):
         with self.assertRaises(ValueError):
