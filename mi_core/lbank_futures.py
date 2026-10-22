@@ -67,6 +67,8 @@ def fetch_market_rows(timeout: int = 8) -> list[dict]:
                 "market": "futures",
                 "symbol": symbol,
                 "price": price,
+                "open_price": _optional_float(row.get("openPrice")),
+                "change_24h_pct": _change_pct(row.get("lastPrice"), row.get("openPrice")),
                 "mark_price": _optional_float(row.get("markedPrice")),
                 "funding_rate": _optional_float(row.get("prePositionFeeRate")),
                 "volume_24h": _optional_float(row.get("volume")),
@@ -76,6 +78,14 @@ def fetch_market_rows(timeout: int = 8) -> list[dict]:
     if not valid:
         raise RuntimeError("LBank futures API returned no valid contract prices")
     return valid
+
+
+def _change_pct(last, opened):
+    last_value = _optional_float(last)
+    open_value = _optional_float(opened)
+    if last_value is None or open_value is None or open_value <= 0:
+        return None
+    return (last_value / open_value - 1.0) * 100.0
 
 
 def _optional_float(value):
