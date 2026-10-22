@@ -58,8 +58,11 @@ def run(
     settings = load_settings()
     fee_bps = settings.taker_fee_bps if fee_bps is None else float(fee_bps)
     slippage_bps = settings.slippage_bps if slippage_bps is None else float(slippage_bps)
+    spread_bps = settings.spread_bps
+    impact_bps = settings.impact_bps
     latency_bars = settings.latency_bars if latency_bars is None else int(latency_bars)
     _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, risk_fraction)
+    _validate_config(initial, fee_bps, slippage_bps + spread_bps + impact_bps, latency_bars, hold_bars, risk_fraction)
 
     equity = initial
     peak = initial
@@ -79,13 +82,21 @@ def run(
             break
 
         direction = 1 if s.side == "LONG" else -1
-        slip = slippage_bps / 10000.0
-        entry = bars[entry_i].price * (1 + direction * slip)
-        exitp = bars[exit_i].price * (1 - direction * slip)
+        # Model spread, slippage, and impact on both entry and exit fills.
+        # Fee is charged on executed notional at both ends. Trade.cost reports
+        # all friction while pnl already includes the fill-price effect.
+        friction_bps = spread_bps + slippage_bps + impact_bps
+        friction = friction_bps / 10000.0
+        base_entry = bars[entry_i].price
+        base_exit = bars[exit_i].price
+        entry = base_entry * (1 + direction * friction)
+        exitp = base_exit * (1 - direction * friction)
         qty = equity * risk_fraction / max(entry, 1e-12)
         gross = direction * (exitp - entry) * qty
-        cost = (abs(entry * qty) + abs(exitp * qty)) * fee_bps / 10000.0
-        pnl = gross - cost
+        fee_cost = (abs(entry * qty) + abs(exitp * qty)) * fee_bps / 10000.0
+        market_friction_cost = (abs(base_entry * qty) + abs(base_exit * qty)) * friction_bps / 10000.0
+        cost = fee_cost + market_friction_cost
+        pnl = gross - fee_cost
         equity += pnl
 
         trades.append(
