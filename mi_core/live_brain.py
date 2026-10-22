@@ -374,7 +374,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     market_quality=market.get("data_quality") or {}
     quality_status=str(market_quality.get("status","")).upper()
     if quality_status in ("HEALTHY","DEGRADED","UNSAFE"):
-        quality_score=_num(market_quality.get("score"), 1.0 if quality_status=="HEALTHY" else 0.65 if quality_status=="DEGRADED" else 0.0)
+        quality_score=_num(market_quality.get("score"), _num(market_quality.get("success_ratio"), 1.0 if quality_status=="HEALTHY" else 0.65 if quality_status=="DEGRADED" else 0.0))
         quality={**market_quality, "status":quality_status, "score":round(max(0.0,min(1.0,quality_score)),4)}
     else:
         quality=_data_quality(market)
