@@ -45,15 +45,20 @@ def run(
     bars,
     signals,
     initial=10000.0,
-    fee_bps=5.0,
-    slippage_bps=3.0,
-    latency_bars=1,
+    fee_bps=None,
+    slippage_bps=None,
+    latency_bars=None,
     hold_bars=1,
     risk_fraction=.10,
 ):
     """Backtest signals chronologically with fee, slippage and latency modeling."""
     if len(bars) != len(signals):
         raise ValueError("bars and signals must have equal length")
+    from .central_config import load_settings
+    settings = load_settings()
+    fee_bps = settings.taker_fee_bps if fee_bps is None else float(fee_bps)
+    slippage_bps = settings.slippage_bps if slippage_bps is None else float(slippage_bps)
+    latency_bars = settings.latency_bars if latency_bars is None else int(latency_bars)
     _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, risk_fraction)
 
     equity = initial
