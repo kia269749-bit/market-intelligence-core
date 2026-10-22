@@ -80,6 +80,91 @@ def fetch_market_rows(timeout: int = 8) -> list[dict]:
     return valid
 
 
+
+def fetch_orderbook(symbol, depth: int = 20, timeout: int = 8) -> dict:
+    """Fetch public LBank Futures order-book levels without account access."""
+    settings = load_settings()
+    normalized = normalize_symbol(symbol)
+    if not normalized:
+        raise ValueError("symbol must be non-empty")
+    if not 1 <= int(depth) <= 100:
+        raise ValueError("depth must be between 1 and 100")
+
+    payload = _get_json(
+        f"{BASE_URL}/marketOrder",
+        {"symbol": normalized, "depth": int(depth)},
+        timeout,
+    )
+    if isinstance(payload, dict):
+        if payload.get("success") is False or payload.get("result") is False:
+            raise RuntimeError(f"LBank futures orderbook request rejected: {payload.get('msg', payload)}")
+        if payload.get("error_code") not in (None, 0, "0"):
+            raise RuntimeError(f"LBank futures orderbook API error: {payload.get('error_code')}: {payload.get('msg', '')}")
+        data = payload.get("data")
+        if isinstance(data, dict):
+            book = data
+        elif isinstance(data, list) and data and isinstance(data[0], dict):
+            book = data[0]
+        elif isinstance(payload.get("result"), dict):
+            book = payload["result"]
+        else:
+            book = payload
+    else:
+        raise RuntimeError("LBank futures orderbook response has an unknown schema")
+
+    def levels(name, reverse):
+        raw = book.get(name)
+        if not isinstance(raw, list):
+            raise RuntimeError(f"LBank futures orderbook missing {name}")
+        parsed = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            price = _optional_float(item.get("price"))
+            volume = _optional_float(item.get("volume"))
+            if price is None or volume is None or price <= 0 or volume < 0:
+                continue
+            parsed.append({
+                "price": price,
+                "volume": volume,
+                "orders": _optional_float(item.get("orders")),
+            })
+        parsed.sort(key=lambda item: item["price"], reverse=reverse)
+        return parsed[:int(depth)]
+
+    bids = levels("bids", True)
+    asks = levels("asks", False)
+    if not bids or not asks:
+        raise RuntimeError("LBank futures orderbook returned no valid bid/ask levels")
+
+    best_bid = bids[0]["price"]
+    best_ask = asks[0]["price"]
+    mid = (best_bid + best_ask) / 2.0
+    bid_volume = sum(level["volume"] for level in bids)
+    ask_volume = sum(level["volume"] for level in asks)
+    total_volume = bid_volume + ask_volume
+    return {
+        "ts_ms": int(time.time() * 1000),
+        "exchange": "lbank",
+        "market": "futures",
+        "product_group": settings.product_group,
+        "symbol": normalized,
+        "source": "lbank_contract_marketOrder",
+        "depth": int(depth),
+        "bids": bids,
+        "asks": asks,
+        "best_bid": best_bid,
+        "best_ask": best_ask,
+        "mid_price": mid,
+        "spread_pct": (best_ask - best_bid) / mid * 100.0,
+        "bid_depth_volume": bid_volume,
+        "ask_depth_volume": ask_volume,
+        "volume_imbalance_pct": (bid_volume - ask_volume) / total_volume * 100.0 if total_volume else None,
+        "data_quality": "HEALTHY" if best_bid < best_ask else "CROSSED_OR_LOCKED",
+        "research_only": True,
+        "live_orders": False,
+    }
+
 def _change_pct(last, opened):
     last_value = _optional_float(last)
     open_value = _optional_float(opened)
