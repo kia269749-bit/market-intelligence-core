@@ -134,7 +134,7 @@ jobs:
           results["toobit"] = ticker_ok and book_ok
 
           print("=== OURBIT FUTURES ===")
-          ourbit_bases = ("https://contract.ourbit.com",)
+          ourbit_bases = ("https://futures.ourbit.com",)
           ourbit_symbol = "BTC_USDT"
           ourbit_ticker_ok = False
           ourbit_book_ok = False
