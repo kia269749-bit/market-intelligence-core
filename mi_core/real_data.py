@@ -1,13 +1,15 @@
-import json
-import time
+"""Historical market-data adapter.
+
+Historical candles must come from the configured venue and market. The old
+implementation silently fetched Binance spot klines, which is incompatible
+with the LBank Futures research configuration. Until a documented public
+LBank Futures candle endpoint is verified, this module fails closed.
+"""
+from __future__ import annotations
+
 from pathlib import Path
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
 from .models import MarketBar
-from .storage import append_jsonl
-
-BASE_URL = "https://data-api.binance.vision/api/v3/klines"
 
 INTERVAL_MS = {
     "1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000,
@@ -16,29 +18,21 @@ INTERVAL_MS = {
     "12h": 43_200_000, "1d": 86_400_000,
 }
 
-def _get(params, timeout=20):
-    query = urlencode(params)
-    req = Request(BASE_URL + "?" + query, headers={"User-Agent": "market-intelligence-core/1.0"})
-    with urlopen(req, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
 
 def fetch_klines(symbol="BTCUSDT", interval="1h", limit=1000, start_ms=None, end_ms=None):
-    symbol = symbol.upper()
+    """Refuse to substitute another venue's spot candles for LBank Futures."""
     if interval not in INTERVAL_MS:
         raise ValueError(f"unsupported interval: {interval}")
     if not 1 <= limit <= 1000:
         raise ValueError("limit must be between 1 and 1000")
-    params = {"symbol": symbol, "interval": interval, "limit": limit}
-    if start_ms is not None:
-        params["startTime"] = int(start_ms)
-    if end_ms is not None:
-        params["endTime"] = int(end_ms)
-    rows = _get(params)
-    if not isinstance(rows, list):
-        raise RuntimeError(f"unexpected Binance response: {rows}")
-    return rows
+    raise RuntimeError(
+        "LBank Futures historical candles are not wired: refusing Binance spot fallback. "
+        "Verify and implement the official LBank contract candle endpoint before historical backtests."
+    )
+
 
 def rows_to_bars(rows, symbol):
+    """Convert an already-fetched OHLCV array to MarketBar objects."""
     bars = []
     for r in rows:
         if len(r) < 11:
@@ -55,33 +49,14 @@ def rows_to_bars(rows, symbol):
         ))
     return bars
 
-def download(symbol="BTCUSDT", interval="1h", bars=1000, out="data/real/btcusdt_1h.jsonl", sleep_s=0.15):
+
+def download(symbol="BTCUSDT", interval="1h", bars=1000,
+             out="data/real/btcusdt_1h.jsonl", sleep_s=0.15):
+    """Historical downloader intentionally blocks until LBank Futures is verified."""
     if bars < 1:
         raise ValueError("bars must be positive")
-    step = INTERVAL_MS[interval]
-    remaining = bars
-    end_ms = int(time.time() * 1000)
-    all_bars = []
-    while remaining:
-        take = min(1000, remaining)
-        rows = fetch_klines(symbol, interval, take, end_ms=end_ms)
-        chunk = rows_to_bars(rows, symbol)
-        if not chunk:
-            break
-        all_bars = chunk + all_bars
-        remaining -= len(chunk)
-        end_ms = chunk[0].ts - 1
-        if len(chunk) < take:
-            break
-        if remaining:
-            time.sleep(max(0.0, sleep_s))
-    # Deduplicate by timestamp and keep chronological order.
-    unique = {b.ts: b for b in all_bars}
-    result = [unique[k] for k in sorted(unique)]
-    result = result[-bars:]
-    path = Path(out)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("", encoding="utf-8")
-    for bar in result:
-        append_jsonl(path, bar.to_dict())
-    return result, path
+    if interval not in INTERVAL_MS:
+        raise ValueError(f"unsupported interval: {interval}")
+    # Do not create/truncate files until the correct venue endpoint is implemented.
+    fetch_klines(symbol=symbol, interval=interval, limit=min(1000, bars))
+    raise AssertionError("fetch_klines should fail closed until LBank Futures candles are implemented")

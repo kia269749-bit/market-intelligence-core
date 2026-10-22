@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
 from .economic_edge import diagnose_economic_edge
+from .central_config import load_settings
 SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
 
 from .validated_forecast import (
@@ -29,7 +30,10 @@ def _num(v, default=0.0):
         return default
 
 
-def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
+def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=None):
+    if round_trip_cost_pct is None:
+        settings = load_settings()
+        round_trip_cost_pct = 2.0 * (settings.taker_fee_bps + settings.spread_bps + settings.slippage_bps + settings.impact_bps) / 100.0
     rows = [
         r for r in result.get("predictions", [])
         if r.get("actual_return_pct") is not None and r.get("pred") in (-1, 1)
@@ -210,8 +214,11 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
 def validate_project60(
     path, top_n=10, max_rows=800, horizon=60, min_samples=100,
     capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
-    round_trip_cost_pct=0.35, horizons=None,
+    round_trip_cost_pct=None, horizons=None,
 ):
+    if round_trip_cost_pct is None:
+        settings = load_settings()
+        round_trip_cost_pct = 2.0 * (settings.taker_fee_bps + settings.spread_bps + settings.slippage_bps + settings.impact_bps) / 100.0
     series = load_project60_assets(path, max_rows=max_rows)
     ranked = [x for x in rank_assets(series, min_samples=max(60, min_samples))
               if x["symbol"] in series]

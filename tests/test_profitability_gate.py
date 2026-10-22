@@ -9,6 +9,14 @@ class ProfitabilityGateTests(unittest.TestCase):
         self.assertFalse(r.approved)
         self.assertIn(r.reason, ("risk_reward_below_gate","edge_too_small_after_costs"))
 
+    def test_default_cost_uses_central_lbank_assumptions(self):
+        r=evaluate_buy(100,99.2,103.0,0.80)
+        self.assertAlmostEqual(r.round_trip_cost_pct,0.24)
+
+    def test_explicit_legacy_cost_override_is_preserved(self):
+        r=evaluate_buy(100,99.2,103.0,0.80,fee_bps=10,spread_bps=5,slippage_bps=8,impact_bps=0)
+        self.assertAlmostEqual(r.round_trip_cost_pct,0.46)
+
     def test_strong_net_edge_passes(self):
         r=evaluate_buy(100,99.2,103.0,0.80)
         self.assertTrue(r.approved)

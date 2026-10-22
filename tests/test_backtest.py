@@ -20,7 +20,14 @@ def test_backtest_reports_research_metrics_and_costs():
     assert result["wins"] == 1
     assert result["win_rate"] == 1.0
     assert result["gross_profit"] > 0
+    assert abs(result["net_profit_usd"] - (result["final"] - result["initial"])) < 1e-9
+    assert abs(result["gross_profit"] - result["trades"][0].gross_pnl) < 1e-9
+    assert abs(result["net_profit_usd"] - (result["gross_profit"] - result["cost_total"])) < 1e-9
     assert result["cost_total"] > 0
+    trade = result["trades"][0]
+    fee_only = (abs(trade.entry * trade.qty) + abs(trade.exit * trade.qty)) * 5 / 10000
+    assert trade.cost > fee_only  # spread, slippage and impact are included
+    assert trade.pnl < (trade.exit - trade.entry) * trade.qty
     assert result["profit_factor"] > 0
 
 

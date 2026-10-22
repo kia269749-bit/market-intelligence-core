@@ -108,6 +108,7 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(result["policy"]["capital_usd"], 500.0)
         self.assertEqual(result["policy"]["min_profit_usd"], 4.0)
         self.assertEqual(result["policy"]["preferred_profit_usd"], 10.0)
+        self.assertAlmostEqual(result["policy"]["round_trip_cost_pct"], 0.24, places=6)
 
 
     def test_short_horizon_is_diagnostic_only(self):

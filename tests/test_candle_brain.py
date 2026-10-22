@@ -23,7 +23,7 @@ def _write_history(path):
             price *= 1.001
         buy=7000.0 if i>=76 else 2500.0
         sell=2000.0 if i>=76 else 2600.0
-        rows.append({"timestamp":i*60000,"coins":{"BTC":{"price":price,"trades":{"buy_usd":buy,"sell_usd":sell}}}})
+        rows.append({"timestamp":i*60000,"source":"lbank_contract_marketData","market":"futures","product_group":"SwapU","coins":{"BTC":{"price":price,"trades":{"buy_usd":buy,"sell_usd":sell}}}})
     path.write_text("\n".join(json.dumps(x) for x in rows),encoding="utf-8")
 
 

@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   live-smoke:
     runs-on: ubuntu-latest
@@ -17,6 +20,20 @@ jobs:
           python-version: "3.11"
       - name: Unit tests
         run: python -m unittest discover -s tests -v
-      - name: One real multi-exchange snapshot
+      - name: One read-only LBank futures snapshot
         run: |
-          python -m mi_core.cli live             --exchanges binance,coinbase,kraken,okx             --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,DOGEUSDT             --interval 5             --cycles 1
+          python -c 'from mi_core.lbank_futures import fetch_snapshot; s = fetch_snapshot(); q = s["data_quality"]; print("exchange=lbank market=futures quality={} symbols={}/{}".format(q["status"], q["successful_sources"], q["expected_sources"])); print("symbols=" + ",".join(r["symbol"] for r in s["rows"])); assert s["exchange"] == "lbank" and s["market"] == "futures"; assert q["status"] == "HEALTHY"; assert s["research_only"] is True and s["live_orders"] is False'
+      - name: One read-only LBank futures orderbook
+        run: |
+          python - <<'PY'
+          from mi_core.central_config import load_settings
+          from mi_core.lbank_futures import fetch_orderbook
+          settings = load_settings()
+          book = fetch_orderbook(settings.symbols[0], depth=5)
+          print("exchange={} market={} symbol={} quality={} spread_pct={:.6f}".format(
+              book["exchange"], book["market"], book["symbol"],
+              book["data_quality"], book["spread_pct"]))
+          assert book["exchange"] == "lbank" and book["market"] == "futures"
+          assert book["data_quality"] == "HEALTHY"
+          assert book["research_only"] is True and book["live_orders"] is False
+          PY

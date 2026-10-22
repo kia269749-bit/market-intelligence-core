@@ -1,5 +1,8 @@
 {
-  "exchanges": ["binance","coinbase","kraken","okx"],
+  "primary_exchange": "lbank",
+  "market": "futures",
+  "product_group": "SwapU",
+  "exchanges": ["lbank"],
   "symbols": ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","AVAXUSDT","LINKUSDT","TRXUSDT"],
   "poll_seconds": 20,
   "research_only": true,

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 class ExecutionCostConfig:
     """Research-only execution-cost assumptions, expressed in basis points."""
 
-    taker_fee_bps: float = 5.0
+    taker_fee_bps: float = 6.0
     spread_bps: float = 2.0
     slippage_bps: float = 3.0
     impact_bps: float = 1.0
@@ -52,7 +52,17 @@ def estimate_execution_cost(
     if notional <= 0:
         raise ValueError("notional must be positive")
 
-    cfg = config or ExecutionCostConfig()
+    if config is None:
+        from .central_config import load_settings
+        settings = load_settings()
+        cfg = ExecutionCostConfig(
+            taker_fee_bps=settings.taker_fee_bps,
+            spread_bps=settings.spread_bps,
+            slippage_bps=settings.slippage_bps,
+            impact_bps=settings.impact_bps,
+        )
+    else:
+        cfg = config
     fee = cfg.taker_fee_bps if fee_bps is None else float(fee_bps)
     spread = cfg.spread_bps if spread_bps is None else float(spread_bps)
     slippage = cfg.slippage_bps if slippage_bps is None else float(slippage_bps)
@@ -67,11 +77,13 @@ def estimate_execution_cost(
     if any(v < 0 for v in values.values()):
         raise ValueError("cost assumptions must be non-negative")
 
+    # Each input is a per-side assumption. A round trip pays entry and exit
+    # friction; spread is modeled per side here for conservative consistency.
     components = {
-        "fee": notional * _bps(fee),
-        "spread": notional * _bps(spread),
-        "slippage": notional * _bps(slippage),
-        "impact": notional * _bps(impact),
+        "fee": notional * _bps(fee) * 2.0,
+        "spread": notional * _bps(spread) * 2.0,
+        "slippage": notional * _bps(slippage) * 2.0,
+        "impact": notional * _bps(impact) * 2.0,
     }
     total = sum(components.values())
     return ExecutionCost(

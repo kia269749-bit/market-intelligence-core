@@ -20,6 +20,7 @@ class EconomicEdgeTests(unittest.TestCase):
         self.assertEqual(result["usd10_hit_rate"], 0.0)
         self.assertEqual(result["direction_correct_rate"], 1.0)
         self.assertGreater(result["mfe_reached_usd4_but_horizon_end_missed_rate"], 0.0)
+        self.assertAlmostEqual(result["thresholds"]["round_trip_cost_pct"], 0.24, places=6)
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
 
@@ -35,6 +36,10 @@ class EconomicEdgeTests(unittest.TestCase):
         self.assertIn("0.80+", result["confidence_buckets"])
         self.assertIn("0.60-0.69", result["confidence_buckets"])
         self.assertGreater(result["confidence_buckets"]["0.80+"]["net_profit_usd"], 0.0)
+
+    def test_explicit_cost_scenario_override_is_preserved(self):
+        result = diagnose_economic_edge({"predictions": []}, round_trip_cost_pct=0.35)
+        self.assertEqual(result["thresholds"]["round_trip_cost_pct"], 0.35)
 
     def test_empty_result_is_safe(self):
         result = diagnose_economic_edge({"predictions": []})

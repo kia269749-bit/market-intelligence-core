@@ -52,7 +52,7 @@ class LiveBrainTests(unittest.TestCase):
 
     def test_conflicting_microstructure_penalizes_action(self):
         market={"rows":[{"change_24h_pct":5.0,"price":100}]}
-        p60={"available":True,"bias":"BULLISH","confidence":.8,
+        p60={"available":True,"source":"lbank_contract_marketData","market":"futures","product_group":"SwapU","bias":"BULLISH","confidence":.8,
              "assets":{"BTC":{"available":True,"trade_imbalance_pct":-90,"funding":0}}}
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[] }):
             snap=run_once(project60=p60)
@@ -98,10 +98,8 @@ class LiveBrainTests(unittest.TestCase):
                 "BEARISH":{"resolved":10,"win_rate":0.40},
             },
         }
-
         trend=_outcome_adjustment(outcome, regime="TREND", direction="BULLISH")
         range_case=_outcome_adjustment(outcome, regime="RANGE", direction="BEARISH")
-
         self.assertGreaterEqual(trend["factor"],0.90)
         self.assertLessEqual(trend["factor"],1.05)
         self.assertGreaterEqual(range_case["factor"],0.90)
@@ -112,13 +110,9 @@ class LiveBrainTests(unittest.TestCase):
         outcome={
             "resolved":20,
             "win_rate":0.55,
-            "by_regime":{
-                "TREND":{"resolved":3,"win_rate":0.0},
-            },
+            "by_regime":{"TREND":{"resolved":3,"win_rate":0.0}},
         }
-
         result=_outcome_adjustment(outcome, regime="TREND")
-
         self.assertEqual(result["factor"],1.0)
 
     def test_insufficient_outcome_memory_is_neutral(self):
@@ -152,15 +146,14 @@ class LiveBrainTests(unittest.TestCase):
         self.assertTrue(result["blocked"])
         self.assertIn("source_conflict",result["reasons"])
 
-
     def test_capital_economics_exposes_preferred_required_move(self):
         market={"rows":[{"change_24h_pct":0.0,"price":100}],"data_quality":{"status":"HEALTHY","score":1.0}}
         forecast={"available":True,"selected":{"expected_return_pct":0.59,"confidence":0.8,"current_move_pct":0.1}}
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}), patch("mi_core.live_brain.evaluate_capital_target", wraps=__import__("mi_core.trade_economics", fromlist=["evaluate_capital_target"]).evaluate_capital_target):
             snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5}, forecast=forecast)
         self.assertTrue(snap["capital_economics"]["available"])
-        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 1.15, places=2)
-        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.35, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 1.04, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.24, places=2)
 
     def test_timing_consumption_is_capped_for_display(self):
         timing=evaluate_entry_timing(expected_move_pct=0.14, current_move_pct=0.266, required_move_pct=1.15)
@@ -175,7 +168,7 @@ class LiveBrainTests(unittest.TestCase):
             with open(path,"w",encoding="utf-8") as f:
                 for i in range(80):
                     price*=1.0005
-                    f.write(json.dumps({"timestamp":i,"coins":{"BTC":{"price":price}}})+"\n")
+                    f.write(json.dumps({"timestamp":i,"source":"lbank_contract_marketData","market":"futures","product_group":"SwapU","coins":{"BTC":{"price":price}}})+"\n")
             result=_forecast_from_project60(path,"BTC")
             self.assertTrue(result["available"])
             self.assertIn("1_hour",result["horizons"])

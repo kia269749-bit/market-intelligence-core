@@ -16,23 +16,28 @@ def _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, ri
 
 
 def _metrics(trades, initial, final, max_drawdown):
-    pnls = [t.pnl for t in trades]
-    winners = [p for p in pnls if p > 0]
-    losers = [p for p in pnls if p < 0]
-    gross_profit = sum(winners)
-    gross_loss = abs(sum(losers))
+    pnls = [t.pnl for t in trades]  # net of modeled execution costs
+    gross_pnls = [t.gross_pnl if t.gross_pnl is not None else t.pnl for t in trades]
+    net_winners = [p for p in pnls if p > 0]
+    net_losers = [p for p in pnls if p < 0]
+    gross_profit = sum(p for p in gross_pnls if p > 0)
+    gross_loss = abs(sum(p for p in gross_pnls if p < 0))
+    net_profit = sum(pnls)
+    net_loss = abs(sum(net_losers))
     return {
         "initial": initial,
         "final": final,
         "return": final / initial - 1.0,
         "max_drawdown": max_drawdown,
         "trades_count": len(trades),
-        "wins": len(winners),
-        "losses": len(losers),
-        "win_rate": len(winners) / len(pnls) if pnls else 0.0,
+        "wins": len(net_winners),
+        "losses": len(net_losers),
+        "win_rate": len(net_winners) / len(pnls) if pnls else 0.0,
         "gross_profit": gross_profit,
         "gross_loss": gross_loss,
-        "profit_factor": gross_profit / gross_loss if gross_loss else (float("inf") if gross_profit else 0.0),
+        "net_profit_usd": net_profit,
+        "net_loss_usd": net_loss,
+        "profit_factor": sum(net_winners) / net_loss if net_loss else (float("inf") if net_winners else 0.0),
         "expectancy": sum(pnls) / len(pnls) if pnls else 0.0,
         "cost_total": sum(t.cost for t in trades),
         "research_only": True,
@@ -45,16 +50,25 @@ def run(
     bars,
     signals,
     initial=10000.0,
-    fee_bps=5.0,
-    slippage_bps=3.0,
-    latency_bars=1,
+    fee_bps=None,
+    slippage_bps=None,
+    latency_bars=None,
     hold_bars=1,
     risk_fraction=.10,
 ):
     """Backtest signals chronologically with fee, slippage and latency modeling."""
     if len(bars) != len(signals):
         raise ValueError("bars and signals must have equal length")
+    from .central_config import load_settings
+    settings = load_settings()
+    fee_bps = settings.taker_fee_bps if fee_bps is None else float(fee_bps)
+    slippage_bps = settings.slippage_bps if slippage_bps is None else float(slippage_bps)
+    spread_bps = settings.spread_bps
+    impact_bps = settings.impact_bps
+    latency_bars = settings.latency_bars if latency_bars is None else int(latency_bars)
     _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, risk_fraction)
+    if spread_bps < 0 or impact_bps < 0:
+        raise ValueError("spread_bps and impact_bps must be non-negative")
 
     equity = initial
     peak = initial
@@ -74,19 +88,27 @@ def run(
             break
 
         direction = 1 if s.side == "LONG" else -1
-        slip = slippage_bps / 10000.0
-        entry = bars[entry_i].price * (1 + direction * slip)
-        exitp = bars[exit_i].price * (1 - direction * slip)
+        # Model spread, slippage, and impact on both entry and exit fills.
+        # Fee is charged on executed notional at both ends. Trade.cost reports
+        # all friction while pnl already includes the fill-price effect.
+        friction_bps = spread_bps + slippage_bps + impact_bps
+        friction = friction_bps / 10000.0
+        base_entry = bars[entry_i].price
+        base_exit = bars[exit_i].price
+        entry = base_entry * (1 + direction * friction)
+        exitp = base_exit * (1 - direction * friction)
         qty = equity * risk_fraction / max(entry, 1e-12)
-        gross = direction * (exitp - entry) * qty
-        cost = (abs(entry * qty) + abs(exitp * qty)) * fee_bps / 10000.0
+        gross = direction * (base_exit - base_entry) * qty
+        fee_cost = (abs(entry * qty) + abs(exitp * qty)) * fee_bps / 10000.0
+        market_friction_cost = (abs(base_entry * qty) + abs(base_exit * qty)) * friction_bps / 10000.0
+        cost = fee_cost + market_friction_cost
         pnl = gross - cost
         equity += pnl
 
         trades.append(
             Trade(
                 bars[entry_i].ts, bars[exit_i].ts, s.symbol, s.side,
-                entry, exitp, qty, pnl, cost, "signal",
+                entry, exitp, qty, pnl, cost, "signal", gross_pnl=gross,
             )
         )
         peak = max(peak, equity)

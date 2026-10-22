@@ -20,7 +20,7 @@ def _summary(result: dict) -> dict:
             "expectancy":round(float(result["expectancy"]),8),"cost_total":round(float(result["cost_total"]),8)}
 
 def evaluate_historical_evidence(bars: Sequence, *, entry_threshold: float=0.60, initial: float=10000.0,
-    fee_bps: float=5.0, slippage_bps: float=3.0, latency_bars: int=1, hold_bars: int=1,
+    fee_bps: float | None=None, slippage_bps: float | None=None, latency_bars: int | None=None, hold_bars: int=1,
     risk_fraction: float=0.10, train_ratio: float=0.70, simulations: int=1000, seed: int=42) -> dict:
     if len(bars)<20: raise ValueError("at least 20 bars are required for historical evidence")
     if not 0.50<=train_ratio<1.0: raise ValueError("train_ratio must be in [0.50, 1.0)")

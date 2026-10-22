@@ -1,6 +1,6 @@
 import unittest
 
-from mi_core.real_data import rows_to_bars
+from mi_core.real_data import fetch_klines, rows_to_bars
 
 class RealDataTests(unittest.TestCase):
     def test_kline_mapping_uses_close_and_taker_buy_volume(self):
@@ -13,6 +13,10 @@ class RealDataTests(unittest.TestCase):
 
     def test_empty_rows(self):
         self.assertEqual(rows_to_bars([], "BTCUSDT"), [])
+
+    def test_historical_fetch_refuses_wrong_venue_fallback(self):
+        with self.assertRaisesRegex(RuntimeError, "refusing Binance spot fallback"):
+            fetch_klines("BTCUSDT", "1h", 100)
 
 if __name__ == "__main__":
     unittest.main()
