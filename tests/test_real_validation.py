@@ -103,6 +103,20 @@ class RealValidationTests(unittest.TestCase):
         metrics = _oos_integrity_metrics(result, 60)
         self.assertEqual(metrics["overlap_rate"], 0.0)
 
+    def test_oos_overlap_does_not_bridge_missing_timestamp_rows(self):
+        result = {
+            "accuracy": 0.5,
+            "predictions": [
+                {"ts": 1_791_257_623, "pred": -1, "actual": -1},
+                {"pred": 1, "actual": 1},
+                {"ts": 1_791_257_683, "pred": -1, "actual": 1},
+            ],
+        }
+        metrics = _oos_integrity_metrics(result, 60)
+        self.assertEqual(metrics["adjacent_pairs"], 0)
+        self.assertEqual(metrics["overlapping_adjacent_pairs"], 0)
+        self.assertEqual(metrics["overlap_rate"], 0.0)
+
     def test_class_collapse_blocks_watch(self):
         tier = _opportunity_tier(
             {"high_conf_accuracy": 1.0},
