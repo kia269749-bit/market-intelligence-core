@@ -20,7 +20,7 @@ def test_backtest_reports_research_metrics_and_costs():
     assert result["wins"] == 1
     assert result["win_rate"] == 1.0
     assert result["gross_profit"] > 0
-    assert result["net_profit_usd"] == result["final"] - result["initial"]
+    assert abs(result["net_profit_usd"] - (result["final"] - result["initial"])) < 1e-9
     assert result["gross_profit"] > result["net_profit_usd"]
     assert result["cost_total"] > 0
     trade = result["trades"][0]
