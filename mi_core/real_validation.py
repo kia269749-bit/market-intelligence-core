@@ -93,9 +93,22 @@ def _oos_integrity_metrics(result, horizon):
     pairs=0
     overlapping_pairs=0
     ts=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
+    positive_deltas=[b-a for a,b in zip(ts,ts[1:]) if b>a]
+    # Project60 stores Unix timestamps in seconds; older synthetic fixtures and
+    # some imported candle datasets use milliseconds. Infer the unit before
+    # comparing adjacent prediction windows, otherwise seconds are mistaken
+    # for milliseconds and long gaps are falsely counted as overlapping.
+    if any(abs(value) >= 100_000_000_000 for value in ts):
+        timestamp_scale=1000  # milliseconds -> seconds
+    elif any(abs(value) >= 100_000_000 for value in ts):
+        timestamp_scale=1  # Unix seconds
+    else:
+        typical_delta=sorted(positive_deltas)[len(positive_deltas)//2] if positive_deltas else 0
+        timestamp_scale=1000 if typical_delta >= 1000 else 1
+    overlap_window_seconds=int(horizon)*60
     for a,b in zip(ts,ts[1:]):
         pairs+=1
-        if b-a < int(horizon)*60_000:
+        if 0 < b-a < overlap_window_seconds*timestamp_scale:
             overlapping_pairs+=1
     overlap_rate=overlapping_pairs/pairs if pairs else 0.0
     return {"resolved":n,"actual_class_counts":actual_counts,"prediction_class_counts":pred_counts,
