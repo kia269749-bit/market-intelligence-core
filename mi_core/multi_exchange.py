@@ -32,7 +32,7 @@ def fetch_snapshot(symbols=None, exchanges=None):
 def print_snapshot(snapshot):
     source = snapshot.get("exchange", "unknown").upper()
     market = snapshot.get("market", "unknown")
-    print("\\n{} {} | ts_ms={}".format(source, market, snapshot.get("ts_ms")))
+    print("\n{} {} | ts_ms={}".format(source, market, snapshot.get("ts_ms")))
     print("market_data_exchange={} | cost_model_exchange={} | cost_model_market={}".format(
         snapshot.get("exchange", "unknown"),
         snapshot.get("cost_model_exchange", _settings.exchange),
