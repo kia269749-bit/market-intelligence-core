@@ -62,7 +62,8 @@ def run(
     impact_bps = settings.impact_bps
     latency_bars = settings.latency_bars if latency_bars is None else int(latency_bars)
     _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, risk_fraction)
-    _validate_config(initial, fee_bps, slippage_bps + spread_bps + impact_bps, latency_bars, hold_bars, risk_fraction)
+    if spread_bps < 0 or impact_bps < 0:
+        raise ValueError("spread_bps and impact_bps must be non-negative")
 
     equity = initial
     peak = initial
