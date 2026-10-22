@@ -35,6 +35,27 @@ class LiveBrainTests(unittest.TestCase):
         self.assertTrue(snap["research_only"])
         self.assertFalse(snap["live_orders"])
 
+    def test_degraded_market_coverage_uses_actual_success_ratio(self):
+        market = {
+            "rows": [
+                {"change_24h_pct": 3.0, "price": 100.0},
+                {"change_24h_pct": 2.0, "price": 200.0},
+            ],
+            "data_quality": {
+                "status": "DEGRADED",
+                "success_ratio": 0.2,
+                "expected_sources": 10,
+                "successful_sources": 2,
+            },
+        }
+        with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch(
+            "mi_core.live_brain.scan_boosted", return_value={"candidates": []}
+        ):
+            snap = run_once()
+        quality = snap["evidence"]["data_quality"]
+        self.assertEqual(quality["score"], 0.2)
+        self.assertFalse(snap["evidence"]["combined"]["actionable"])
+
     def test_unsafe_data_blocks_action(self):
         q=_data_quality({"rows":[]})
         self.assertEqual(q["status"],"UNSAFE")

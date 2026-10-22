@@ -18,6 +18,7 @@ class ShadowJournalTests(unittest.TestCase):
                 "required_move_pct": 1.15,
                 "preferred_required_move_pct": 2.35,
                 "modeled_profit_usd": 10.75,
+                "round_trip_cost_pct": 0.24,
             },
             "evidence": {
                 "combined": {
@@ -42,6 +43,10 @@ class ShadowJournalTests(unittest.TestCase):
             self.assertEqual(row["status"],"OPEN")
             self.assertEqual(row["direction"],"BULLISH")
             self.assertEqual(row["entry_price"],100.0)
+            self.assertEqual(row["capital_usd"],500.0)
+            self.assertEqual(row["round_trip_cost_pct"],0.24)
+            self.assertEqual(row["cost_model_exchange"],"lbank")
+            self.assertEqual(row["market_data_exchange"],"hyperliquid")
             self.assertTrue(row["research_only"])
             self.assertFalse(row["live_orders"])
             self.assertEqual(summarize(path)["count"],1)
@@ -59,6 +64,14 @@ class ShadowJournalTests(unittest.TestCase):
             path=str(Path(td)/"shadow.jsonl")
             self.assertFalse(_append_shadow_if_actionable(path,self._snapshot(actionable=False)))
             self.assertFalse(_append_shadow_if_actionable(path,self._snapshot(approved=False)))
+            self.assertFalse(Path(path).exists())
+
+    def test_missing_cost_model_does_not_append_signal(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=str(Path(td)/"shadow.jsonl")
+            snapshot=self._snapshot()
+            snapshot["capital_economics"].pop("round_trip_cost_pct")
+            self.assertFalse(_append_shadow_if_actionable(path,snapshot))
             self.assertFalse(Path(path).exists())
 
     def test_neutral_signal_is_not_appended(self):

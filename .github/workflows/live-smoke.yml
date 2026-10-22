@@ -37,3 +37,47 @@ jobs:
           assert book["data_quality"] == "HEALTHY"
           assert book["research_only"] is True and book["live_orders"] is False
           PY
+      - name: Check configured Hyperliquid symbol coverage
+        run: |
+          python - <<'PY'
+          from mi_core.hyperliquid_perps import fetch_snapshot
+          s = fetch_snapshot()
+          q = s["data_quality"]
+          print("configured_symbols={} successful={} ratio={:.3f} status={}".format(
+              q["expected_sources"], q["successful_sources"], q["success_ratio"], q["status"]))
+          print("available=" + ",".join(r["symbol"] for r in s["rows"]))
+          print("unavailable=" + ",".join(e["symbol"] for e in s["errors"]))
+          assert s["exchange"] == "hyperliquid"
+          assert s["cost_model_exchange"] == "lbank" and s["cost_model_market"] == "futures"
+          assert s["research_only"] is True and s["live_orders"] is False
+          assert any(r["symbol"] == "BTC" for r in s["rows"])
+          PY
+      - name: One read-only Hyperliquid perpetual snapshot
+        run: |
+          python - <<'PY'
+          from mi_core.hyperliquid_perps import fetch_snapshot
+          s = fetch_snapshot(["BTCUSDT", "ETHUSDT"])
+          q = s["data_quality"]
+          print("market_data={} market={} quality={} symbols={}/{} cost_model={}/{}".format(
+              s["exchange"], s["market"], q["status"],
+              q["successful_sources"], q["expected_sources"],
+              s["cost_model_exchange"], s["cost_model_market"]))
+          assert s["exchange"] == "hyperliquid" and s["market"] == "perpetuals"
+          assert q["status"] == "HEALTHY" and len(s["rows"]) == 2
+          assert s["cost_model_exchange"] == "lbank" and s["cost_model_market"] == "futures"
+          assert s["research_only"] is True and s["live_orders"] is False
+          PY
+      - name: One read-only Hyperliquid perpetual orderbook
+        run: |
+          python - <<'PY'
+          from mi_core.hyperliquid_perps import fetch_orderbook
+          book = fetch_orderbook("BTC", depth=5)
+          print("exchange={} market={} symbol={} quality={} spread_pct={:.6f} cost_model={}/{}".format(
+              book["exchange"], book["market"], book["symbol"],
+              book["data_quality"], book["spread_pct"],
+              book["cost_model_exchange"], book["cost_model_market"]))
+          assert book["exchange"] == "hyperliquid" and book["market"] == "perpetuals"
+          assert book["data_quality"] == "HEALTHY"
+          assert book["cost_model_exchange"] == "lbank" and book["cost_model_market"] == "futures"
+          assert book["research_only"] is True and book["live_orders"] is False
+          PY
