@@ -1,4 +1,4 @@
-"""Capital-aware economics using the centralized LBank futures settings by default."""
+""""Capital-aware economics using the centralized LBank futures settings by default."""
 from dataclasses import dataclass
 
 from .central_config import load_settings
@@ -40,7 +40,8 @@ class CapitalTarget:
 def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
                             min_profit_usd=4.0, preferred_profit_usd=10.0,
                             exchange=None, order_type="taker",
-                            spread_bps=None, slippage_bps=None):
+                            spread_bps=None, slippage_bps=None,
+                            impact_bps=None):
     if capital_usd <= 0 or min_profit_usd <= 0 or preferred_profit_usd < min_profit_usd:
         return CapitalTarget(False, "REJECT", capital_usd, min_profit_usd, preferred_profit_usd,
                              expected_move_pct, 0, 0, 0, 0, 0, "invalid_policy")
@@ -50,6 +51,7 @@ def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
         fee = settings.maker_fee_bps if str(order_type).lower() == "maker" else settings.taker_fee_bps
         spread_default = settings.spread_bps
         slip_default = settings.slippage_bps
+        impact_default = settings.impact_bps
     else:
         profile = PROFILES.get(str(exchange).lower())
         if profile is None:
@@ -57,10 +59,12 @@ def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
         fee = profile.maker_fee_bps if str(order_type).lower() == "maker" else profile.taker_fee_bps
         spread_default = profile.spread_bps
         slip_default = profile.slippage_bps
+        impact_default = 0.0
 
     spread = spread_default if spread_bps is None else float(spread_bps)
     slip = slip_default if slippage_bps is None else float(slippage_bps)
-    cost = 2.0 * (fee + spread + slip) / 100.0
+    impact = impact_default if impact_bps is None else float(impact_bps)
+    cost = 2.0 * (fee + spread + slip + impact) / 100.0
     net = float(expected_move_pct) - cost
     min_net_pct = min_profit_usd / capital_usd * 100.0
     preferred_net_pct = preferred_profit_usd / capital_usd * 100.0
