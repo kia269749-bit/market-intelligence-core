@@ -149,6 +149,12 @@ def _append_shadow_if_actionable(journal_path, snapshot):
     selected=forecast.get("selected") if isinstance(forecast,dict) else {}
     if not isinstance(selected,dict):
         selected={}
+    try:
+        round_trip_cost_pct=float(economics["round_trip_cost_pct"])
+    except (KeyError,TypeError,ValueError):
+        return False
+    if not math.isfinite(round_trip_cost_pct) or round_trip_cost_pct < 0:
+        return False
     entry_price=selected.get("current_price")
     asset=str(forecast.get("asset") or selected.get("asset") or "MARKET")
     try:
@@ -185,6 +191,8 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
+        "capital_usd":500.0,
+        "round_trip_cost_pct":round_trip_cost_pct,
         "expected_move_pct":economics.get("expected_move_pct"),
         "required_move_pct":economics.get("required_move_pct"),
         "preferred_required_move_pct":economics.get("preferred_required_move_pct"),
