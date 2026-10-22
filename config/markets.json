@@ -2,9 +2,23 @@
   "primary_exchange": "lbank",
   "market": "futures",
   "product_group": "SwapU",
-  "exchanges": ["lbank"],
-  "symbols": ["BTCUSDT","ETHUSDT","BNBUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","ADAUSDT","AVAXUSDT","LINKUSDT","TRXUSDT"],
+  "exchanges": [
+    "hyperliquid"
+  ],
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "BNBUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "ADAUSDT",
+    "AVAXUSDT",
+    "LINKUSDT",
+    "TRXUSDT"
+  ],
   "poll_seconds": 20,
   "research_only": true,
-  "live_orders": false
+  "live_orders": false,
+  "market_data_exchange": "hyperliquid"
 }
