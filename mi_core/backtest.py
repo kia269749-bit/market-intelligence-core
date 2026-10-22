@@ -16,11 +16,14 @@ def _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, ri
 
 
 def _metrics(trades, initial, final, max_drawdown):
-    pnls = [t.pnl for t in trades]
-    winners = [p for p in pnls if p > 0]
-    losers = [p for p in pnls if p < 0]
-    gross_profit = sum(winners)
-    gross_loss = abs(sum(losers))
+    pnls = [t.pnl for t in trades]  # net of modeled execution costs
+    gross_pnls = [t.pnl + t.cost for t in trades]
+    net_winners = [p for p in pnls if p > 0]
+    net_losers = [p for p in pnls if p < 0]
+    gross_profit = sum(p for p in gross_pnls if p > 0)
+    gross_loss = abs(sum(p for p in gross_pnls if p < 0))
+    net_profit = sum(pnls)
+    net_loss = abs(sum(net_losers))
     return {
         "initial": initial,
         "final": final,
@@ -32,7 +35,9 @@ def _metrics(trades, initial, final, max_drawdown):
         "win_rate": len(winners) / len(pnls) if pnls else 0.0,
         "gross_profit": gross_profit,
         "gross_loss": gross_loss,
-        "profit_factor": gross_profit / gross_loss if gross_loss else (float("inf") if gross_profit else 0.0),
+        "net_profit_usd": net_profit,
+        "net_loss_usd": net_loss,
+        "profit_factor": sum(net_winners) / net_loss if net_loss else (float("inf") if net_winners else 0.0),
         "expectancy": sum(pnls) / len(pnls) if pnls else 0.0,
         "cost_total": sum(t.cost for t in trades),
         "research_only": True,
