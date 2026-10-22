@@ -10,7 +10,7 @@ from .models import MarketBar
 from .validated_forecast import forecast_now
 from .forecast_trade_filter import evaluate_forecast
 from .opportunity_score import score_opportunity
-from .source_policy import is_lbank_futures_record
+from .source_policy import is_project60_perpetual_record
 
 
 def _num(v, d=0.0):
@@ -32,7 +32,7 @@ def load_project60_assets(path, max_rows=800):
     for line in lines:
         try:
             row = json.loads(line)
-            if not is_lbank_futures_record(row):
+            if not is_project60_perpetual_record(row):
                 continue
             coins = row.get("coins", {})
             if isinstance(coins, list):
