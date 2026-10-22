@@ -49,5 +49,6 @@ class Trade:
     pnl: float
     cost: float
     reason: str = ""
+    gross_pnl: Optional[float] = None
 
     def to_dict(self): return asdict(self)
