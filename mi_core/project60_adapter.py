@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .source_policy import is_lbank_futures_record
+from .source_policy import is_project60_perpetual_record
 
 
 def _last_jsonl(path: str):
@@ -164,7 +164,7 @@ def live_evidence(path: str):
     data = summarize(path)
     if not data.get("available"):
         return {"available": False, "bias": "UNKNOWN", "confidence": 0.0, "assets": {}}
-    if not is_lbank_futures_record(data):
+    if not is_project60_perpetual_record(data):
         return {"available": False, "reason": "project60_source_not_lbank_futures",
                 "source": data.get("source"), "market": data.get("market"),
                 "bias": "UNKNOWN", "confidence": 0.0, "assets": {}}
