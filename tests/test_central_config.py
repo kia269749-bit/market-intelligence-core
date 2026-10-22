@@ -12,6 +12,12 @@ class CentralConfigTests(unittest.TestCase):
         self.assertTrue(cfg.research_only)
         self.assertFalse(cfg.live_orders)
 
+    def test_market_data_venue_is_separate_from_lbank_cost_model(self):
+        cfg = load_settings()
+        self.assertEqual(cfg.data_exchange, "hyperliquid")
+        self.assertEqual(cfg.exchange, "lbank")
+        self.assertEqual(cfg.market, "futures")
+
     def test_fee_source_is_explicit_about_account_verification(self):
         cfg = load_settings()
         self.assertGreaterEqual(cfg.taker_fee_bps, 0)
