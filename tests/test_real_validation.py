@@ -84,7 +84,7 @@ class RealValidationTests(unittest.TestCase):
             "predictions": [
                 {"ts": 1_791_257_623, "pred": -1, "actual": -1},
                 {"ts": 1_791_264_823, "pred": 1, "actual": 1},  # two-hour gap
-                {"ts": 1_791_268_423, "pred": -1, "actual": 1},  # one-hour gap
+                {"ts": 1_791_266_623, "pred": -1, "actual": 1},  # thirty-minute gap
             ],
         }
         metrics = _oos_integrity_metrics(result, 60)
