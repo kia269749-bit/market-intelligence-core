@@ -333,8 +333,12 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
     }
 
 
-def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
+def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=None):
     """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
+    if round_trip_cost_pct is None:
+        from .central_config import load_settings
+        settings = load_settings()
+        round_trip_cost_pct = 2.0 * (settings.taker_fee_bps + settings.spread_bps + settings.slippage_bps + settings.impact_bps) / 100.0
     rows = [
         x for x in result.get("predictions", [])
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
