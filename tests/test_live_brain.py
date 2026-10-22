@@ -52,7 +52,7 @@ class LiveBrainTests(unittest.TestCase):
 
     def test_conflicting_microstructure_penalizes_action(self):
         market={"rows":[{"change_24h_pct":5.0,"price":100}]}
-        p60={"available":True,"bias":"BULLISH","confidence":.8,
+        p60={"available":True,"source":"lbank_contract_marketData","market":"futures","product_group":"SwapU","bias":"BULLISH","confidence":.8,
              "assets":{"BTC":{"available":True,"trade_imbalance_pct":-90,"funding":0}}}
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[] }):
             snap=run_once(project60=p60)
@@ -168,7 +168,7 @@ class LiveBrainTests(unittest.TestCase):
             with open(path,"w",encoding="utf-8") as f:
                 for i in range(80):
                     price*=1.0005
-                    f.write(json.dumps({"timestamp":i,"coins":{"BTC":{"price":price}}})+"\n")
+                    f.write(json.dumps({"timestamp":i,"source":"lbank_contract_marketData","market":"futures","product_group":"SwapU","coins":{"BTC":{"price":price}}})+"\n")
             result=_forecast_from_project60(path,"BTC")
             self.assertTrue(result["available"])
             self.assertIn("1_hour",result["horizons"])
