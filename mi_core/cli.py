@@ -30,6 +30,45 @@ def demo(out):
         append_jsonl(fp,MarketBar(i,"BTCUSDT",price,volume=100+i%20,buy_volume=60+i%10,sell_volume=40,whale_buy=12+i%5,whale_sell=6,sentiment=.2).to_dict())
     print(fp)
 
+def _project60_current_prices(path):
+    """Return prices only from the latest explicitly tagged LBank Futures snapshot."""
+    if not path:
+        return {}
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    latest = next((line for line in reversed(lines) if line.strip()), None)
+    if latest is None:
+        return {}
+    try:
+        payload = json.loads(latest)
+    except json.JSONDecodeError:
+        return {}
+    if not is_lbank_futures_record(payload):
+        return {}
+    coins = payload.get("coins", {})
+    if isinstance(coins, list):
+        coins = {
+            str(row.get("coin")): row
+            for row in coins
+            if isinstance(row, dict) and row.get("coin") is not None
+        }
+    if not isinstance(coins, dict):
+        return {}
+    prices = {}
+    for asset, row in coins.items():
+        if not isinstance(row, dict) or row.get("price") is None:
+            continue
+        try:
+            price = float(row["price"])
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(price) and price > 0:
+            prices[str(asset).upper()] = price
+    return prices
+
+
 def load_project60_bars(path, asset="BTC", max_rows=800):
     rows=[]
     for line in Path(path).read_text(encoding="utf-8").splitlines()[-max_rows:]:
@@ -230,21 +269,7 @@ def main():
                 fc=snap.get("evidence",{}).get("forecast",{})
                 selected=fc.get("selected") if isinstance(fc,dict) else {}
                 current_price=selected.get("current_price") if isinstance(selected,dict) else None
-                current_prices={}
-                if x.project60_file:
-                    try:
-                        latest=Path(x.project60_file).read_text(encoding="utf-8").splitlines()[-1]
-                        payload=json.loads(latest)
-                        coins=payload.get("coins",{})
-                        if isinstance(coins,list):
-                            coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
-                        for asset,row in coins.items():
-                            if isinstance(row,dict) and row.get("price") is not None:
-                                price=float(row.get("price"))
-                                if price>0:
-                                    current_prices[str(asset).upper()]=price
-                    except (OSError,ValueError,TypeError,IndexError,json.JSONDecodeError):
-                        current_prices={}
+                current_prices=_project60_current_prices(x.project60_file)
                 if current_prices:
                     resolve_open_signals(x.outcome_journal, current_prices)
                 elif current_price is not None:
