@@ -80,33 +80,75 @@ def _path_excursion_metrics(result, target_levels=(1.15, 2.35), stop_levels=(0.5
 
 
 def _oos_integrity_metrics(result, horizon):
-    """Detect class collapse, weak baselines, and overlapping OOS windows."""
-    rows=[x for x in result.get("predictions",[]) if x.get("actual") in (-1,0,1) and x.get("pred") in (-1,0,1)]
-    actual_counts={str(k):sum(x["actual"]==k for x in rows) for k in (-1,0,1)}
-    pred_counts={str(k):sum(x["pred"]==k for x in rows) for k in (-1,0,1)}
-    n=len(rows)
-    majority=max(actual_counts.values()) if rows else 0
-    majority_class=max(actual_counts,key=actual_counts.get) if rows else None
-    majority_accuracy=majority/n if n else 0.0
-    prediction_classes=sum(v>0 for v in pred_counts.values())
-    actual_classes=sum(v>0 for v in actual_counts.values())
-    pairs=0
-    overlapping_pairs=0
-    ts=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
-    for a,b in zip(ts,ts[1:]):
-        pairs+=1
-        if b-a < int(horizon)*60_000:
-            overlapping_pairs+=1
-    overlap_rate=overlapping_pairs/pairs if pairs else 0.0
-    return {"resolved":n,"actual_class_counts":actual_counts,"prediction_class_counts":pred_counts,
-            "actual_class_count":actual_classes,"prediction_class_count":prediction_classes,
-            "majority_class":majority_class,"majority_baseline_accuracy":round(majority_accuracy,6),
-            "model_vs_majority_accuracy_lift":round(float(result.get("accuracy",0.0))-majority_accuracy,6),
-            "overlapping_adjacent_pairs":overlapping_pairs,"adjacent_pairs":pairs,
-            "overlap_rate":round(overlap_rate,6),"horizon_bars":int(horizon),
-            "class_collapse": actual_classes < 2 or prediction_classes < 2,
-            "research_only":True,"live_orders":False}
+    """Report class balance, majority baseline, balanced accuracy and OOS overlap."""
+    rows = [
+        x for x in result.get("predictions", [])
+        if x.get("actual") in (-1, 0, 1) and x.get("pred") in (-1, 0, 1)
+    ]
+    actual_counts = {str(k): sum(x["actual"] == k for x in rows) for k in (-1, 0, 1)}
+    pred_counts = {str(k): sum(x["pred"] == k for x in rows) for k in (-1, 0, 1)}
+    n = len(rows)
+    majority = max(actual_counts.values()) if rows else 0
+    majority_class = max(actual_counts, key=actual_counts.get) if rows else None
+    majority_accuracy = majority / n if n else 0.0
+    prediction_classes = sum(v > 0 for v in pred_counts.values())
+    actual_classes = sum(v > 0 for v in actual_counts.values())
 
+    # Balanced accuracy is macro recall over classes present in the actual labels.
+    recalls = []
+    for cls in (-1, 0, 1):
+        support = actual_counts[str(cls)]
+        if support:
+            correct = sum(x["pred"] == cls and x["actual"] == cls for x in rows)
+            recalls.append(correct / support)
+    balanced_accuracy = sum(recalls) / len(recalls) if recalls else 0.0
+
+    # Compare only truly adjacent prediction rows. A missing timestamp row
+    # must not create synthetic adjacency between the surrounding rows.
+    adjacent_timestamp_pairs = [
+        (a.get("ts"), b.get("ts"))
+        for a, b in zip(rows, rows[1:])
+        if isinstance(a.get("ts"), (int, float))
+        and isinstance(b.get("ts"), (int, float))
+    ]
+    positive_deltas = [b - a for a, b in adjacent_timestamp_pairs if b > a]
+    ts = [x.get("ts") for x in rows if isinstance(x.get("ts"), (int, float))]
+
+    # Project60 normally stores Unix seconds; some imported fixtures use ms.
+    # Infer units so epoch seconds are not compared to a millisecond threshold.
+    if any(abs(value) >= 100_000_000_000 for value in ts):
+        timestamp_scale = 1000
+    elif any(abs(value) >= 100_000_000 for value in ts):
+        timestamp_scale = 1
+    else:
+        typical_delta = sorted(positive_deltas)[len(positive_deltas) // 2] if positive_deltas else 0
+        timestamp_scale = 1000 if typical_delta >= 1000 else 1
+
+    overlap_window = int(horizon) * 60 * timestamp_scale
+    pairs = len(adjacent_timestamp_pairs)
+    overlapping_pairs = sum(
+        1 for a, b in adjacent_timestamp_pairs if 0 < b - a < overlap_window
+    )
+    overlap_rate = overlapping_pairs / pairs if pairs else 0.0
+
+    return {
+        "resolved": n,
+        "actual_class_counts": actual_counts,
+        "prediction_class_counts": pred_counts,
+        "actual_class_count": actual_classes,
+        "prediction_class_count": prediction_classes,
+        "majority_class": majority_class,
+        "majority_baseline_accuracy": round(majority_accuracy, 6),
+        "model_vs_majority_accuracy_lift": round(float(result.get("accuracy", 0.0)) - majority_accuracy, 6),
+        "balanced_accuracy": round(balanced_accuracy, 6),
+        "overlapping_adjacent_pairs": overlapping_pairs,
+        "adjacent_pairs": pairs,
+        "overlap_rate": round(overlap_rate, 6),
+        "horizon_bars": int(horizon),
+        "class_collapse": actual_classes < 2 or prediction_classes < 2,
+        "research_only": True,
+        "live_orders": False,
+    }
 
 def _opportunity_tier(prediction_metrics, economic_metrics, capital_metrics, integrity_metrics=None):
     if integrity_metrics and integrity_metrics.get("class_collapse"):
