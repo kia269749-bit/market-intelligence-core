@@ -39,14 +39,14 @@ class Project60AdapterTests(unittest.TestCase):
             self.assertEqual(result["assets"]["BTC"]["price"], 85313.0)
             self.assertEqual(result["assets"]["ETH"]["direction"], "UNKNOWN")
 
-    def test_live_evidence_rejects_non_lbank_source(self):
+    def test_live_evidence_accepts_hyperliquid_perpetual_source(self):
         raw = {"timestamp": 1, "source": "hyperliquid", "coins": {"BTC": {"price": 100}}}
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "market.jsonl"
             path.write_text(json.dumps(raw) + "\n", encoding="utf-8")
             result = live_evidence(str(path))
-        self.assertFalse(result["available"])
-        self.assertEqual(result["reason"], "project60_source_not_lbank_futures")
+        self.assertTrue(result["available"])
+        self.assertEqual(result["source"], "hyperliquid")
 
     def test_conflicting_asset_evidence_becomes_unknown(self):
         raw = {
