@@ -17,7 +17,7 @@ def _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, ri
 
 def _metrics(trades, initial, final, max_drawdown):
     pnls = [t.pnl for t in trades]  # net of modeled execution costs
-    gross_pnls = [t.pnl + t.cost for t in trades]
+    gross_pnls = [t.gross_pnl if t.gross_pnl is not None else t.pnl for t in trades]
     net_winners = [p for p in pnls if p > 0]
     net_losers = [p for p in pnls if p < 0]
     gross_profit = sum(p for p in gross_pnls if p > 0)
@@ -98,17 +98,17 @@ def run(
         entry = base_entry * (1 + direction * friction)
         exitp = base_exit * (1 - direction * friction)
         qty = equity * risk_fraction / max(entry, 1e-12)
-        gross = direction * (exitp - entry) * qty
+        gross = direction * (base_exit - base_entry) * qty
         fee_cost = (abs(entry * qty) + abs(exitp * qty)) * fee_bps / 10000.0
         market_friction_cost = (abs(base_entry * qty) + abs(base_exit * qty)) * friction_bps / 10000.0
         cost = fee_cost + market_friction_cost
-        pnl = gross - fee_cost
+        pnl = gross - cost
         equity += pnl
 
         trades.append(
             Trade(
                 bars[entry_i].ts, bars[exit_i].ts, s.symbol, s.side,
-                entry, exitp, qty, pnl, cost, "signal",
+                entry, exitp, qty, pnl, cost, "signal", gross_pnl=gross,
             )
         )
         peak = max(peak, equity)
