@@ -84,6 +84,12 @@ jobs:
               return False
 
           def valid_price(data):
+              if isinstance(data, dict):
+                  nested = data.get("data")
+                  if isinstance(nested, dict) and valid_price(nested):
+                      return True
+                  if isinstance(nested, list) and valid_price(nested):
+                      return True
               candidates = rows(data)
               if not candidates and isinstance(data, dict):
                   candidates = [data]
