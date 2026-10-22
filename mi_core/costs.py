@@ -7,7 +7,7 @@ from dataclasses import dataclass
 class ExecutionCostConfig:
     """Research-only execution-cost assumptions, expressed in basis points."""
 
-    taker_fee_bps: float = 5.0
+    taker_fee_bps: float = 6.0
     spread_bps: float = 2.0
     slippage_bps: float = 3.0
     impact_bps: float = 1.0
@@ -52,7 +52,17 @@ def estimate_execution_cost(
     if notional <= 0:
         raise ValueError("notional must be positive")
 
-    cfg = config or ExecutionCostConfig()
+    if config is None:
+        from .central_config import load_settings
+        settings = load_settings()
+        cfg = ExecutionCostConfig(
+            taker_fee_bps=settings.taker_fee_bps,
+            spread_bps=settings.spread_bps,
+            slippage_bps=settings.slippage_bps,
+            impact_bps=settings.impact_bps,
+        )
+    else:
+        cfg = config
     fee = cfg.taker_fee_bps if fee_bps is None else float(fee_bps)
     spread = cfg.spread_bps if spread_bps is None else float(spread_bps)
     slippage = cfg.slippage_bps if slippage_bps is None else float(slippage_bps)
