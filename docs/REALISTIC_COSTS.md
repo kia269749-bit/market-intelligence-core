@@ -2,14 +2,14 @@
 
 The validation pipeline must not treat raw price movement as tradable profit.
 
-mi_core.costs separates the main execution-cost assumptions:
-
+`mi_core.costs` separates the main execution-cost assumptions:
 - taker fee
 - bid/ask spread
 - market slippage
 - market-impact allowance
 
-All values are expressed in basis points and are applied to trade notional. The result is a transparent ExecutionCost object containing every component and the total cost.
+Inputs are expressed in basis points (bps) **per side**. The estimate is round-trip:
+entry and exit fees are both charged, and spread, slippage, and impact are modeled on both fills. The result is a transparent `ExecutionCost` object with every component and the total.
 
 ## Design rules
 
@@ -17,22 +17,20 @@ All values are expressed in basis points and are applied to trade notional. The 
 2. No exchange credentials or live orders are required.
 3. No future information is used.
 4. The engine is research-only.
-5. Backtests must report gross PnL and each cost component separately.
-6. Cost assumptions must be configurable rather than hidden constants.
+5. Backtests report net PnL and include all modeled friction in trade-level cost totals.
+6. Central assumptions are read from `config/default.json`; explicit per-call overrides remain possible for controlled scenario tests.
 
-The legacy backtest fee_bps remains supported as a compatibility override. Later validation stages can supply venue/symbol/regime-specific assumptions and stress them during out-of-sample testing.
+## Central LBank Futures research assumptions
 
-## Default research assumptions
+The current default profile is LBank USDT-margined futures:
+- taker fee: 6 bps per side (published default, not account-tier verified)
+- maker fee: 2 bps per side (published default, not account-tier verified)
+- spread allowance: 2 bps per side
+- slippage allowance: 3 bps per side
+- impact allowance: 1 bp per side
 
-The default configuration is intentionally conservative for a generic crypto research backtest:
+With taker execution, the modeled round-trip total is 24 bps, or 0.24% of notional, before funding and any additional venue/account-specific charges. These are explicit research assumptions, not a guarantee of realized costs. The user's account fee tier has not been verified.
 
-- taker fee: 5 bps
-- spread: 2 bps
-- slippage: 3 bps
-- impact: 1 bp
+## Validation requirements
 
-These are modeling assumptions, not claims about any specific exchange's current fee schedule. Real venue-specific parameters should replace them when available.
-
-## Next step
-
-The next validation stage will add chronological train/test and walk-forward/OOS evaluation. Cost assumptions must be fixed from the training specification and applied unchanged to the corresponding OOS period unless a documented scenario test is being run.
+Cost assumptions must be fixed in the research protocol and applied unchanged to the corresponding out-of-sample period unless a documented scenario test is being run. Strategy reports must distinguish gross movement, fees, spread, slippage, impact, funding, and net outcome where data permits.
