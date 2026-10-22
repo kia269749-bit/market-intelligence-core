@@ -1,0 +1,195 @@
+name: Toobit Ourbit Futures Read-only Smoke
+
+on:
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  futures-public-api-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe public futures endpoints only (no keys, no orders)
+        run: |
+          python - <<'PY'
+          import json
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          UA = "market-intelligence-core-readonly-smoke/1.0"
+          TIMEOUT = 8
+
+          def get_json(base, path, params=None):
+              url = base.rstrip("/") + path
+              if params:
+                  url += "?" + urllib.parse.urlencode(params)
+              req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
+                      raw = response.read(1_000_000)
+                      try:
+                          data = json.loads(raw.decode("utf-8"))
+                      except Exception:
+                          print(f"  HTTP {response.status} NON_JSON {url}")
+                          return None
+                      print(f"  HTTP {response.status} JSON {type(data).__name__} {url}")
+                      print("  BODY_PREVIEW " + json.dumps(data, separators=(",", ":"))[:360])
+                      return data
+              except urllib.error.HTTPError as exc:
+                  print(f"  HTTP {exc.code} {url}")
+              except Exception as exc:
+                  print(f"  ERROR {type(exc).__name__}: {str(exc)[:180]} {url}")
+              return None
+
+          def rows(data):
+              if isinstance(data, list):
+                  return data
+              if isinstance(data, dict):
+                  for key in ("data", "result", "list", "contracts", "rows"):
+                      value = data.get(key)
+                      if isinstance(value, list):
+                          return value
+                      if isinstance(value, dict):
+                          for inner in ("data", "list", "rows", "contracts"):
+                              if isinstance(value.get(inner), list):
+                                  return value[inner]
+              return []
+
+          def valid_levels(data):
+              if not isinstance(data, dict):
+                  return False
+              nested = data.get("data")
+              if isinstance(nested, dict) and valid_levels(nested):
+                  return True
+              for bid_key, ask_key in (("b", "a"), ("bids", "asks")):
+                  bids, asks = data.get(bid_key), data.get(ask_key)
+                  if isinstance(bids, list) and isinstance(asks, list) and bids and asks:
+                      try:
+                          bid0, ask0 = bids[0], asks[0]
+                          bid = float(bid0[0] if isinstance(bid0, (list, tuple)) else bid0.get("price", bid0.get("p")))
+                          ask = float(ask0[0] if isinstance(ask0, (list, tuple)) else ask0.get("price", ask0.get("p")))
+                          return bid > 0 and ask > 0 and ask >= bid
+                      except Exception:
+                          pass
+              return False
+
+          def valid_price(data):
+              if isinstance(data, dict):
+                  nested = data.get("data")
+                  if isinstance(nested, dict) and valid_price(nested):
+                      return True
+                  if isinstance(nested, list) and valid_price(nested):
+                      return True
+              candidates = rows(data)
+              if not candidates and isinstance(data, dict):
+                  candidates = [data]
+              for item in candidates:
+                  if not isinstance(item, dict):
+                      continue
+                  for key in ("p", "price", "lastPrice", "last", "last_price", "close", "c"):
+                      try:
+                          if float(item[key]) > 0:
+                              return True
+                      except (KeyError, TypeError, ValueError):
+                          pass
+              return False
+
+          results = {}
+
+          print("=== TOOBIT USDT-M FUTURES ===")
+          base = "https://api.toobit.com"
+          info = get_json(base, "/api/v1/exchangeInfo")
+          contract_symbols = []
+          for item in rows(info):
+              if isinstance(item, dict):
+                  symbol = item.get("symbol") or item.get("s")
+                  if symbol and ("SWAP" in str(symbol).upper() or "CONTRACT" in str(item.get("contractType", "")).upper()):
+                      contract_symbols.append(str(symbol))
+          symbol = next((s for s in contract_symbols if "BTC" in s.upper() and "USDT" in s.upper()), "BTC-SWAP-USDT")
+          print(f"  candidate_contract_symbol={symbol}; exchangeInfo_contracts={len(contract_symbols)}")
+          ticker_ok = False
+          for path, params in (
+              ("/quote/v1/contract/ticker/price", {"symbol": symbol}),
+              ("/quote/v1/contract/ticker/24hr", {"symbol": symbol}),
+              ("/quote/v1/markPrice", {"symbol": symbol}),
+          ):
+              data = get_json(base, path, params)
+              if valid_price(data):
+                  ticker_ok = True
+                  print(f"  VALID_FUTURES_PRICE endpoint={path}")
+                  break
+          book_ok = False
+          for path, params in (
+              ("/quote/v1/depth", {"symbol": symbol, "limit": 5}),
+              ("/quote/v1/depth/merged", {"symbol": symbol, "limit": 5}),
+              ("/quote/v1/contract/ticker/bookTicker", {"symbol": symbol}),
+          ):
+              data = get_json(base, path, params)
+              if valid_levels(data) or (isinstance(data, list) and valid_price(data) and any(isinstance(x, dict) and x.get("b") and x.get("a") for x in data)):
+                  book_ok = True
+                  print(f"  VALID_FUTURES_ORDERBOOK endpoint={path}")
+                  break
+          funding = get_json(base, "/api/v1/futures/fundingRate", {"symbol": symbol})
+          funding_ok = bool(rows(funding)) or (isinstance(funding, dict) and any(k in funding for k in ("rate", "fundingRate", "funding_rate")))
+          print(f"  RESULT ticker={ticker_ok} orderbook={book_ok} funding={funding_ok}")
+          results["toobit"] = ticker_ok and book_ok
+
+          print("=== OURBIT FUTURES ===")
+          ourbit_bases = ("https://futures.ourbit.com",)
+          ourbit_symbol = "BTC_USDT"
+          ourbit_ticker_ok = False
+          ourbit_book_ok = False
+          for obase in ourbit_bases:
+              print(f"  base={obase}")
+              detail = get_json(obase, "/api/v1/contract/detail", {"symbol": ourbit_symbol})
+              detail_rows = rows(detail)
+              for item in detail_rows:
+                  if isinstance(item, dict):
+                      candidate = item.get("symbol") or item.get("symbolName") or item.get("contractCode")
+                      if candidate and "BTC" in str(candidate).upper() and "USDT" in str(candidate).upper():
+                          ourbit_symbol = str(candidate)
+                          break
+              print(f"  candidate_contract_symbol={ourbit_symbol}; contract_rows={len(detail_rows)}")
+              for path, params in (
+                  ("/api/v1/contract/ticker", {"symbol": ourbit_symbol}),
+                  ("/api/v1/contract/ticker/price", {"symbol": ourbit_symbol}),
+                  ("/api/v1/contract/ticker/24hr", {"symbol": ourbit_symbol}),
+                  ("/api/v1/contract/market/ticker", {"symbol": ourbit_symbol}),
+              ):
+                  data = get_json(obase, path, params)
+                  if valid_price(data):
+                      ourbit_ticker_ok = True
+                      print(f"  VALID_FUTURES_PRICE endpoint={path}")
+                      break
+              for path, params in (
+                  ("/api/v1/contract/depth", {"symbol": ourbit_symbol, "limit": 5}),
+                  ("/api/v1/contract/depth/" + ourbit_symbol, None),
+                  ("/api/v1/contract/market/depth", {"symbol": ourbit_symbol, "limit": 5}),
+              ):
+                  data = get_json(obase, path, params)
+                  if valid_levels(data):
+                      ourbit_book_ok = True
+                      print(f"  VALID_FUTURES_ORDERBOOK endpoint={path}")
+                      break
+              if ourbit_ticker_ok and ourbit_book_ok:
+                  break
+          print(f"  RESULT ticker={ourbit_ticker_ok} orderbook={ourbit_book_ok}")
+          results["ourbit"] = ourbit_ticker_ok and ourbit_book_ok
+
+          print("=== SUMMARY ===")
+          for name, ok in results.items():
+              print(f"{name.upper()}_FUTURES_READONLY_SMOKE={'PASS' if ok else 'FAIL'}")
+          print("No API credentials used. No orders or account endpoints called.")
+          if not all(results.values()):
+              sys.exit(1)
+          PY
