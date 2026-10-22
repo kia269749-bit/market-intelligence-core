@@ -129,7 +129,7 @@ class RealValidationTests(unittest.TestCase):
         }
         metrics = _oos_integrity_metrics(result, 60)
         # Recalls: 1.0 for -1, 0.0 for flat, 1.0 for +1.
-        self.assertEqual(metrics["balanced_accuracy"], 2 / 3)
+        self.assertAlmostEqual(metrics["balanced_accuracy"], 2 / 3, places=6)
 
     def test_class_collapse_blocks_watch(self):
         tier = _opportunity_tier(
