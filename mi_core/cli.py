@@ -21,6 +21,7 @@ from .multi_asset_forecast import scan_project60, load_project60_assets
 from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .oos_multihorizon import evaluate_project60_multihorizon
+from .source_policy import is_lbank_futures_record
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -33,7 +34,9 @@ def load_project60_bars(path, asset="BTC", max_rows=800):
     rows=[]
     for line in Path(path).read_text(encoding="utf-8").splitlines()[-max_rows:]:
         try:
-            x=json.loads(line); coins=x.get("coins",{})
+            x=json.loads(line)
+            if not is_lbank_futures_record(x): continue
+            coins=x.get("coins",{})
             if isinstance(coins,list): coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
             a=coins.get(asset) or coins.get(asset.upper())
             if not isinstance(a,dict): continue
