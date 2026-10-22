@@ -142,7 +142,9 @@ def _validated_forecast_from_project60(path, asset="BTC", max_rows=500):
     try:
         for line in p.read_text(encoding="utf-8").splitlines()[-max_rows:]:
             try:
-                x=json.loads(line); coins=x.get("coins",{})
+                x=json.loads(line)
+                if not is_lbank_futures_record(x): continue
+                coins=x.get("coins",{})
                 if isinstance(coins,list):
                     coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
                 a=coins.get(asset) or coins.get(asset.upper())
