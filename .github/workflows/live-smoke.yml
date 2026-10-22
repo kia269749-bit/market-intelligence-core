@@ -23,3 +23,17 @@ jobs:
       - name: One read-only LBank futures snapshot
         run: |
           python -c 'from mi_core.lbank_futures import fetch_snapshot; s = fetch_snapshot(); q = s["data_quality"]; print("exchange=lbank market=futures quality={} symbols={}/{}".format(q["status"], q["successful_sources"], q["expected_sources"])); print("symbols=" + ",".join(r["symbol"] for r in s["rows"])); assert s["exchange"] == "lbank" and s["market"] == "futures"; assert q["status"] == "HEALTHY"; assert s["research_only"] is True and s["live_orders"] is False'
+      - name: One read-only LBank futures orderbook
+        run: |
+          python - <<'PY'
+          from mi_core.central_config import load_settings
+          from mi_core.lbank_futures import fetch_orderbook
+          settings = load_settings()
+          book = fetch_orderbook(settings.symbols[0], depth=5)
+          print("exchange={} market={} symbol={} quality={} spread_pct={:.6f}".format(
+              book["exchange"], book["market"], book["symbol"],
+              book["data_quality"], book["spread_pct"]))
+          assert book["exchange"] == "lbank" and book["market"] == "futures"
+          assert book["data_quality"] == "HEALTHY"
+          assert book["research_only"] is True and book["live_orders"] is False
+          PY
