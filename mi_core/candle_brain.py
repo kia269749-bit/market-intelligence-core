@@ -11,7 +11,7 @@ import json
 import math
 from pathlib import Path
 
-from .source_policy import is_lbank_futures_record
+from .source_policy import is_project60_perpetual_record
 
 
 def _num(v, default=0.0):
@@ -60,7 +60,7 @@ def build_candles(path, asset="BTC", max_rows=800, span=5):
     for line in lines:
         try:
             x=json.loads(line)
-            if not is_lbank_futures_record(x): continue
+            if not is_project60_perpetual_record(x): continue
             coins=x.get("coins",{})
             if isinstance(coins,list):
                 coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
