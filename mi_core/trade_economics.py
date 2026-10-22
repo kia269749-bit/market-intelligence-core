@@ -1,4 +1,4 @@
-""""Capital-aware economics using the centralized LBank futures settings by default."""
+"""Capital-aware economics using the centralized LBank futures settings by default."""
 from dataclasses import dataclass
 
 from .central_config import load_settings
