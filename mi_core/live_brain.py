@@ -5,6 +5,7 @@ from .fomo_live import scan_boosted
 from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
 from .trade_economics import evaluate_capital_target
 from .timing_engine import evaluate_entry_timing
+from .source_policy import is_lbank_futures_record
 
 def _num(v, d=0.0):
     try: return float(v)
@@ -83,7 +84,9 @@ def _forecast_from_project60(path, asset="BTC", max_rows=600):
     try:
         for line in p.read_text(encoding="utf-8").splitlines()[-max_rows:]:
             try:
-                x=json.loads(line); coins=x.get("coins",{})
+                x=json.loads(line)
+                if not is_lbank_futures_record(x): continue
+                coins=x.get("coins",{})
                 if isinstance(coins,list):
                     coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
                 a=coins.get(asset) or coins.get(asset.upper())
@@ -375,6 +378,8 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         quality=_data_quality(market)
         quality_status=str(quality.get("status","UNSAFE")).upper()
     regime=_regime(market)
+    if not is_lbank_futures_record(project60):
+        project60 = None
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
     votes=[(raw_bias,raw_conf)]
