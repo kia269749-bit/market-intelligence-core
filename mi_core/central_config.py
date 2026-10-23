@@ -32,6 +32,9 @@ class CentralSettings:
     slippage_bps: float
     impact_bps: float
     latency_bars: int
+    capital_usd: float
+    min_profit_usd: float
+    preferred_profit_usd: float
     research_only: bool
     live_orders: bool
 
@@ -53,8 +56,9 @@ def load_settings() -> CentralSettings:
     markets = _read_json(MARKETS_CONFIG_PATH)
     fees = defaults.get("fees", {})
     costs = defaults.get("costs", {})
-    if not isinstance(fees, dict) or not isinstance(costs, dict):
-        raise RuntimeError("fees and costs config sections must be objects")
+    capital_policy = defaults.get("capital_policy", {})
+    if not isinstance(fees, dict) or not isinstance(costs, dict) or not isinstance(capital_policy, dict):
+        raise RuntimeError("fees, costs, and capital_policy config sections must be objects")
 
     exchange = str(markets.get("primary_exchange", markets.get("exchange", "lbank"))).lower()
     data_exchange = str(markets.get("market_data_exchange", "lbank")).lower()
@@ -91,6 +95,9 @@ def load_settings() -> CentralSettings:
         slippage_bps=float(costs.get("slippage_bps", 3.0)),
         impact_bps=float(costs.get("impact_bps", 1.0)),
         latency_bars=int(costs.get("latency_bars", 1)),
+        capital_usd=float(capital_policy.get("capital_usd", 500.0)),
+        min_profit_usd=float(capital_policy.get("min_profit_usd", 4.0)),
+        preferred_profit_usd=float(capital_policy.get("preferred_profit_usd", 10.0)),
         research_only=bool(markets.get("research_only", True)),
         live_orders=bool(markets.get("live_orders", False)),
     )
@@ -103,4 +110,6 @@ def load_settings() -> CentralSettings:
             raise RuntimeError(f"{name} must be non-negative")
     if settings.latency_bars < 0:
         raise RuntimeError("latency_bars must be non-negative")
+    if settings.capital_usd <= 0 or settings.min_profit_usd <= 0 or settings.preferred_profit_usd < settings.min_profit_usd:
+        raise RuntimeError("invalid centralized capital target policy")
     return settings
