@@ -27,6 +27,16 @@ class CapitalEconomicsTests(unittest.TestCase):
         maker = evaluate_capital_target(11.0, order_type="maker")
         self.assertLess(maker.round_trip_cost_pct, taker.round_trip_cost_pct)
 
+    def test_lbank_taker_cost_is_024_percent_round_trip(self):
+        result = evaluate_capital_target(1.2, exchange="lbank_futures", order_type="taker")
+        self.assertAlmostEqual(result.round_trip_cost_pct, 0.24, places=6)
+
+    def test_hyperliquid_data_venue_does_not_override_lbank_cost_model(self):
+        for venue in ("hyperliquid", "hyperliquid_perps", "hyperliquid_perpetuals"):
+            with self.subTest(venue=venue):
+                result = evaluate_capital_target(1.2, exchange=venue, order_type="taker")
+                self.assertAlmostEqual(result.round_trip_cost_pct, 0.24, places=6)
+
 
 if __name__ == "__main__":
     unittest.main()

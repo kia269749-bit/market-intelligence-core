@@ -47,15 +47,21 @@ def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
                              expected_move_pct, 0, 0, 0, 0, 0, "invalid_policy")
 
     settings = load_settings()
-    if exchange is None or str(exchange).lower() in ("lbank", "lbank_futures"):
+    # The market-data venue must never select the transaction-cost model.
+    # Hyperliquid is the observation source in this project; all project economics
+    # use the centralized LBank Futures assumptions (24 bps taker round trip).
+    # Keep older Hyperliquid labels as compatibility aliases to the central model.
+    venue = str(exchange).lower() if exchange is not None else ""
+    if venue in ("", "lbank", "lbank_futures", "hyperliquid", "hyperliquid_perps",
+                 "hyperliquid_perpetuals", "hyperliquid_perpetual"):
         fee = settings.maker_fee_bps if str(order_type).lower() == "maker" else settings.taker_fee_bps
         spread_default = settings.spread_bps
         slip_default = settings.slippage_bps
         impact_default = settings.impact_bps
     else:
-        profile = PROFILES.get(str(exchange).lower())
+        profile = PROFILES.get(venue)
         if profile is None:
-            raise ValueError(f"unsupported exchange profile: {exchange}")
+            raise ValueError(f"unsupported cost-model profile: {exchange}")
         fee = profile.maker_fee_bps if str(order_type).lower() == "maker" else profile.taker_fee_bps
         spread_default = profile.spread_bps
         slip_default = profile.slippage_bps
