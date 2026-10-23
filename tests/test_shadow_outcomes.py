@@ -42,6 +42,28 @@ class ShadowOutcomeTests(unittest.TestCase):
             self.assertEqual(s["losses"],1)
             self.assertLess(s["net_profit_usd"],0)
 
+    def test_missing_cost_does_not_resolve_as_zero_cost(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=str(Path(td)/"shadow.jsonl")
+            append_signal(p,{"signal_id":"legacy","asset":"BTC","direction":"BULLISH",
+                             "entry_price":100.0,"stop":99.0,"target":102.0,
+                             "capital_usd":500.0,"research_only":True})
+            self.assertEqual(resolve_open_signals(p,102.0,now=200),0)
+            rows=[json.loads(line) for line in Path(p).read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(rows[0]["status"],"OPEN")
+            self.assertNotIn("net_profit_usd",rows[0])
+
+    def test_invalid_cost_does_not_resolve_shadow_record(self):
+        with tempfile.TemporaryDirectory() as td:
+            p=str(Path(td)/"shadow.jsonl")
+            append_signal(p,{"signal_id":"bad-cost","asset":"BTC","direction":"BULLISH",
+                             "entry_price":100.0,"stop":99.0,"target":102.0,
+                             "capital_usd":500.0,"round_trip_cost_pct":-0.1,
+                             "research_only":True})
+            self.assertEqual(resolve_open_signals(p,102.0,now=200),0)
+            rows=[json.loads(line) for line in Path(p).read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(rows[0]["status"],"OPEN")
+
     def test_asset_price_map_does_not_cross_resolve_assets(self):
         with tempfile.TemporaryDirectory() as td:
             p=str(Path(td)/"shadow.jsonl")

@@ -63,8 +63,19 @@ def resolve_open_signals(path: str, current_price: float | dict, now: int | None
         if status=="OPEN": continue
         entry=float(row["entry_price"]); direction=str(row["direction"]).upper()
         gross_pct=((price-entry)/entry*100) if direction=="BULLISH" else ((entry-price)/entry*100)
-        cost_pct=float(row.get("round_trip_cost_pct",0.0) or 0.0)
-        capital=float(row.get("capital_usd",500.0) or 500.0)
+        # Never turn missing/invalid historical costs into a free trade.
+        # Keep such records OPEN until their cost basis can be reconstructed.
+        raw_cost = row.get("round_trip_cost_pct")
+        if raw_cost is None:
+            continue
+        try:
+            cost_pct = float(raw_cost)
+            capital = float(row.get("capital_usd", 500.0))
+        except (TypeError, ValueError):
+            continue
+        if not (cost_pct >= 0 and cost_pct < float("inf")
+                and capital > 0 and capital < float("inf")):
+            continue
         row.update({"status":status,"resolved_ts":now,"exit_price":price,
                     "gross_move_pct":round(gross_pct,6),
                     "net_profit_usd":round(capital*(gross_pct-cost_pct)/100,4)})
