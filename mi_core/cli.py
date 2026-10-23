@@ -22,6 +22,7 @@ from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .oos_multihorizon import evaluate_project60_multihorizon
 from .source_policy import is_project60_perpetual_record
+from .central_config import load_settings
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -190,7 +191,7 @@ def _append_shadow_if_actionable(journal_path, snapshot):
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
-        "capital_usd":500.0,
+        "capital_usd":load_settings().capital_usd,
         "round_trip_cost_pct":round_trip_cost_pct,
         "cost_model_exchange":"lbank",
         "cost_model_market":"futures",
@@ -239,7 +240,8 @@ def main():
     elif x.cmd=="forecast-multihorizon-project60":
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
         result=evaluate_project60_multihorizon(bars)
-        result["metadata"]={"mode":"Project60 leakage-safe multi-horizon OOS","asset":x.asset,"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0}
+        settings=load_settings()
+        result["metadata"]={"mode":"Project60 leakage-safe multi-horizon OOS","asset":x.asset,"capital_usd":settings.capital_usd,"min_profit_usd":settings.min_profit_usd,"preferred_profit_usd":settings.preferred_profit_usd}
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_multihorizon.json"),result["metadata"])
         for h,m in result["horizons"].items():
             print("H={} resolved={} acc={:.4f} high_conf={:.4f} $4={:.4f} $10={:.4f} gate={}".format(h,m["resolved"],m["accuracy"],m["high_conf_accuracy"],m["usd4_hit_rate"],m["usd10_hit_rate"],m["acceptance"]["status"]))
@@ -247,17 +249,18 @@ def main():
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
         result["metrics"]=score_predictions(result)
-        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
+        settings=load_settings()
+        result["capital_metrics"]=score_capital_targets(result,capital_usd=settings.capital_usd,min_profit_usd=settings.min_profit_usd,preferred_profit_usd=settings.preferred_profit_usd)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
         result["forecast_now"] = _validated_forecast_from_project60(x.input,x.asset,x.max_rows)
-        write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
+        write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":settings.capital_usd,"min_profit_usd":settings.min_profit_usd,"preferred_profit_usd":settings.preferred_profit_usd,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
         bars=load_input(x.input)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window)
         result["metrics"]=score_predictions(result)
         result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
-        write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
+        write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":settings.capital_usd,"min_profit_usd":settings.min_profit_usd,"preferred_profit_usd":settings.preferred_profit_usd,"research_only":True,"live_orders":False})
     elif x.cmd=="live-all":
         if x.interval<10: raise ValueError("interval must be at least 10 seconds")
         count=0
