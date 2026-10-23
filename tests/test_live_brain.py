@@ -2,8 +2,16 @@ import unittest, json, tempfile, os
 from unittest.mock import patch
 from mi_core.live_brain import _market_bias, print_live, run_once, _data_quality, _microstructure, _fuse, _regime, _outcome_adjustment, _smart_money_score, _no_trade_guard, _forecast_from_project60
 from mi_core.timing_engine import evaluate_entry_timing
+from mi_core.central_config import load_settings
 
 class LiveBrainTests(unittest.TestCase):
+    def test_capital_policy_is_loaded_from_central_config(self):
+        settings = load_settings()
+        self.assertEqual(settings.capital_usd, 500.0)
+        self.assertEqual(settings.min_profit_usd, 4.0)
+        self.assertEqual(settings.preferred_profit_usd, 10.0)
+        self.assertLessEqual(settings.min_profit_usd, settings.preferred_profit_usd)
+
     def test_leader_follower_evidence_shape_is_preserved(self):
         evidence = {"available": True, "confirmed": True, "events": [{"token": "MEME"}]}
         self.assertTrue(evidence["confirmed"])
