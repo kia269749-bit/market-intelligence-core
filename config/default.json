@@ -3,20 +3,39 @@
   "market": "futures",
   "product_group": "SwapU",
   "fees": {
-    "maker_bps": 2.0,
-    "taker_bps": 6.0,
+    "maker_bps": 2,
+    "taker_bps": 6,
     "source": "lbank_published_default",
     "account_specific_verified": false
   },
   "costs": {
-    "fee_bps": 6.0,
-    "spread_bps": 2.0,
-    "slippage_bps": 3.0,
-    "impact_bps": 1.0,
+    "fee_bps": 6,
+    "spread_bps": 2,
+    "slippage_bps": 3,
+    "impact_bps": 1,
     "latency_bars": 1
   },
-  "risk": {"max_position": 0.25, "max_drawdown": 0.15, "kill_switch_drawdown": 0.20},
-  "validation": {"min_trades": 30, "min_profit_factor": 1.10, "min_expectancy": 0.0},
-  "signals": {"entry_threshold": 0.60, "adaptive_window": 100},
-  "regimes": {"trend_window": 20, "vol_window": 20}
+  "risk": {
+    "max_position": 0.25,
+    "max_drawdown": 0.15,
+    "kill_switch_drawdown": 0.2
+  },
+  "validation": {
+    "min_trades": 30,
+    "min_profit_factor": 1.1,
+    "min_expectancy": 0
+  },
+  "signals": {
+    "entry_threshold": 0.6,
+    "adaptive_window": 100
+  },
+  "regimes": {
+    "trend_window": 20,
+    "vol_window": 20
+  },
+  "capital_policy": {
+    "capital_usd": 500,
+    "min_profit_usd": 4,
+    "preferred_profit_usd": 10
+  }
 }
