@@ -6,6 +6,7 @@ from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
 from .trade_economics import evaluate_capital_target
 from .timing_engine import evaluate_entry_timing
 from .source_policy import is_project60_perpetual_record
+from .central_config import load_settings
 
 def _num(v, d=0.0):
     try: return float(v)
@@ -397,8 +398,11 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money,candle_evidence,market_context)
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
+        settings=load_settings()
         eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
-                                    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
+                                    capital_usd=settings.capital_usd,
+                                    min_profit_usd=settings.min_profit_usd,
+                                    preferred_profit_usd=settings.preferred_profit_usd)
         capital_economics={"available":True,"approved":eco.approved,
                            "expected_move_pct":eco.expected_move_pct,
                            "required_move_pct":eco.required_move_pct,
