@@ -239,8 +239,8 @@ def main():
         print("EARLY_OPPORTUNITY_WATCH count=" + str(result.get("early_watch_count", 0)))
     elif x.cmd=="forecast-multihorizon-project60":
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
-        result=evaluate_project60_multihorizon(bars)
         settings=load_settings()
+        result=evaluate_project60_multihorizon(bars,capital_usd=settings.capital_usd,min_profit_usd=settings.min_profit_usd,preferred_profit_usd=settings.preferred_profit_usd)
         result["metadata"]={"mode":"Project60 leakage-safe multi-horizon OOS","asset":x.asset,"capital_usd":settings.capital_usd,"min_profit_usd":settings.min_profit_usd,"preferred_profit_usd":settings.preferred_profit_usd}
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_multihorizon.json"),result["metadata"])
         for h,m in result["horizons"].items():
@@ -258,7 +258,8 @@ def main():
         bars=load_input(x.input)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window)
         result["metrics"]=score_predictions(result)
-        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
+        settings=load_settings()
+        result["capital_metrics"]=score_capital_targets(result,capital_usd=settings.capital_usd,min_profit_usd=settings.min_profit_usd,preferred_profit_usd=settings.preferred_profit_usd)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":settings.capital_usd,"min_profit_usd":settings.min_profit_usd,"preferred_profit_usd":settings.preferred_profit_usd,"research_only":True,"live_orders":False})
     elif x.cmd=="live-all":
