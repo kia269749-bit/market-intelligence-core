@@ -67,6 +67,29 @@ class DayTraderOrbTests(unittest.TestCase):
         self.assertEqual(result["status"], "INSUFFICIENT_DATA")
         self.assertEqual(result["trades_count"], 0)
 
+    def test_numeric_timestamps_compare_numerically_not_lexicographically(self):
+        bars = winning_fixture()
+        for row, stamp in zip(bars, [8, 9, 10, 11, 12]):
+            row["timestamp"] = stamp
+        result = run_opening_range_breakout(bars, capital_usd=500)
+        self.assertEqual(result["status"], "OK")
+
+    def test_out_of_order_numeric_timestamps_are_rejected(self):
+        bars = winning_fixture()
+        for row, stamp in zip(bars, [8, 10, 9, 11, 12]):
+            row["timestamp"] = stamp
+        with self.assertRaisesRegex(ValueError, "chronological"):
+            run_opening_range_breakout(bars, capital_usd=500)
+
+    def test_position_sizing_includes_estimated_round_trip_cost_in_stop_risk(self):
+        result = run_opening_range_breakout(
+            winning_fixture(), capital_usd=10000, position_fraction=1.0,
+            risk_fraction=0.01,
+        )
+        trade = result["trades"][0]
+        self.assertLessEqual(trade["estimated_stop_loss_usd"], trade["risk_budget_usd"])
+        self.assertGreater(trade["estimated_stop_loss_usd"], 0)
+
     def test_invalid_ohlc_is_rejected(self):
         with self.assertRaises(ValueError):
             run_opening_range_breakout([bar("s1", "1", 100, 98, 99, 100)])
