@@ -47,19 +47,7 @@ def scan_day_trader_patterns(
     bull_flag_consolidation_pct: float = 5.0,
     rsi_oversold: float = 30.0,
 ) -> dict[str, Any]:
-    """Return last-completed-bar candidate patterns without a probability claim.
-
-    Pattern definitions intentionally remain explicit and configurable:
-    - breakout_20d: latest close exceeds each of the preceding N closes.
-    - bull_flag: prior 10-bar impulse exceeds the configured gain and the
-      latest five closes fit within the configured percentage range.
-    - reclaim_ma20: previous close was at/below its trailing mean and the
-      latest close is above its trailing mean.
-    - rsi_oversold / rsi_oversold_bounce: simple-average RSI threshold tags.
-
-    The result is a scanner output, not a trade recommendation. Parameter
-    search must be preregistered and evaluated out of sample.
-    """
+    """Return last-completed-bar candidate patterns without a probability claim."""
     if isinstance(breakout_lookback, bool) or not isinstance(breakout_lookback, int) or breakout_lookback < 2:
         raise ValueError("breakout_lookback must be an integer >= 2")
     if isinstance(moving_average_period, bool) or not isinstance(moving_average_period, int) or moving_average_period < 2:
@@ -71,18 +59,19 @@ def scan_day_trader_patterns(
         ("bull_flag_consolidation_pct", bull_flag_consolidation_pct),
         ("rsi_oversold", rsi_oversold),
     ):
-        if not isfinite(float(value)) or value <= 0:
+        try:
+            number = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be finite and positive") from exc
+        if not isfinite(number) or number <= 0:
             raise ValueError(f"{name} must be finite and positive")
     if rsi_oversold >= 100:
         raise ValueError("rsi_oversold must be below 100")
 
     values = _validated_closes(closes)
     patterns: dict[str, bool | None] = {
-        "breakout_20d": None,
-        "bull_flag": None,
-        "reclaim_ma20": None,
-        "rsi_oversold": None,
-        "rsi_oversold_bounce": None,
+        "breakout_20d": None, "bull_flag": None, "reclaim_ma20": None,
+        "rsi_oversold": None, "rsi_oversold_bounce": None,
     }
     reasons: dict[str, str] = {}
 
@@ -90,17 +79,16 @@ def scan_day_trader_patterns(
         patterns["breakout_20d"] = values[-1] > max(values[-breakout_lookback - 1:-1])
         reasons["breakout_20d"] = f"close_above_previous_{breakout_lookback}_closes"
 
-    # Need 10 impulse bars ending before the latest 5-bar consolidation.
+    # Ten price changes from impulse start to the close before consolidation.
     if len(values) >= 16:
-        impulse_start = values[-15]
-        impulse_gain_pct = (values[-6] / impulse_start - 1.0) * 100.0
+        impulse_gain_pct = (values[-6] / values[-16] - 1.0) * 100.0
         consolidation = values[-5:]
         consolidation_range_pct = (max(consolidation) / min(consolidation) - 1.0) * 100.0
         patterns["bull_flag"] = (
             impulse_gain_pct > bull_flag_impulse_pct
             and consolidation_range_pct <= bull_flag_consolidation_pct
         )
-        reasons["bull_flag"] = "prior_impulse_then_tight_five_close_consolidation"
+        reasons["bull_flag"] = "prior_ten_change_impulse_then_tight_five_close_consolidation"
 
     if len(values) >= moving_average_period + 1:
         previous_mean = sum(values[-moving_average_period - 1:-1]) / moving_average_period
@@ -114,15 +102,14 @@ def scan_day_trader_patterns(
         patterns["rsi_oversold"] = current_rsi < rsi_oversold
         reasons["rsi_oversold"] = f"simple_average_rsi_{rsi_period}_below_threshold"
         patterns["rsi_oversold_bounce"] = (
-            previous_rsi is not None
-            and previous_rsi < rsi_oversold
+            previous_rsi is not None and previous_rsi < rsi_oversold
             and current_rsi >= rsi_oversold
         )
         reasons["rsi_oversold_bounce"] = "rsi_crossed_up_through_oversold_threshold"
 
     active = [name for name, enabled in patterns.items() if enabled is True]
     return {
-        "status": "OK" if len(values) else "INSUFFICIENT_DATA",
+        "status": "OK" if values else "INSUFFICIENT_DATA",
         "bars": len(values),
         "patterns": patterns,
         "active_candidates": active,
