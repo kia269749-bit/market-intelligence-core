@@ -205,7 +205,7 @@ def fetch_snapshot(symbols=None, timeout: int = 8) -> dict:
             "median_price": row["price"],
             "min_price": row["price"],
             "max_price": row["price"],
-            "cross_exchange_spread_pct": 0.0,
+            "cross_exchange_spread_pct": None,  # Unknown: only one venue is present.
             "exchange": "lbank",
             "market": "futures",
             "mark_price": row["mark_price"],
