@@ -165,7 +165,7 @@ def run_study() -> dict:
             asset_result["splits"][name] = metrics
             for pattern_name, pattern_result in metrics.get("strategies", {}).items():
                 for multiplier, stress in pattern_result.get("stress", {}).items():
-                    family_key = (name, multiplier)
+                    family_key = name
                     family = tests_by_family.setdefault(family_key, [])
                     seed = 20261024 + sum(ord(ch) for ch in f"{symbol}:{name}:{pattern_name}:{multiplier}")
                     returns = stress.get("net_returns_pct", [])
@@ -180,15 +180,16 @@ def run_study() -> dict:
                         ),
                     })
         result["assets"][symbol] = asset_result
-    for (split_name, multiplier), family in sorted(tests_by_family.items()):
+    for split_name, family in sorted(tests_by_family.items()):
         adjusted = holm_adjust([
             row["edge_test"].get("p_value_one_sided") for row in family
         ])
         for row, adjusted_p in zip(family, adjusted):
             row["holm_adjusted_p_value"] = adjusted_p
-        result["statistical_validation"].setdefault(split_name, {})[multiplier] = {
+        result["statistical_validation"][split_name] = {
             "family_size_including_insufficient_samples": len(family),
-            "multiple_testing_correction": "Holm-Bonferroni",
+            "multiple_testing_correction": "Holm-Bonferroni across all assets, patterns, and cost multipliers within each split",
+            "cost_multipliers_in_family": [1.0, 1.5, 2.0],
             "tests": family,
             "interpretation": (
                 "Exploratory diagnostics only. LOW_SAMPLE and INSUFFICIENT_DATA are not "
