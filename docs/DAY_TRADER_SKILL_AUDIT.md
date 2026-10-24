@@ -15,7 +15,7 @@ The README's own TSLA example reports a 59-session historical replay with 33 tri
 
 ## Adaptation in this project
 
-Added `mi_core/day_trader_orb.py`, a research-only opening-range-breakout replay for caller-supplied OHLC bars with explicit session IDs. It uses the project's central LBank Futures cost assumptions by default (6 bps taker fee + 2 bps spread + 3 bps slippage + 1 bp impact per side = 24 bps round trip), supports cost multipliers, records gross/net P&L and expectancy, and conservatively treats same-bar stop/target ambiguity as stop-first. Stops account for an opening gap beyond the stop. It produces diagnostics only; it cannot send orders and does not modify live signal tiers.
+Added `mi_core/day_trader_orb.py`, a research-only opening-range-breakout replay for caller-supplied OHLC bars with explicit session IDs. It uses the project's central LBank Futures cost assumptions by default (6 bps taker fee + 2 bps spread + 3 bps slippage + 1 bp impact per side = 24 bps round trip), supports cost multipliers, records gross/net P&L and expectancy, sizes positions to a default 1% capital risk budget subject to a 25% notional cap, and conservatively treats same-bar stop/target ambiguity as stop-first. Stops account for an opening gap beyond the stop. It produces diagnostics only; it cannot send orders and does not modify live signal tiers.
 
 Because crypto futures trade 24/7, the caller must define the session window explicitly; a US stock opening bell cannot be assumed to map directly to crypto. This implementation only tests a generic session-based ORB hypothesis and does not fetch or fabricate historical market data.
 
