@@ -38,6 +38,27 @@ class PatternStatisticsTests(unittest.TestCase):
             bootstrap_mean_ci([0.1, float("nan")])
         with self.assertRaisesRegex(ValueError, "p-values"):
             holm_adjust([1.2])
+        with self.assertRaisesRegex(ValueError, "p-values"):
+            holm_adjust([True])
+
+    def test_rejects_invalid_sampling_parameters(self):
+        for kwargs in (
+            {"reps": 99},
+            {"reps": 100.5},
+            {"reps": True},
+            {"block_size": 0},
+            {"block_size": 1.5},
+            {"block_size": float("nan")},
+        ):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    bootstrap_mean_ci([0.1, 0.2], **kwargs)
+
+    def test_rejects_invalid_confidence_and_boolean_returns(self):
+        with self.assertRaisesRegex(ValueError, "confidence"):
+            bootstrap_mean_ci([0.1, 0.2], confidence=float("nan"))
+        with self.assertRaisesRegex(ValueError, "finite numbers"):
+            bootstrap_mean_ci([True, 0.2])
 
 
 if __name__ == "__main__":
