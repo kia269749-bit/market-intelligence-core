@@ -37,6 +37,21 @@ class ExecutionCost:
     impact: float
     total: float
 
+    def __post_init__(self) -> None:
+        for name in ("notional", "fee", "spread", "slippage", "impact", "total"):
+            raw = getattr(self, name)
+            if isinstance(raw, bool):
+                raise ValueError(f"{name} must be finite and non-negative")
+            try:
+                value = float(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name} must be finite and non-negative") from exc
+            if not isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and non-negative")
+            object.__setattr__(self, name, value)
+        if self.notional <= 0:
+            raise ValueError("notional must be finite and positive")
+
 
 def _bps(value: float) -> float:
     return float(value) / 10_000.0
@@ -120,4 +135,14 @@ def estimate_execution_cost(
 def apply_cost_to_gross_pnl(gross_pnl: float, cost: ExecutionCost) -> float:
     """Return net PnL after explicitly modeled execution costs."""
 
-    return float(gross_pnl) - cost.total
+    if isinstance(gross_pnl, bool):
+        raise ValueError("gross_pnl must be finite")
+    try:
+        gross = float(gross_pnl)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("gross_pnl must be finite") from exc
+    if not isfinite(gross):
+        raise ValueError("gross_pnl must be finite")
+    if not isinstance(cost, ExecutionCost):
+        raise ValueError("cost must be an ExecutionCost")
+    return gross - cost.total
