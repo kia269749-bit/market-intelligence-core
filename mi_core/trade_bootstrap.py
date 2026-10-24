@@ -64,7 +64,13 @@ def run_trade_bootstrap(
         raise ValueError("simulations must be an integer between 100 and 100000")
     if isinstance(block_size, bool) or not isinstance(block_size, int) or not 1 <= block_size <= len(pnl):
         raise ValueError("block_size must be an integer between 1 and the trade count")
-    if not math.isfinite(float(initial_equity_usd)) or initial_equity_usd <= 0:
+    if isinstance(initial_equity_usd, bool):
+        raise ValueError("initial_equity_usd must be finite and positive")
+    try:
+        initial_equity = float(initial_equity_usd)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("initial_equity_usd must be finite and positive") from exc
+    if not math.isfinite(initial_equity) or initial_equity <= 0:
         raise ValueError("initial_equity_usd must be finite and positive")
 
     rng = random.Random(seed)
@@ -80,7 +86,7 @@ def run_trade_bootstrap(
             start = rng.randrange(count)
             take = min(block_size, count - len(sample))
             sample.extend(pnl[(start + offset) % count] for offset in range(take))
-        equity = float(initial_equity_usd)
+        equity = initial_equity
         peak = equity
         max_drawdown = 0.0
         total = 0.0
@@ -114,7 +120,7 @@ def run_trade_bootstrap(
         "expectancy_ci95_low_usd": round(_quantile(expectancies, 0.025), 8),
         "expectancy_ci95_high_usd": round(_quantile(expectancies, 0.975), 8),
         "max_drawdown_p95_usd": round(_quantile(drawdowns, 0.95), 8),
-        "max_drawdown_p95_pct_initial_equity": round(100.0 * _quantile(drawdowns, 0.95) / initial_equity_usd, 6),
+        "max_drawdown_p95_pct_initial_equity": round(100.0 * _quantile(drawdowns, 0.95) / initial_equity, 6),
         "research_only": True,
         "live_orders": False,
         "note": "Bootstrap sensitivity only; not a profitability guarantee or a substitute for chronological walk-forward/OOS validation.",
