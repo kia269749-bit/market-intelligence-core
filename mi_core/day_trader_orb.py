@@ -31,8 +31,28 @@ def run_opening_range_breakout(
     opening price. Position quantity is capped by both capital risk budget and
     max notional fraction. This is a research calculation, not an order ticket.
     """
-    if opening_range_bars < 1 or target_r <= 0 or cost_multiplier <= 0:
-        raise ValueError("opening_range_bars, target_r and cost_multiplier must be positive")
+    if isinstance(opening_range_bars, bool) or not isinstance(opening_range_bars, int) or opening_range_bars < 1:
+        raise ValueError("opening_range_bars must be an integer >= 1")
+    numeric_params = {}
+    for name, value in (
+        ("target_r", target_r), ("cost_multiplier", cost_multiplier),
+        ("position_fraction", position_fraction), ("risk_fraction", risk_fraction),
+    ):
+        if isinstance(value, bool):
+            raise ValueError(f"{name} must be finite and within its valid range")
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be finite and within its valid range") from exc
+        if not isfinite(numeric):
+            raise ValueError(f"{name} must be finite and within its valid range")
+        numeric_params[name] = numeric
+    target_r = numeric_params["target_r"]
+    cost_multiplier = numeric_params["cost_multiplier"]
+    position_fraction = numeric_params["position_fraction"]
+    risk_fraction = numeric_params["risk_fraction"]
+    if target_r <= 0 or cost_multiplier <= 0:
+        raise ValueError("target_r and cost_multiplier must be positive")
     if stop_rule not in ("range_mid", "range_low"):
         raise ValueError("stop_rule must be 'range_mid' or 'range_low'")
     if not 0 < position_fraction <= 1 or not 0 < risk_fraction <= 1:
@@ -72,9 +92,17 @@ def run_opening_range_breakout(
 
     from .central_config import load_settings
     settings = load_settings()
-    capital = settings.capital_usd if capital_usd is None else float(capital_usd)
-    if capital <= 0:
-        raise ValueError("capital_usd must be positive")
+    if capital_usd is None:
+        capital = settings.capital_usd
+    else:
+        if isinstance(capital_usd, bool):
+            raise ValueError("capital_usd must be finite and positive")
+        try:
+            capital = float(capital_usd)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("capital_usd must be finite and positive") from exc
+    if not isfinite(capital) or capital <= 0:
+        raise ValueError("capital_usd must be finite and positive")
     max_notional = capital * position_fraction
     max_loss_budget = capital * risk_fraction
 
