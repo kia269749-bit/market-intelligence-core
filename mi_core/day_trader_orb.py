@@ -6,6 +6,7 @@ It has no network, broker, order, or live-signal side effects.
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 from math import isfinite
 from typing import Any, Mapping, Sequence
 
@@ -40,7 +41,8 @@ def run_opening_range_breakout(
         return _empty_result("INSUFFICIENT_DATA")
 
     rows = []
-    previous = None
+    previous_key = None
+    timestamp_mode = None
     for index, raw in enumerate(bars):
         if not isinstance(raw, Mapping) or not raw.get("session"):
             raise ValueError(f"bar {index} requires a non-empty session")
@@ -53,10 +55,18 @@ def run_opening_range_breakout(
             raise ValueError(f"bar {index} OHLC must be finite and positive")
         if h < max(o, c, l) or l > min(o, c, h):
             raise ValueError(f"bar {index} has inconsistent OHLC")
-        stamp = str(row.get("timestamp", index))
-        if previous is not None and stamp < previous:
+
+        raw_stamp = row.get("timestamp")
+        if raw_stamp is None:
+            mode, key, stamp = "index", float(index), index
+        else:
+            mode, key, stamp = _normalize_timestamp(raw_stamp, index)
+        if timestamp_mode is not None and mode != timestamp_mode:
+            raise ValueError("timestamps must use one consistent format (all numeric, all ISO-8601, or all omitted)")
+        timestamp_mode = mode
+        if previous_key is not None and key < previous_key:
             raise ValueError("bars must be chronological by timestamp")
-        previous = stamp
+        previous_key = key
         row.update(open=o, high=h, low=l, close=c, timestamp=stamp)
         rows.append(row)
 
@@ -98,7 +108,11 @@ def run_opening_range_breakout(
         if risk_per_unit <= 0:
             skipped.append({"session": session, "reason": "invalid_stop"})
             continue
-        qty = min(max_loss_budget / risk_per_unit, max_notional / entry)
+        # Size against planned stop loss plus estimated round-trip costs.
+        # A gap through the stop can still exceed this estimate.
+        cost_per_unit = entry * rt_cost_pct / 100.0
+        planned_loss_per_unit = risk_per_unit + cost_per_unit
+        qty = min(max_loss_budget / planned_loss_per_unit, max_notional / entry)
         if not isfinite(qty) or qty <= 0:
             skipped.append({"session": session, "reason": "invalid_position_size"})
             continue
@@ -130,6 +144,7 @@ def run_opening_range_breakout(
             "stop": round(stop, 10), "target": round(target, 10),
             "exit": round(exit_price, 10), "outcome": outcome,
             "quantity": round(qty, 10), "risk_budget_usd": round(max_loss_budget, 4),
+            "estimated_stop_loss_usd": round(qty * planned_loss_per_unit, 4),
             "notional_usd": round(notional, 4),
             "gross_return_pct": round(gross_return_pct, 8),
             "round_trip_cost_pct": round(rt_cost_pct, 8),
@@ -166,6 +181,37 @@ def run_opening_range_breakout(
         "research_only": True, "live_orders": False,
         "note": "Synthetic/fixture results are not evidence of profitability; use complete verified historical bars.",
     }
+
+
+def _normalize_timestamp(value: Any, index: int) -> tuple[str, float, Any]:
+    """Return a comparable timestamp key without lexicographic ordering bugs."""
+    if isinstance(value, bool):
+        raise ValueError(f"bar {index} timestamp must be numeric or ISO-8601")
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if not isfinite(number):
+            raise ValueError(f"bar {index} timestamp must be finite")
+        return "numeric", number, value
+
+    stamp = str(value).strip()
+    if not stamp:
+        raise ValueError(f"bar {index} timestamp must not be empty")
+    try:
+        number = float(stamp)
+    except ValueError:
+        number = None
+    if number is not None:
+        if not isfinite(number):
+            raise ValueError(f"bar {index} timestamp must be finite")
+        return "numeric", number, value
+
+    try:
+        parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"bar {index} timestamp must be numeric or ISO-8601") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return "iso8601", parsed.timestamp(), value
 
 
 def _empty_result(status: str) -> dict[str, Any]:
