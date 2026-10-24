@@ -17,6 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from mi_core.day_trader_pattern_eval import evaluate_day_trader_patterns
+from mi_core.pattern_statistics import bootstrap_edge_test, bootstrap_mean_ci, holm_adjust
 
 API_URL = "https://api.hyperliquid.xyz/info"
 SYMBOLS = ("BTC", "ETH", "SOL")
@@ -29,6 +30,16 @@ SPLITS = (
     ("validation", "2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z"),
     ("holdout", "2025-01-01T00:00:00Z", "2026-10-01T00:00:00Z"),
 )
+# Frozen-pattern calendar subperiods expose year-to-year instability without
+# tuning parameters on these slices. 2026 is partial through FETCH_END.
+FROZEN_SUBPERIODS = (
+    ("year_2022", "2022-01-01T00:00:00Z", "2023-01-01T00:00:00Z"),
+    ("year_2023", "2023-01-01T00:00:00Z", "2024-01-01T00:00:00Z"),
+    ("year_2024", "2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z"),
+    ("year_2025", "2025-01-01T00:00:00Z", "2026-01-01T00:00:00Z"),
+    ("year_2026_partial", "2026-01-01T00:00:00Z", "2026-10-01T00:00:00Z"),
+)
+ALL_SPLITS = SPLITS + FROZEN_SUBPERIODS
 
 
 def _ms(stamp: str) -> int:
@@ -123,6 +134,10 @@ def run_study() -> dict:
             "fetch_start": FETCH_START,
             "fetch_end_exclusive": FETCH_END,
             "splits": [{"name": name, "start_inclusive": start, "end_exclusive": end} for name, start, end in SPLITS],
+            "frozen_parameter_subperiods": [
+                {"name": name, "start_inclusive": start, "end_exclusive": end}
+                for name, start, end in FROZEN_SUBPERIODS
+            ],
             "horizon_bars": 5,
             "cost_multipliers": [1.0, 1.5, 2.0],
             "strategy_parameters_frozen": True,
@@ -130,7 +145,9 @@ def run_study() -> dict:
             "live_orders": False,
         },
         "assets": {},
+        "statistical_validation": {},
     }
+    tests_by_family = {}
     for symbol in SYMBOLS:
         candles = fetch_daily(symbol)
         asset_result = {
@@ -139,14 +156,46 @@ def run_study() -> dict:
             "last_timestamp": candles[-1]["timestamp"],
             "splits": {},
         }
-        for name, start, end in SPLITS:
+        for name, start, end in ALL_SPLITS:
             segment = _split_with_warmup(candles, start, end)
             if len(segment) < 30:
                 raise RuntimeError(f"insufficient data for {symbol} {name} split")
             metrics = evaluate_day_trader_patterns(segment, horizon_bars=5)
             metrics["period"] = {"start_inclusive": start, "end_exclusive": end}
             asset_result["splits"][name] = metrics
+            for pattern_name, pattern_result in metrics.get("strategies", {}).items():
+                for multiplier, stress in pattern_result.get("stress", {}).items():
+                    family_key = name
+                    family = tests_by_family.setdefault(family_key, [])
+                    seed = 20261024 + sum(ord(ch) for ch in f"{symbol}:{name}:{pattern_name}:{multiplier}")
+                    returns = stress.get("net_returns_pct", [])
+                    baseline_returns = stress.get("baseline_net_returns_pct", [])
+                    family.append({
+                        "asset": symbol,
+                        "pattern": pattern_name,
+                        "cost_multiplier": multiplier,
+                        "net_return_ci": bootstrap_mean_ci(returns, reps=2000, block_size=3, seed=seed),
+                        "edge_test": bootstrap_edge_test(
+                            returns, baseline_returns, reps=2000, block_size=3, seed=seed + 1
+                        ),
+                    })
         result["assets"][symbol] = asset_result
+    for split_name, family in sorted(tests_by_family.items()):
+        adjusted = holm_adjust([
+            row["edge_test"].get("p_value_one_sided") for row in family
+        ])
+        for row, adjusted_p in zip(family, adjusted):
+            row["holm_adjusted_p_value"] = adjusted_p
+        result["statistical_validation"][split_name] = {
+            "family_size_including_insufficient_samples": len(family),
+            "multiple_testing_correction": "Holm-Bonferroni across all assets, patterns, and cost multipliers within each split",
+            "cost_multipliers_in_family": [1.0, 1.5, 2.0],
+            "tests": family,
+            "interpretation": (
+                "Exploratory diagnostics only. LOW_SAMPLE and INSUFFICIENT_DATA are not "
+                "positive evidence; intervals and p-values do not model funding or live fills."
+            ),
+        }
     return result
 
 

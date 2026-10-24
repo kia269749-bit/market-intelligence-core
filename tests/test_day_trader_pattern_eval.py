@@ -62,6 +62,23 @@ class DayTraderPatternEvaluationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cost multipliers"):
             evaluate_day_trader_patterns(rising_bars(), cost_multipliers=(1.0, float("nan")))
 
+    def test_rejects_duplicate_and_malformed_timestamps(self):
+        bars = rising_bars()
+        bars[10]["timestamp"] = bars[9]["timestamp"]
+        with self.assertRaisesRegex(ValueError, "strictly increasing"):
+            evaluate_day_trader_patterns(bars)
+
+        bars = rising_bars()
+        bars[10]["timestamp"] = "not-a-timestamp"
+        with self.assertRaisesRegex(ValueError, "numeric or ISO-8601"):
+            evaluate_day_trader_patterns(bars)
+
+    def test_rejects_mixed_timestamp_formats(self):
+        bars = rising_bars()
+        bars[0]["timestamp"] = "2024-01-01T00:00:00Z"
+        with self.assertRaisesRegex(ValueError, "consistent format"):
+            evaluate_day_trader_patterns(bars)
+
 
 if __name__ == "__main__":
     unittest.main()

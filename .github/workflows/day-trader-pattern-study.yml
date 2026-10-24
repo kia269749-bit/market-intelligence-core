@@ -6,9 +6,11 @@ on:
     paths:
       - "mi_core/day_trader_patterns.py"
       - "mi_core/day_trader_pattern_eval.py"
+      - "mi_core/pattern_statistics.py"
       - "scripts/run_day_trader_pattern_study.py"
       - "tests/test_day_trader_patterns.py"
       - "tests/test_day_trader_pattern_eval.py"
+      - "tests/test_pattern_statistics.py"
       - ".github/workflows/day-trader-pattern-study.yml"
 
 permissions:
