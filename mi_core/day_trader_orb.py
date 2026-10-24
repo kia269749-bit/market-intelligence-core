@@ -64,8 +64,8 @@ def run_opening_range_breakout(
         if timestamp_mode is not None and mode != timestamp_mode:
             raise ValueError("timestamps must use one consistent format (all numeric, all ISO-8601, or all omitted)")
         timestamp_mode = mode
-        if previous_key is not None and key < previous_key:
-            raise ValueError("bars must be chronological by timestamp")
+        if previous_key is not None and key <= previous_key:
+            raise ValueError("bars must be chronological with strictly increasing, unique timestamps")
         previous_key = key
         row.update(open=o, high=h, low=l, close=c, timestamp=stamp)
         rows.append(row)
