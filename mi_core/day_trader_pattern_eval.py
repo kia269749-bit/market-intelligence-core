@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from math import isfinite
 from typing import Any, Mapping, Sequence
 
+from .costs import ExecutionCostConfig, estimate_execution_cost
 from .day_trader_patterns import scan_day_trader_patterns
 
 
@@ -75,10 +76,14 @@ def evaluate_day_trader_patterns(
 
     from .central_config import load_settings
     settings = load_settings()
-    rt_bps = 2.0 * (
-        settings.taker_fee_bps + settings.spread_bps
-        + settings.slippage_bps + settings.impact_bps
+    cost_config = ExecutionCostConfig(
+        taker_fee_bps=settings.taker_fee_bps,
+        spread_bps=settings.spread_bps,
+        slippage_bps=settings.slippage_bps,
+        impact_bps=settings.impact_bps,
     )
+    # Share the single execution-cost calculation path with backtests and ORB.
+    rt_bps = estimate_execution_cost(1.0, config=cost_config).total * 10_000.0
     pattern_names = (
         "breakout_20d", "bull_flag", "reclaim_ma20",
         "rsi_oversold", "rsi_oversold_bounce",
