@@ -13,7 +13,10 @@ from typing import Iterable, Sequence
 
 def _values(values: Iterable[float], label: str) -> list[float]:
     try:
-        result = [float(value) for value in values]
+        raw_values = list(values)
+        if any(isinstance(value, bool) for value in raw_values):
+            raise ValueError(f"{label} must contain finite numbers")
+        result = [float(value) for value in raw_values]
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{label} must contain finite numbers") from exc
     if any(not isfinite(value) for value in result):
@@ -35,13 +38,27 @@ def _mean(values: Sequence[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
+def _validate_sampling(reps: int, block_size: int) -> None:
+    if isinstance(reps, bool) or not isinstance(reps, int) or reps < 100:
+        raise ValueError("reps must be an integer >= 100")
+    if isinstance(block_size, bool) or not isinstance(block_size, int) or block_size < 1:
+        raise ValueError("block_size must be an integer >= 1")
+
+
 def bootstrap_mean_ci(
     returns: Iterable[float], *, reps: int = 4000, block_size: int = 3,
     confidence: float = 0.95, seed: int = 20261024,
 ) -> dict:
     values = _values(returns, "returns")
-    if reps < 100 or block_size < 1 or not 0.5 < confidence < 1.0:
-        raise ValueError("reps >= 100, block_size >= 1, and 0.5 < confidence < 1 required")
+    _validate_sampling(reps, block_size)
+    if isinstance(confidence, bool):
+        raise ValueError("confidence must be finite and between 0.5 and 1")
+    try:
+        confidence = float(confidence)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("confidence must be finite and between 0.5 and 1") from exc
+    if not isfinite(confidence) or not 0.5 < confidence < 1.0:
+        raise ValueError("confidence must be finite and between 0.5 and 1")
     if not values:
         return {"status": "INSUFFICIENT_DATA", "n": 0, "mean_pct": None, "ci_low_pct": None, "ci_high_pct": None}
     rng = Random(seed)
@@ -68,8 +85,7 @@ def bootstrap_edge_test(
 ) -> dict:
     candidate = _values(candidate_returns, "candidate_returns")
     baseline = _values(baseline_returns, "baseline_returns")
-    if reps < 100 or block_size < 1:
-        raise ValueError("reps >= 100 and block_size >= 1 required")
+    _validate_sampling(reps, block_size)
     if len(candidate) < 5 or len(baseline) < 5:
         return {
             "status": "INSUFFICIENT_DATA", "candidate_n": len(candidate),
@@ -114,6 +130,8 @@ def holm_adjust(p_values: Sequence[float | None]) -> list[float | None]:
     for i, value in enumerate(p_values):
         if value is None:
             continue
+        if isinstance(value, bool):
+            raise ValueError("p-values must be finite numbers in [0, 1]")
         p = float(value)
         if not isfinite(p) or not 0.0 <= p <= 1.0:
             raise ValueError("p-values must be finite and in [0, 1]")
