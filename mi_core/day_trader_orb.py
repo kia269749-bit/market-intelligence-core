@@ -6,8 +6,11 @@ It has no network, broker, order, or live-signal side effects.
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 from math import isfinite
 from typing import Any, Mapping, Sequence
+
+from .costs import ExecutionCostConfig, estimate_execution_cost
 
 
 def run_opening_range_breakout(
@@ -30,8 +33,28 @@ def run_opening_range_breakout(
     opening price. Position quantity is capped by both capital risk budget and
     max notional fraction. This is a research calculation, not an order ticket.
     """
-    if opening_range_bars < 1 or target_r <= 0 or cost_multiplier <= 0:
-        raise ValueError("opening_range_bars, target_r and cost_multiplier must be positive")
+    if isinstance(opening_range_bars, bool) or not isinstance(opening_range_bars, int) or opening_range_bars < 1:
+        raise ValueError("opening_range_bars must be an integer >= 1")
+    numeric_params = {}
+    for name, value in (
+        ("target_r", target_r), ("cost_multiplier", cost_multiplier),
+        ("position_fraction", position_fraction), ("risk_fraction", risk_fraction),
+    ):
+        if isinstance(value, bool):
+            raise ValueError(f"{name} must be finite and within its valid range")
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{name} must be finite and within its valid range") from exc
+        if not isfinite(numeric):
+            raise ValueError(f"{name} must be finite and within its valid range")
+        numeric_params[name] = numeric
+    target_r = numeric_params["target_r"]
+    cost_multiplier = numeric_params["cost_multiplier"]
+    position_fraction = numeric_params["position_fraction"]
+    risk_fraction = numeric_params["risk_fraction"]
+    if target_r <= 0 or cost_multiplier <= 0:
+        raise ValueError("target_r and cost_multiplier must be positive")
     if stop_rule not in ("range_mid", "range_low"):
         raise ValueError("stop_rule must be 'range_mid' or 'range_low'")
     if not 0 < position_fraction <= 1 or not 0 < risk_fraction <= 1:
@@ -40,7 +63,8 @@ def run_opening_range_breakout(
         return _empty_result("INSUFFICIENT_DATA")
 
     rows = []
-    previous = None
+    previous_key = None
+    timestamp_mode = None
     for index, raw in enumerate(bars):
         if not isinstance(raw, Mapping) or not raw.get("session"):
             raise ValueError(f"bar {index} requires a non-empty session")
@@ -53,18 +77,34 @@ def run_opening_range_breakout(
             raise ValueError(f"bar {index} OHLC must be finite and positive")
         if h < max(o, c, l) or l > min(o, c, h):
             raise ValueError(f"bar {index} has inconsistent OHLC")
-        stamp = str(row.get("timestamp", index))
-        if previous is not None and stamp < previous:
-            raise ValueError("bars must be chronological by timestamp")
-        previous = stamp
+
+        raw_stamp = row.get("timestamp")
+        if raw_stamp is None:
+            mode, key, stamp = "index", float(index), index
+        else:
+            mode, key, stamp = _normalize_timestamp(raw_stamp, index)
+        if timestamp_mode is not None and mode != timestamp_mode:
+            raise ValueError("timestamps must use one consistent format (all numeric, all ISO-8601, or all omitted)")
+        timestamp_mode = mode
+        if previous_key is not None and key <= previous_key:
+            raise ValueError("bars must be chronological with strictly increasing, unique timestamps")
+        previous_key = key
         row.update(open=o, high=h, low=l, close=c, timestamp=stamp)
         rows.append(row)
 
     from .central_config import load_settings
     settings = load_settings()
-    capital = settings.capital_usd if capital_usd is None else float(capital_usd)
-    if capital <= 0:
-        raise ValueError("capital_usd must be positive")
+    if capital_usd is None:
+        capital = settings.capital_usd
+    else:
+        if isinstance(capital_usd, bool):
+            raise ValueError("capital_usd must be finite and positive")
+        try:
+            capital = float(capital_usd)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("capital_usd must be finite and positive") from exc
+    if not isfinite(capital) or capital <= 0:
+        raise ValueError("capital_usd must be finite and positive")
     max_notional = capital * position_fraction
     max_loss_budget = capital * risk_fraction
 
@@ -72,10 +112,14 @@ def run_opening_range_breakout(
     for row in rows:
         by_session[str(row["session"])].append(row)
 
-    rt_bps = 2.0 * (
-        settings.taker_fee_bps + settings.spread_bps
-        + settings.slippage_bps + settings.impact_bps
-    ) * cost_multiplier
+    cost_config = ExecutionCostConfig(
+        taker_fee_bps=settings.taker_fee_bps,
+        spread_bps=settings.spread_bps,
+        slippage_bps=settings.slippage_bps,
+        impact_bps=settings.impact_bps,
+    )
+    # Use the shared cost calculator so ORB and other modules cannot drift.
+    rt_bps = estimate_execution_cost(1.0, config=cost_config).total * 10_000.0 * cost_multiplier
     rt_cost_pct = rt_bps / 100.0
     trades = []
     skipped = []
@@ -98,7 +142,11 @@ def run_opening_range_breakout(
         if risk_per_unit <= 0:
             skipped.append({"session": session, "reason": "invalid_stop"})
             continue
-        qty = min(max_loss_budget / risk_per_unit, max_notional / entry)
+        # Size against planned stop loss plus estimated round-trip costs.
+        # A gap through the stop can still exceed this estimate.
+        cost_per_unit = entry * rt_cost_pct / 100.0
+        planned_loss_per_unit = risk_per_unit + cost_per_unit
+        qty = min(max_loss_budget / planned_loss_per_unit, max_notional / entry)
         if not isfinite(qty) or qty <= 0:
             skipped.append({"session": session, "reason": "invalid_position_size"})
             continue
@@ -130,6 +178,7 @@ def run_opening_range_breakout(
             "stop": round(stop, 10), "target": round(target, 10),
             "exit": round(exit_price, 10), "outcome": outcome,
             "quantity": round(qty, 10), "risk_budget_usd": round(max_loss_budget, 4),
+            "estimated_stop_loss_usd": round(qty * planned_loss_per_unit, 4),
             "notional_usd": round(notional, 4),
             "gross_return_pct": round(gross_return_pct, 8),
             "round_trip_cost_pct": round(rt_cost_pct, 8),
@@ -166,6 +215,37 @@ def run_opening_range_breakout(
         "research_only": True, "live_orders": False,
         "note": "Synthetic/fixture results are not evidence of profitability; use complete verified historical bars.",
     }
+
+
+def _normalize_timestamp(value: Any, index: int) -> tuple[str, float, Any]:
+    """Return a comparable timestamp key without lexicographic ordering bugs."""
+    if isinstance(value, bool):
+        raise ValueError(f"bar {index} timestamp must be numeric or ISO-8601")
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if not isfinite(number):
+            raise ValueError(f"bar {index} timestamp must be finite")
+        return "numeric", number, value
+
+    stamp = str(value).strip()
+    if not stamp:
+        raise ValueError(f"bar {index} timestamp must not be empty")
+    try:
+        number = float(stamp)
+    except ValueError:
+        number = None
+    if number is not None:
+        if not isfinite(number):
+            raise ValueError(f"bar {index} timestamp must be finite")
+        return "numeric", number, value
+
+    try:
+        parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"bar {index} timestamp must be numeric or ISO-8601") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return "iso8601", parsed.timestamp(), value
 
 
 def _empty_result(status: str) -> dict[str, Any]:

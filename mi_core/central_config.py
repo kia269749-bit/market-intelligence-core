@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -106,10 +107,14 @@ def load_settings() -> CentralSettings:
     if settings.research_only is not True or settings.live_orders is not False:
         raise RuntimeError("unsafe configuration: research_only must be true and live_orders false")
     for name in ("taker_fee_bps", "maker_fee_bps", "spread_bps", "slippage_bps", "impact_bps"):
-        if getattr(settings, name) < 0:
-            raise RuntimeError(f"{name} must be non-negative")
+        value = getattr(settings, name)
+        if not isfinite(value) or value < 0:
+            raise RuntimeError(f"{name} must be finite and non-negative")
     if settings.latency_bars < 0:
         raise RuntimeError("latency_bars must be non-negative")
+    capital_values = (settings.capital_usd, settings.min_profit_usd, settings.preferred_profit_usd)
+    if not all(isfinite(value) for value in capital_values):
+        raise RuntimeError("centralized capital targets must be finite")
     if settings.capital_usd <= 0 or settings.min_profit_usd <= 0 or settings.preferred_profit_usd < settings.min_profit_usd:
         raise RuntimeError("invalid centralized capital target policy")
     return settings
