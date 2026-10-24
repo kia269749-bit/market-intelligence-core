@@ -35,18 +35,28 @@ class ExecutionCostTests(unittest.TestCase):
         self.assertAlmostEqual(apply_cost_to_gross_pnl(25.0, cost), 1.0)
 
     def test_rejects_invalid_values(self):
-        with self.assertRaises(ValueError):
-            estimate_execution_cost(0)
-        with self.assertRaises(ValueError):
-            estimate_execution_cost(float("inf"))
-        with self.assertRaises(ValueError):
-            estimate_execution_cost(1000, fee_bps=float("nan"))
-        with self.assertRaises(ValueError):
-            ExecutionCostConfig(slippage_bps=-1)
-        with self.assertRaises(ValueError):
-            ExecutionCostConfig(taker_fee_bps=float("nan"))
-        with self.assertRaises(ValueError):
-            ExecutionCostConfig(impact_bps=float("inf"))
+        for notional in (0, float("inf"), float("nan"), True):
+            with self.subTest(notional=notional), self.assertRaises(ValueError):
+                estimate_execution_cost(notional)
+        for override in (float("nan"), True):
+            with self.subTest(override=override), self.assertRaises(ValueError):
+                estimate_execution_cost(1000, fee_bps=override)
+        for kwargs in (
+            {"slippage_bps": -1},
+            {"taker_fee_bps": float("nan")},
+            {"impact_bps": float("inf")},
+            {"spread_bps": True},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                ExecutionCostConfig(**kwargs)
+
+    def test_numeric_string_costs_are_normalized(self):
+        cfg = ExecutionCostConfig(
+            taker_fee_bps="6", spread_bps="2",
+            slippage_bps="3", impact_bps="1",
+        )
+        self.assertIsInstance(cfg.taker_fee_bps, float)
+        self.assertAlmostEqual(estimate_execution_cost(10000, config=cfg).total, 24.0)
 
 
 if __name__ == "__main__":
