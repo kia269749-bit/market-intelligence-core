@@ -48,6 +48,13 @@ class TradeBootstrapTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "block_size"):
             run_trade_bootstrap([1.0, -1.0], simulations=100, block_size=3)
 
+    def test_initial_equity_validation_is_fail_closed(self):
+        for value in (True, float("nan"), float("inf"), "not-a-number"):
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "initial_equity_usd"):
+                run_trade_bootstrap([1.0, -1.0], simulations=100, initial_equity_usd=value)
+        result = run_trade_bootstrap([1.0, -1.0], simulations=100, initial_equity_usd="500")
+        self.assertEqual(result["max_drawdown_p95_pct_initial_equity"], 0.2)
+
 
 if __name__ == "__main__":
     unittest.main()
