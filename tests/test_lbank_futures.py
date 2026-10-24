@@ -61,6 +61,7 @@ class LBankFuturesTests(unittest.TestCase):
         self.assertEqual(result["data_quality"]["status"], "DEGRADED")
         self.assertEqual([row["symbol"] for row in result["rows"]], ["BTCUSDT"])
         self.assertEqual(result["errors"][0]["error"], "contract_not_found")
+        self.assertIsNone(result["aggregates"][0]["cross_exchange_spread_pct"])
         self.assertFalse(result["live_orders"])
 
 
