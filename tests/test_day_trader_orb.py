@@ -81,6 +81,18 @@ class DayTraderOrbTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "chronological"):
             run_opening_range_breakout(bars, capital_usd=500)
 
+    def test_duplicate_timestamps_are_rejected(self):
+        bars = winning_fixture()
+        bars[2]["timestamp"] = bars[1]["timestamp"]
+        with self.assertRaisesRegex(ValueError, "unique timestamps"):
+            run_opening_range_breakout(bars, capital_usd=500)
+
+    def test_malformed_timestamp_is_rejected(self):
+        bars = winning_fixture()
+        bars[2]["timestamp"] = "not-a-timestamp"
+        with self.assertRaisesRegex(ValueError, "numeric or ISO-8601"):
+            run_opening_range_breakout(bars, capital_usd=500)
+
     def test_position_sizing_includes_estimated_round_trip_cost_in_stop_risk(self):
         result = run_opening_range_breakout(
             winning_fixture(), capital_usd=10000, position_fraction=1.0,
