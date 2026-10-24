@@ -132,6 +132,8 @@ def evaluate_day_trader_patterns(
                 "baseline_mean_net_return_pct": round(baseline_avg, 6) if baseline_avg is not None else None,
                 "mean_net_edge_vs_baseline_pct_points": round(avg_net - baseline_avg, 6) if avg_net is not None and baseline_avg is not None else None,
                 "exposure_fraction_pct_approx": round(100.0 * len(net) * horizon_bars / len(normalized), 6),
+                "net_returns_pct": [round(value, 8) for value in net],
+                "baseline_net_returns_pct": [round(value, 8) for value in baseline_net],
             }
         output[name] = {"stress": stress, "trade_timestamps": [t["entry_timestamp"] for t in trades]}
 
