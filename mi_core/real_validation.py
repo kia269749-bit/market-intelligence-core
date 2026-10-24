@@ -13,6 +13,7 @@ from pathlib import Path
 from .multi_asset_forecast import load_project60_assets, rank_assets
 from .economic_edge import diagnose_economic_edge
 from .central_config import load_settings
+from .research_quality_gate import evaluate_cost_sensitivity, evaluate_research_quality
 SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
 
 from .validated_forecast import (
@@ -90,20 +91,38 @@ def _oos_integrity_metrics(result, horizon):
     majority_accuracy=majority/n if n else 0.0
     prediction_classes=sum(v>0 for v in pred_counts.values())
     actual_classes=sum(v>0 for v in actual_counts.values())
+    # Unix Project60 timestamps are normally seconds; synthetic fixtures may
+    # use small millisecond values. Infer units without treating missing rows as adjacent.
+    ts_values=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
+    max_ts=max((abs(x) for x in ts_values), default=0)
+    positive_gaps=[b-a for a,b in zip(ts_values,ts_values[1:]) if b>a]
+    median_gap=sorted(positive_gaps)[len(positive_gaps)//2] if positive_gaps else 0
+    timestamps_are_ms = max_ts >= 100_000_000_000 or (max_ts < 1_000_000_000 and median_gap >= 10_000)
+    gap_limit=int(horizon)*60_000 if timestamps_are_ms else int(horizon)*60
     pairs=0
     overlapping_pairs=0
-    ts=[x.get("ts") for x in rows if isinstance(x.get("ts"),(int,float))]
-    for a,b in zip(ts,ts[1:]):
+    for left,right in zip(rows,rows[1:]):
+        a,b=left.get("ts"),right.get("ts")
+        if not isinstance(a,(int,float)) or not isinstance(b,(int,float)):
+            continue
         pairs+=1
-        if b-a < int(horizon)*60_000:
+        if b>a and b-a < gap_limit:
             overlapping_pairs+=1
     overlap_rate=overlapping_pairs/pairs if pairs else 0.0
+    recalls=[]
+    for cls in (-1,0,1):
+        support=actual_counts[str(cls)]
+        if support:
+            recalls.append(sum(x["pred"]==cls and x["actual"]==cls for x in rows)/support)
+    balanced_accuracy=sum(recalls)/len(recalls) if recalls else 0.0
     return {"resolved":n,"actual_class_counts":actual_counts,"prediction_class_counts":pred_counts,
             "actual_class_count":actual_classes,"prediction_class_count":prediction_classes,
             "majority_class":majority_class,"majority_baseline_accuracy":round(majority_accuracy,6),
             "model_vs_majority_accuracy_lift":round(float(result.get("accuracy",0.0))-majority_accuracy,6),
+            "balanced_accuracy":round(balanced_accuracy,6),
             "overlapping_adjacent_pairs":overlapping_pairs,"adjacent_pairs":pairs,
-            "overlap_rate":round(overlap_rate,6),"horizon_bars":int(horizon),
+            "overlap_rate":round(overlap_rate,6),"timestamp_unit":"milliseconds" if timestamps_are_ms else "seconds",
+            "horizon_bars":int(horizon),
             "class_collapse": actual_classes < 2 or prediction_classes < 2,
             "research_only":True,"live_orders":False}
 
@@ -183,6 +202,11 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             preferred_profit_usd=preferred_profit_usd,
         )
         integrity_metrics = _oos_integrity_metrics(result, horizon)
+        cost_sensitivity = evaluate_cost_sensitivity(result, capital_usd, round_trip_cost_pct)
+        research_quality_gate = evaluate_research_quality(
+            prediction_metrics, economic_metrics, capital_metrics, integrity_metrics,
+            cost_sensitivity,
+        )
         gate = forecast_acceptance_gate(prediction_metrics, capital_metrics,
                                         min_oos_samples=100, min_high_conf_samples=20,
                                         min_high_conf_accuracy=0.55,
@@ -201,6 +225,8 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
             "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
+            "cost_sensitivity": cost_sensitivity,
+            "research_quality_gate": research_quality_gate,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
         })
     aggregate = _aggregate(asset_results)
