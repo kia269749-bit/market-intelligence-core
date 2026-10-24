@@ -10,7 +10,8 @@ from __future__ import annotations
 import argparse
 import json
 import time
-from datetime import datetime, timezone
+from datetime import datetime
+from math import isfinite
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -20,6 +21,7 @@ from mi_core.day_trader_pattern_eval import evaluate_day_trader_patterns
 API_URL = "https://api.hyperliquid.xyz/info"
 SYMBOLS = ("BTC", "ETH", "SOL")
 INTERVAL = "1d"
+DAY_MS = 86_400_000
 FETCH_START = "2021-11-01T00:00:00Z"
 FETCH_END = "2026-10-01T00:00:00Z"
 SPLITS = (
@@ -61,23 +63,23 @@ def fetch_daily(symbol: str) -> list[dict]:
     if not isinstance(raw, list):
         raise RuntimeError(f"unexpected candle response for {symbol}: expected list")
     by_time = {}
+    duplicate_timestamps = set()
     for row in raw:
         if not isinstance(row, dict):
-            continue
+            raise RuntimeError(f"malformed candle row returned for {symbol}")
         try:
             stamp = int(row["t"])
-            opening = float(row["o"])
-            high = float(row["h"])
-            low = float(row["l"])
-            close = float(row["c"])
+            opening, high, low, close = (float(row[key]) for key in ("o", "h", "l", "c"))
         except (KeyError, TypeError, ValueError) as exc:
             raise RuntimeError(f"malformed candle returned for {symbol}") from exc
         if stamp < _ms(FETCH_START) or stamp >= _ms(FETCH_END):
             continue
-        if not all(value > 0 for value in (opening, high, low, close)):
-            raise RuntimeError(f"non-positive OHLC candle returned for {symbol} at {stamp}")
+        if not all(isfinite(value) and value > 0 for value in (opening, high, low, close)):
+            raise RuntimeError(f"non-finite or non-positive OHLC candle returned for {symbol} at {stamp}")
         if high < max(opening, close, low) or low > min(opening, close, high):
             raise RuntimeError(f"inconsistent OHLC candle returned for {symbol} at {stamp}")
+        if stamp in by_time:
+            duplicate_timestamps.add(stamp)
         by_time[stamp] = {
             "timestamp": stamp,
             "open": opening,
@@ -85,25 +87,31 @@ def fetch_daily(symbol: str) -> list[dict]:
             "low": low,
             "close": close,
         }
+    if duplicate_timestamps:
+        raise RuntimeError(f"duplicate timestamps for {symbol}: {sorted(duplicate_timestamps)[:3]}")
     candles = [by_time[key] for key in sorted(by_time)]
     if len(candles) < 500:
         raise RuntimeError(f"insufficient daily history for {symbol}: {len(candles)} candles")
-    if len(candles) != len(by_time) or len({x["timestamp"] for x in candles}) != len(candles):
-        raise RuntimeError(f"duplicate or inconsistent timestamps for {symbol}")
+    for previous, current in zip(candles, candles[1:]):
+        if current["timestamp"] - previous["timestamp"] != DAY_MS:
+            raise RuntimeError(
+                f"missing or irregular daily candle interval for {symbol}: "
+                f"{previous['timestamp']} -> {current['timestamp']}"
+            )
     return candles
 
 
-def _split_with_warmup(candles: list[dict], start: str, end: str) -> tuple[list[dict], int]:
+def _split_with_warmup(candles: list[dict], start: str, end: str) -> list[dict]:
     start_ms, end_ms = _ms(start), _ms(end)
     first = next((i for i, bar in enumerate(candles) if bar["timestamp"] >= start_ms), None)
     if first is None:
-        return [], 0
+        return []
     stop = next((i for i, bar in enumerate(candles) if bar["timestamp"] >= end_ms), len(candles))
     if first < 20:
         raise RuntimeError(f"not enough pre-period warm-up bars for split starting {start}")
-    # Exactly 20 prior daily bars are included so the first evaluated bar is
-    # the split's first bar, not part of the warm-up.
-    return candles[first - 20:stop], first - (first - 20)
+    # Exactly 20 prior daily bars ensure the evaluator's first signal bar is
+    # the first bar in the split, not part of the warm-up.
+    return candles[first - 20:stop]
 
 
 def run_study() -> dict:
@@ -125,9 +133,14 @@ def run_study() -> dict:
     }
     for symbol in SYMBOLS:
         candles = fetch_daily(symbol)
-        asset_result = {"candles": len(candles), "first_timestamp": candles[0]["timestamp"], "last_timestamp": candles[-1]["timestamp"], "splits": {}}
+        asset_result = {
+            "candles": len(candles),
+            "first_timestamp": candles[0]["timestamp"],
+            "last_timestamp": candles[-1]["timestamp"],
+            "splits": {},
+        }
         for name, start, end in SPLITS:
-            segment, _ = _split_with_warmup(candles, start, end)
+            segment = _split_with_warmup(candles, start, end)
             if len(segment) < 30:
                 raise RuntimeError(f"insufficient data for {symbol} {name} split")
             metrics = evaluate_day_trader_patterns(segment, horizon_bars=5)
