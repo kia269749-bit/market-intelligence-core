@@ -17,6 +17,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from mi_core.day_trader_pattern_eval import evaluate_day_trader_patterns
+from mi_core.pattern_statistics import bootstrap_edge_test, bootstrap_mean_ci, holm_adjust
 
 API_URL = "https://api.hyperliquid.xyz/info"
 SYMBOLS = ("BTC", "ETH", "SOL")
@@ -130,7 +131,9 @@ def run_study() -> dict:
             "live_orders": False,
         },
         "assets": {},
+        "statistical_validation": {},
     }
+    tests_by_family = {}
     for symbol in SYMBOLS:
         candles = fetch_daily(symbol)
         asset_result = {
@@ -146,7 +149,38 @@ def run_study() -> dict:
             metrics = evaluate_day_trader_patterns(segment, horizon_bars=5)
             metrics["period"] = {"start_inclusive": start, "end_exclusive": end}
             asset_result["splits"][name] = metrics
+            for pattern_name, pattern_result in metrics.get("strategies", {}).items():
+                for multiplier, stress in pattern_result.get("stress", {}).items():
+                    family_key = (name, multiplier)
+                    family = tests_by_family.setdefault(family_key, [])
+                    seed = 20261024 + sum(ord(ch) for ch in f"{symbol}:{name}:{pattern_name}:{multiplier}")
+                    returns = stress.get("net_returns_pct", [])
+                    baseline_returns = stress.get("baseline_net_returns_pct", [])
+                    family.append({
+                        "asset": symbol,
+                        "pattern": pattern_name,
+                        "cost_multiplier": multiplier,
+                        "net_return_ci": bootstrap_mean_ci(returns, reps=2000, block_size=3, seed=seed),
+                        "edge_test": bootstrap_edge_test(
+                            returns, baseline_returns, reps=2000, block_size=3, seed=seed + 1
+                        ),
+                    })
         result["assets"][symbol] = asset_result
+    for (split_name, multiplier), family in sorted(tests_by_family.items()):
+        adjusted = holm_adjust([
+            row["edge_test"].get("p_value_one_sided") for row in family
+        ])
+        for row, adjusted_p in zip(family, adjusted):
+            row["holm_adjusted_p_value"] = adjusted_p
+        result["statistical_validation"].setdefault(split_name, {})[multiplier] = {
+            "family_size_including_insufficient_samples": len(family),
+            "multiple_testing_correction": "Holm-Bonferroni",
+            "tests": family,
+            "interpretation": (
+                "Exploratory diagnostics only. LOW_SAMPLE and INSUFFICIENT_DATA are not "
+                "positive evidence; intervals and p-values do not model funding or live fills."
+            ),
+        }
     return result
 
 
