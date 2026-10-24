@@ -65,7 +65,7 @@ def evaluate_day_trader_patterns(
             raise ValueError("timestamps must use one consistent format")
         timestamp_mode = mode
         if previous_key is not None and key <= previous_key:
-            raise ValueError("bars must have strictly increasing, unique timestamps")
+            raise ValueError("bars must be chronological with strictly increasing, unique timestamps")
         previous_key = key
         normalized.append({"open": open_price, "close": close_price, "timestamp": stamp})
 
