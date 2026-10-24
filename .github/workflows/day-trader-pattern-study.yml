@@ -1,0 +1,35 @@
+name: Day Trader Pattern Historical Study
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "mi_core/day_trader_patterns.py"
+      - "mi_core/day_trader_pattern_eval.py"
+      - "scripts/run_day_trader_pattern_study.py"
+      - "tests/test_day_trader_patterns.py"
+      - "tests/test_day_trader_pattern_eval.py"
+      - ".github/workflows/day-trader-pattern-study.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  historical-pattern-study:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Fetch public historical candles and evaluate frozen patterns
+        run: PYTHONPATH=. python scripts/run_day_trader_pattern_study.py --output artifacts/day_trader_pattern_study.json
+      - name: Upload study report
+        uses: actions/upload-artifact@v4
+        with:
+          name: day-trader-pattern-study
+          path: artifacts/day_trader_pattern_study.json
+          if-no-files-found: error
