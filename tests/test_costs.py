@@ -58,6 +58,15 @@ class ExecutionCostTests(unittest.TestCase):
         self.assertIsInstance(cfg.taker_fee_bps, float)
         self.assertAlmostEqual(estimate_execution_cost(10000, config=cfg).total, 24.0)
 
+    def test_rejects_invalid_execution_cost_records_and_gross_pnl(self):
+        with self.assertRaisesRegex(ValueError, "total"):
+            from mi_core.costs import ExecutionCost
+            ExecutionCost(notional=100, fee=1, spread=1, slippage=1, impact=1, total=float("nan"))
+        cost = estimate_execution_cost(1000)
+        for pnl in (float("nan"), float("inf"), True):
+            with self.subTest(pnl=pnl), self.assertRaisesRegex(ValueError, "gross_pnl"):
+                apply_cost_to_gross_pnl(pnl, cost)
+
 
 if __name__ == "__main__":
     unittest.main()
