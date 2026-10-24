@@ -15,12 +15,17 @@ class ExecutionCostConfig:
 
     def __post_init__(self) -> None:
         for name in ("taker_fee_bps", "spread_bps", "slippage_bps", "impact_bps"):
+            raw = getattr(self, name)
+            if isinstance(raw, bool):
+                raise ValueError(f"{name} must be finite and non-negative")
             try:
-                value = float(getattr(self, name))
+                value = float(raw)
             except (TypeError, ValueError) as exc:
                 raise ValueError(f"{name} must be finite and non-negative") from exc
             if not isfinite(value) or value < 0:
                 raise ValueError(f"{name} must be finite and non-negative")
+            # Normalize accepted numeric strings to floats in the frozen object.
+            object.__setattr__(self, name, value)
 
 
 @dataclass(frozen=True)
@@ -54,6 +59,8 @@ def estimate_execution_cost(
     When config is omitted, all assumptions are loaded from central_config.
     """
 
+    if isinstance(notional, bool):
+        raise ValueError("notional must be finite and positive")
     try:
         notional_value = float(notional)
     except (TypeError, ValueError) as exc:
@@ -72,6 +79,11 @@ def estimate_execution_cost(
         )
     else:
         cfg = config
+    overrides = {"fee_bps": fee_bps, "spread_bps": spread_bps,
+                 "slippage_bps": slippage_bps, "impact_bps": impact_bps}
+    for name, value in overrides.items():
+        if isinstance(value, bool):
+            raise ValueError(f"{name} must be finite and non-negative")
     fee = cfg.taker_fee_bps if fee_bps is None else float(fee_bps)
     spread = cfg.spread_bps if spread_bps is None else float(spread_bps)
     slippage = cfg.slippage_bps if slippage_bps is None else float(slippage_bps)
