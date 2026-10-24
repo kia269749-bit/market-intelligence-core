@@ -30,6 +30,16 @@ SPLITS = (
     ("validation", "2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z"),
     ("holdout", "2025-01-01T00:00:00Z", "2026-10-01T00:00:00Z"),
 )
+# Frozen-pattern calendar subperiods expose year-to-year instability without
+# tuning parameters on these slices. 2026 is partial through FETCH_END.
+FROZEN_SUBPERIODS = (
+    ("year_2022", "2022-01-01T00:00:00Z", "2023-01-01T00:00:00Z"),
+    ("year_2023", "2023-01-01T00:00:00Z", "2024-01-01T00:00:00Z"),
+    ("year_2024", "2024-01-01T00:00:00Z", "2025-01-01T00:00:00Z"),
+    ("year_2025", "2025-01-01T00:00:00Z", "2026-01-01T00:00:00Z"),
+    ("year_2026_partial", "2026-01-01T00:00:00Z", "2026-10-01T00:00:00Z"),
+)
+ALL_SPLITS = SPLITS + FROZEN_SUBPERIODS
 
 
 def _ms(stamp: str) -> int:
@@ -124,6 +134,10 @@ def run_study() -> dict:
             "fetch_start": FETCH_START,
             "fetch_end_exclusive": FETCH_END,
             "splits": [{"name": name, "start_inclusive": start, "end_exclusive": end} for name, start, end in SPLITS],
+            "frozen_parameter_subperiods": [
+                {"name": name, "start_inclusive": start, "end_exclusive": end}
+                for name, start, end in FROZEN_SUBPERIODS
+            ],
             "horizon_bars": 5,
             "cost_multipliers": [1.0, 1.5, 2.0],
             "strategy_parameters_frozen": True,
@@ -142,7 +156,7 @@ def run_study() -> dict:
             "last_timestamp": candles[-1]["timestamp"],
             "splits": {},
         }
-        for name, start, end in SPLITS:
+        for name, start, end in ALL_SPLITS:
             segment = _split_with_warmup(candles, start, end)
             if len(segment) < 30:
                 raise RuntimeError(f"insufficient data for {symbol} {name} split")
