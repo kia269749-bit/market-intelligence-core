@@ -3,11 +3,12 @@
 The evaluator uses only completed bars to detect a pattern, enters at the
 next bar's open, and exits at a fixed future close. It rejects malformed data,
 uses central execution-cost assumptions, and prevents overlapping trades within
-each pattern. It reports a matched-window unconditional baseline; it does not
+each pattern. It reports a coarse fixed-schedule unconditional baseline; it does not
 claim statistical significance or profitability.
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from math import isfinite
 from typing import Any, Mapping, Sequence
 
@@ -45,7 +46,8 @@ def evaluate_day_trader_patterns(
         return _empty("INSUFFICIENT_DATA")
 
     normalized = []
-    previous_stamp = None
+    previous_key = None
+    timestamp_mode = None
     for i, bar in enumerate(bars):
         if not isinstance(bar, Mapping):
             raise ValueError(f"bar {i} must be a mapping")
@@ -55,20 +57,16 @@ def evaluate_day_trader_patterns(
             raise ValueError(f"bar {i} requires numeric open and close") from exc
         if not isfinite(open_price) or not isfinite(close_price) or open_price <= 0 or close_price <= 0:
             raise ValueError(f"bar {i} open and close must be finite and positive")
-        stamp = bar.get("timestamp", i)
-        if previous_stamp is not None:
-            # Timestamps may be homogeneous numeric or string values. Do not
-            # silently compare mixed formats or lexicographically sort numbers.
-            prev_num = _numeric_stamp(previous_stamp)
-            curr_num = _numeric_stamp(stamp)
-            if (prev_num is None) != (curr_num is None):
-                raise ValueError("timestamps must use one consistent format")
-            if prev_num is not None:
-                if curr_num < prev_num:
-                    raise ValueError("bars must be chronological")
-            elif str(stamp) < str(previous_stamp):
-                raise ValueError("bars must be chronological")
-        previous_stamp = stamp
+        if "timestamp" not in bar:
+            mode, key, stamp = "implicit_index", float(i), i
+        else:
+            mode, key, stamp = _normalize_timestamp(bar["timestamp"], i)
+        if timestamp_mode is not None and mode != timestamp_mode:
+            raise ValueError("timestamps must use one consistent format")
+        timestamp_mode = mode
+        if previous_key is not None and key <= previous_key:
+            raise ValueError("bars must have strictly increasing, unique timestamps")
+        previous_key = key
         normalized.append({"open": open_price, "close": close_price, "timestamp": stamp})
 
     closes = [row["close"] for row in normalized]
@@ -159,14 +157,33 @@ def evaluate_day_trader_patterns(
     }
 
 
-def _numeric_stamp(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
-    try:
+def _normalize_timestamp(value: Any, index: int) -> tuple[str, float, Any]:
+    """Normalize timestamps for strict chronological and duplicate checks."""
+    if value is None or isinstance(value, bool):
+        raise ValueError(f"bar {index} timestamp must be numeric or ISO-8601")
+    if isinstance(value, (int, float)):
         number = float(value)
-    except (TypeError, ValueError):
-        return None
-    return number if isfinite(number) else None
+        if not isfinite(number):
+            raise ValueError(f"bar {index} timestamp must be finite")
+        return "numeric", number, value
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"bar {index} timestamp must be numeric or ISO-8601")
+    stamp = value.strip()
+    try:
+        number = float(stamp)
+    except ValueError:
+        number = None
+    if number is not None:
+        if not isfinite(number):
+            raise ValueError(f"bar {index} timestamp must be finite")
+        return "numeric", number, value
+    try:
+        parsed = datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"bar {index} timestamp must be numeric or ISO-8601") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return "iso8601", parsed.timestamp(), value
 
 
 def _empty(status: str, **extra: Any) -> dict[str, Any]:
