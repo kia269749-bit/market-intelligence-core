@@ -106,6 +106,18 @@ class DayTraderOrbTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_opening_range_breakout([bar("s1", "1", 100, 98, 99, 100)])
 
+    def test_rejects_nonfinite_risk_and_sizing_parameters(self):
+        for kwargs in (
+            {"target_r": float("nan")},
+            {"cost_multiplier": float("inf")},
+            {"position_fraction": float("nan")},
+            {"risk_fraction": float("inf")},
+            {"capital_usd": float("nan")},
+        ):
+            with self.subTest(kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    run_opening_range_breakout(winning_fixture(), **kwargs)
+
 
 if __name__ == "__main__":
     unittest.main()
