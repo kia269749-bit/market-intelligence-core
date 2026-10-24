@@ -38,7 +38,15 @@ class ExecutionCostTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             estimate_execution_cost(0)
         with self.assertRaises(ValueError):
+            estimate_execution_cost(float("inf"))
+        with self.assertRaises(ValueError):
+            estimate_execution_cost(1000, fee_bps=float("nan"))
+        with self.assertRaises(ValueError):
             ExecutionCostConfig(slippage_bps=-1)
+        with self.assertRaises(ValueError):
+            ExecutionCostConfig(taker_fee_bps=float("nan"))
+        with self.assertRaises(ValueError):
+            ExecutionCostConfig(impact_bps=float("inf"))
 
 
 if __name__ == "__main__":
