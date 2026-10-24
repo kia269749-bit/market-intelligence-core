@@ -35,10 +35,37 @@ class ExecutionCostTests(unittest.TestCase):
         self.assertAlmostEqual(apply_cost_to_gross_pnl(25.0, cost), 1.0)
 
     def test_rejects_invalid_values(self):
-        with self.assertRaises(ValueError):
-            estimate_execution_cost(0)
-        with self.assertRaises(ValueError):
-            ExecutionCostConfig(slippage_bps=-1)
+        for notional in (0, float("inf"), float("nan"), True):
+            with self.subTest(notional=notional), self.assertRaises(ValueError):
+                estimate_execution_cost(notional)
+        for override in (float("nan"), True):
+            with self.subTest(override=override), self.assertRaises(ValueError):
+                estimate_execution_cost(1000, fee_bps=override)
+        for kwargs in (
+            {"slippage_bps": -1},
+            {"taker_fee_bps": float("nan")},
+            {"impact_bps": float("inf")},
+            {"spread_bps": True},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                ExecutionCostConfig(**kwargs)
+
+    def test_numeric_string_costs_are_normalized(self):
+        cfg = ExecutionCostConfig(
+            taker_fee_bps="6", spread_bps="2",
+            slippage_bps="3", impact_bps="1",
+        )
+        self.assertIsInstance(cfg.taker_fee_bps, float)
+        self.assertAlmostEqual(estimate_execution_cost(10000, config=cfg).total, 24.0)
+
+    def test_rejects_invalid_execution_cost_records_and_gross_pnl(self):
+        with self.assertRaisesRegex(ValueError, "total"):
+            from mi_core.costs import ExecutionCost
+            ExecutionCost(notional=100, fee=1, spread=1, slippage=1, impact=1, total=float("nan"))
+        cost = estimate_execution_cost(1000)
+        for pnl in (float("nan"), float("inf"), True):
+            with self.subTest(pnl=pnl), self.assertRaisesRegex(ValueError, "gross_pnl"):
+                apply_cost_to_gross_pnl(pnl, cost)
 
 
 if __name__ == "__main__":

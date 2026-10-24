@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import isfinite
 
 
 @dataclass(frozen=True)
@@ -14,9 +15,17 @@ class ExecutionCostConfig:
 
     def __post_init__(self) -> None:
         for name in ("taker_fee_bps", "spread_bps", "slippage_bps", "impact_bps"):
-            value = float(getattr(self, name))
-            if value < 0:
-                raise ValueError(f"{name} must be non-negative")
+            raw = getattr(self, name)
+            if isinstance(raw, bool):
+                raise ValueError(f"{name} must be finite and non-negative")
+            try:
+                value = float(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name} must be finite and non-negative") from exc
+            if not isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and non-negative")
+            # Normalize accepted numeric strings to floats in the frozen object.
+            object.__setattr__(self, name, value)
 
 
 @dataclass(frozen=True)
@@ -27,6 +36,21 @@ class ExecutionCost:
     slippage: float
     impact: float
     total: float
+
+    def __post_init__(self) -> None:
+        for name in ("notional", "fee", "spread", "slippage", "impact", "total"):
+            raw = getattr(self, name)
+            if isinstance(raw, bool):
+                raise ValueError(f"{name} must be finite and non-negative")
+            try:
+                value = float(raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"{name} must be finite and non-negative") from exc
+            if not isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be finite and non-negative")
+            object.__setattr__(self, name, value)
+        if self.notional <= 0:
+            raise ValueError("notional must be finite and positive")
 
 
 def _bps(value: float) -> float:
@@ -47,10 +71,17 @@ def estimate_execution_cost(
     The estimate deliberately keeps each cost component separate so validation
     can report where profitability is being consumed. fee_bps, when supplied,
     is a compatibility override for the taker fee used by the legacy backtest.
+    When config is omitted, all assumptions are loaded from central_config.
     """
 
-    if notional <= 0:
-        raise ValueError("notional must be positive")
+    if isinstance(notional, bool):
+        raise ValueError("notional must be finite and positive")
+    try:
+        notional_value = float(notional)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("notional must be finite and positive") from exc
+    if not isfinite(notional_value) or notional_value <= 0:
+        raise ValueError("notional must be finite and positive")
 
     if config is None:
         from .central_config import load_settings
@@ -63,6 +94,11 @@ def estimate_execution_cost(
         )
     else:
         cfg = config
+    overrides = {"fee_bps": fee_bps, "spread_bps": spread_bps,
+                 "slippage_bps": slippage_bps, "impact_bps": impact_bps}
+    for name, value in overrides.items():
+        if isinstance(value, bool):
+            raise ValueError(f"{name} must be finite and non-negative")
     fee = cfg.taker_fee_bps if fee_bps is None else float(fee_bps)
     spread = cfg.spread_bps if spread_bps is None else float(spread_bps)
     slippage = cfg.slippage_bps if slippage_bps is None else float(slippage_bps)
@@ -74,20 +110,20 @@ def estimate_execution_cost(
         "slippage_bps": slippage,
         "impact_bps": impact,
     }
-    if any(v < 0 for v in values.values()):
-        raise ValueError("cost assumptions must be non-negative")
+    if any(not isfinite(v) or v < 0 for v in values.values()):
+        raise ValueError("cost assumptions must be finite and non-negative")
 
     # Each input is a per-side assumption. A round trip pays entry and exit
     # friction; spread is modeled per side here for conservative consistency.
     components = {
-        "fee": notional * _bps(fee) * 2.0,
-        "spread": notional * _bps(spread) * 2.0,
-        "slippage": notional * _bps(slippage) * 2.0,
-        "impact": notional * _bps(impact) * 2.0,
+        "fee": notional_value * _bps(fee) * 2.0,
+        "spread": notional_value * _bps(spread) * 2.0,
+        "slippage": notional_value * _bps(slippage) * 2.0,
+        "impact": notional_value * _bps(impact) * 2.0,
     }
     total = sum(components.values())
     return ExecutionCost(
-        notional=float(notional),
+        notional=notional_value,
         fee=round(components["fee"], 12),
         spread=round(components["spread"], 12),
         slippage=round(components["slippage"], 12),
@@ -99,4 +135,14 @@ def estimate_execution_cost(
 def apply_cost_to_gross_pnl(gross_pnl: float, cost: ExecutionCost) -> float:
     """Return net PnL after explicitly modeled execution costs."""
 
-    return float(gross_pnl) - cost.total
+    if isinstance(gross_pnl, bool):
+        raise ValueError("gross_pnl must be finite")
+    try:
+        gross = float(gross_pnl)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("gross_pnl must be finite") from exc
+    if not isfinite(gross):
+        raise ValueError("gross_pnl must be finite")
+    if not isinstance(cost, ExecutionCost):
+        raise ValueError("cost must be an ExecutionCost")
+    return gross - cost.total
