@@ -28,3 +28,4 @@ jobs:
           python -m unittest discover -s tests -p 'test_trade_economics.py' -v
           python -m unittest discover -s tests -p 'test_central_config.py' -v
           python -m unittest discover -s tests -p 'test_lbank_futures.py' -v
+          python -m unittest discover -s tests -p 'test_day_trader_orb.py' -v
