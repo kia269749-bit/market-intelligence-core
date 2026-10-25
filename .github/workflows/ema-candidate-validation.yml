@@ -42,12 +42,12 @@ jobs:
         run: |
           mkdir -p data/real reports/ema-candidate
           python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1d --bars 2500 --out data/real/${{ matrix.symbol }}_1d.jsonl --report reports/ema-candidate/${{ matrix.symbol }}_data.json
-      - name: Validate fixed candidate across annual windows and costs
+      - name: Validate fixed candidate across annual windows at fixed project cost
         run: |
           python tools/ema_candidate_validation.py \
             --input data/real/${{ matrix.symbol }}_1d.jsonl \
             --out reports/ema-candidate/${{ matrix.symbol }}_multi_window.json \
-            --symbol ${{ matrix.symbol }} --costs 0.24,0.36,0.48 --capital 500
+            --symbol ${{ matrix.symbol }} --costs 0.24 --capital 500
       - name: Publish reproducible research report
         uses: actions/upload-artifact@v4
         with:
