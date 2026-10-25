@@ -230,6 +230,8 @@ def _moving_block_mean_ci(differences, *, block_length=20, replicates=1000, seed
 
 
 def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_usd=500.0):
+    if tuple(float(c) for c in costs) != (0.24,):
+        raise ValueError("project cost is fixed at 0.24% round trip")
     symbol, stamps = validate_bars(bars, expected_symbol)
     signals = build_signals(bars)
     years = {}
