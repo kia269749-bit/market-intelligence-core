@@ -2,7 +2,7 @@ import math
 import unittest
 from types import SimpleNamespace
 
-from tools.ema_candidate_validation import build_signals, validate_bars, validate_candidate
+from tools.ema_candidate_validation import build_signals, validate_bars, validate_candidate, _moving_block_mean_ci
 
 
 def make_bars(symbol="BTCUSDT", count=750):
@@ -54,6 +54,13 @@ class EmaCandidateValidationTests(unittest.TestCase):
         self.assertFalse(report["trade_ready"])
         self.assertIn("buy_and_hold", report["aggregate_by_cost"]["0.24"])
         self.assertIn("ema20_50_sma200_confirmed", report["aggregate_by_cost"]["0.24"])
+
+    def test_block_bootstrap_is_reproducible_and_reports_uncertainty(self):
+        values = [0.1] * 200
+        first = _moving_block_mean_ci(values, block_length=20, replicates=200, seed=7)
+        second = _moving_block_mean_ci(values, block_length=20, replicates=200, seed=7)
+        self.assertEqual(first, second)
+        self.assertGreater(first["ci95_low_mean_daily_excess_pct"], 0.0)
 
     def test_bad_ohlc_is_rejected(self):
         rows = make_bars()
