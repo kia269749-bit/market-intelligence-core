@@ -13,7 +13,7 @@ import random
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from statistics import mean, pstdev
+from statistics import mean, median, pstdev
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -23,7 +23,7 @@ from mi_core.storage import load_bars
 
 
 STRATEGIES = ("ema20_50", "ema20_50_sma200_confirmed", "sma200", "donchian20_10", "rsi14", "buy_and_hold")
-DEFAULT_COSTS = (0.24, 0.36, 0.48)
+DEFAULT_COSTS = (0.24,)
 
 
 def _series(rows, key):
@@ -270,7 +270,9 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
                 "positive_windows": sum(x > 0 for x in values),
                 "negative_windows": sum(x < 0 for x in values),
                 "flat_windows": sum(x == 0 for x in values),
+                "total_net_profit_usd": round(sum(values), 4) if values else None,
                 "mean_window_net_profit_usd": round(mean(values), 4) if values else None,
+                "median_window_net_profit_usd": round(median(values), 4) if values else None,
                 "windows_beating_buy_and_hold": sum(
                     w["strategies"][name]["net_profit_usd"] > w["strategies"]["buy_and_hold"]["net_profit_usd"]
                     for w in selected
@@ -317,7 +319,7 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
             "parameter_search": False,
             "execution": "signal from completed close, delayed to next open; open-to-open returns",
             "windowing": "fresh $500 account for each calendar-year slice; prior bars used only for indicator warm-up",
-            "cost_scenarios_round_trip_pct": [float(c) for c in costs],
+            "fixed_round_trip_cost_pct": 0.24,
             "comparators": list(STRATEGIES),
             "limitations": [
                 "primary aggregate includes full calendar years only; partial final year remains visible in raw windows but is excluded from aggregate",
@@ -346,12 +348,12 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--symbol", required=True)
-    parser.add_argument("--costs", default="0.24,0.36,0.48")
+    parser.add_argument("--costs", default="0.24", help="locked project baseline: 0.24 percent round trip")
     parser.add_argument("--capital", type=float, default=500.0)
     args = parser.parse_args()
     costs = tuple(float(x.strip()) for x in args.costs.split(",") if x.strip())
-    if not costs or any(not math.isfinite(x) or x < 0 for x in costs):
-        raise SystemExit("--costs must be a comma-separated list of nonnegative percentages")
+    if costs != (0.24,):
+        raise SystemExit("--costs is locked to the project baseline: --costs 0.24")
     bars = load_bars(args.input)
     report = validate_candidate(bars, expected_symbol=args.symbol, costs=costs, capital_usd=args.capital)
     out = Path(args.out)
