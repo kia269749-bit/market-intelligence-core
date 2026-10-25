@@ -21,7 +21,7 @@ if str(ROOT) not in sys.path:
 from mi_core.storage import load_bars
 
 
-STRATEGIES = ("ema20_50", "sma200", "donchian20_10", "rsi14", "buy_and_hold")
+STRATEGIES = ("ema20_50", "ema20_50_sma200_confirmed", "sma200", "donchian20_10", "rsi14", "buy_and_hold")
 DEFAULT_COSTS = (0.24, 0.36, 0.48)
 
 
@@ -119,6 +119,8 @@ def build_signals(rows):
         signals["buy_and_hold"][i] = 1.0
         if math.isfinite(e20[i]) and math.isfinite(e50[i]):
             signals["ema20_50"][i] = 1.0 if e20[i] > e50[i] else 0.0
+        if math.isfinite(e20[i]) and math.isfinite(e50[i]) and math.isfinite(s200[i]):
+            signals["ema20_50_sma200_confirmed"][i] = 1.0 if e20[i] > e50[i] and closes[i] > s200[i] else 0.0
         if math.isfinite(s200[i]):
             signals["sma200"][i] = 1.0 if closes[i] > s200[i] else 0.0
 
