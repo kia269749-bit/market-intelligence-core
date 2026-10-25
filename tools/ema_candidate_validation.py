@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -192,6 +193,42 @@ def score_window(rows, signal, start, end, round_trip_cost_pct, capital_usd=500.
     }
 
 
+def _daily_net_returns(rows, signal, start, end, round_trip_cost_pct):
+    """Paired daily net returns for a reset account over a date window."""
+    opens = _series(rows, "open")
+    returns = []
+    first_i = max(start + 1, 1)
+    for i in range(first_i, min(end, len(rows))):
+        pos = signal[i - 2] if i >= 2 else 0.0
+        prev = 0.0 if i == first_i else (signal[i - 3] if i >= 3 else 0.0)
+        gross = pos * (opens[i] / opens[i - 1] - 1.0) * 100.0
+        returns.append(gross - abs(pos - prev) * (round_trip_cost_pct / 2.0))
+    return returns
+
+
+def _moving_block_mean_ci(differences, *, block_length=20, replicates=1000, seed=0):
+    """Exploratory paired moving-block bootstrap CI for mean daily excess return."""
+    n = len(differences)
+    if n < max(60, block_length * 3):
+        return None
+    rng = random.Random(seed)
+    means = []
+    max_start = n - block_length
+    for _ in range(replicates):
+        sample = []
+        while len(sample) < n:
+            start = rng.randrange(max_start + 1)
+            sample.extend(differences[start:start + block_length])
+        means.append(sum(sample[:n]) / n)
+    means.sort()
+    return {
+        "ci95_low_mean_daily_excess_pct": round(means[int(0.025 * (replicates - 1))], 7),
+        "ci95_high_mean_daily_excess_pct": round(means[int(0.975 * (replicates - 1))], 7),
+        "bootstrap_replicates": replicates,
+        "block_length_days": block_length,
+    }
+
+
 def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_usd=500.0):
     symbol, stamps = validate_bars(bars, expected_symbol)
     signals = build_signals(bars)
@@ -242,6 +279,31 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
                     w["strategies"][name]["max_drawdown_pct"] for w in selected
                 ), 4) if selected else None,
             }
+    bootstrap_by_cost = {}
+    # A single fixed 2021-2025 evaluation window per asset. This is descriptive
+    # and exploratory because the candidate was selected after prior research.
+    if 2021 in years and 2025 in years:
+        period_start, period_end = years[2021][0], years[2025][-1] + 1
+        for cost in costs:
+            per_strategy = {}
+            benchmark = _daily_net_returns(
+                bars, signals["buy_and_hold"], period_start, period_end, float(cost)
+            )
+            for name in ("ema20_50", "ema20_50_sma200_confirmed"):
+                candidate = _daily_net_returns(
+                    bars, signals[name], period_start, period_end, float(cost)
+                )
+                paired = [a - b for a, b in zip(candidate, benchmark)]
+                seed = sum((i + 1) * ord(ch) for i, ch in enumerate(f"{symbol}|{cost}|{name}"))
+                ci = _moving_block_mean_ci(paired, block_length=20, replicates=1000, seed=seed)
+                per_strategy[name] = {
+                    "days": len(paired),
+                    "mean_daily_excess_pct": round(mean(paired), 7) if paired else None,
+                    **(ci or {}),
+                    "ci_lower_above_zero": bool(ci and ci["ci95_low_mean_daily_excess_pct"] > 0),
+                }
+            bootstrap_by_cost[str(float(cost))] = per_strategy
+
     return {
         "status": "ok",
         "symbol": symbol,
@@ -260,6 +322,7 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
             "limitations": [
                 "primary aggregate includes full calendar years only; partial final year remains visible in raw windows but is excluded from aggregate",
             "calendar-year slices are not statistically independent",
+            "block-bootstrap intervals are exploratory after candidate selection and do not establish a durable edge",
                 "no funding, borrow, liquidation, order-book impact, or actual LBank fills",
                 "positive historical return is not proof of future edge",
                 "partial final-year window is not directly comparable with full years",
@@ -267,6 +330,11 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
         },
         "windows": windows,
         "aggregate_by_cost": aggregate,
+        "exploratory_block_bootstrap_vs_buy_and_hold": {
+            "period": "full calendar years 2021-2025",
+            "interpretation": "paired 20-day moving-block bootstrap of mean daily net-return difference; descriptive only, not a confirmatory significance test",
+            "by_cost": bootstrap_by_cost,
+        },
         "research_only": True,
         "live_orders": False,
         "trade_ready": False,
