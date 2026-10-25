@@ -45,15 +45,18 @@ class EmaCandidateValidationTests(unittest.TestCase):
         for strategy in original:
             self.assertEqual(original[strategy][:700], extended[strategy][:700])
 
-    def test_report_is_research_only_and_includes_cost_sensitivity(self):
-        report = validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.24, 0.36, 0.48))
+    def test_report_is_research_only_and_locks_project_cost(self):
+        report = validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.24,))
         self.assertEqual(report["symbol"], "BTCUSDT")
-        self.assertEqual(set(report["aggregate_by_cost"]), {"0.24", "0.36", "0.48"})
+        self.assertEqual(set(report["aggregate_by_cost"]), {"0.24"})
         self.assertTrue(report["research_only"])
         self.assertFalse(report["live_orders"])
         self.assertFalse(report["trade_ready"])
         self.assertIn("buy_and_hold", report["aggregate_by_cost"]["0.24"])
         self.assertIn("ema20_50_sma200_confirmed", report["aggregate_by_cost"]["0.24"])
+        self.assertIn("median_window_net_profit_usd", report["aggregate_by_cost"]["0.24"]["ema20_50"])
+        with self.assertRaisesRegex(ValueError, "fixed at 0.24%"):
+            validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.36,))
 
     def test_block_bootstrap_is_reproducible_and_reports_uncertainty(self):
         values = [0.1] * 200
