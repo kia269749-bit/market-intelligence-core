@@ -222,7 +222,7 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
 
     aggregate = {}
     for cost in costs:
-        selected = [w for w in windows if w["round_trip_cost_pct"] == float(cost)]
+        selected = [w for w in windows if w["round_trip_cost_pct"] == float(cost) and w["window_type"] == "full_calendar_year"]
         aggregate[str(cost)] = {}
         for name in STRATEGIES:
             values = [w["strategies"][name]["net_profit_usd"] for w in selected]
@@ -256,7 +256,8 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
             "cost_scenarios_round_trip_pct": [float(c) for c in costs],
             "comparators": list(STRATEGIES),
             "limitations": [
-                "calendar-year slices are not statistically independent",
+                "primary aggregate includes full calendar years only; partial final year remains visible in raw windows but is excluded from aggregate",
+            "calendar-year slices are not statistically independent",
                 "no funding, borrow, liquidation, order-book impact, or actual LBank fills",
                 "positive historical return is not proof of future edge",
                 "partial final-year window is not directly comparable with full years",
