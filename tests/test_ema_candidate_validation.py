@@ -53,6 +53,7 @@ class EmaCandidateValidationTests(unittest.TestCase):
         self.assertFalse(report["live_orders"])
         self.assertFalse(report["trade_ready"])
         self.assertIn("buy_and_hold", report["aggregate_by_cost"]["0.24"])
+        self.assertIn("ema20_50_sma200_confirmed", report["aggregate_by_cost"]["0.24"])
 
     def test_bad_ohlc_is_rejected(self):
         rows = make_bars()
