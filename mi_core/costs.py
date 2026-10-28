@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# Project-wide research assumption: full round-trip cost as a percentage of notional.
+ROUND_TRIP_COST_PCT = 0.24
+
+
 @dataclass(frozen=True)
 class ExecutionCostConfig:
     """Research-only execution-cost assumptions, expressed in basis points."""
