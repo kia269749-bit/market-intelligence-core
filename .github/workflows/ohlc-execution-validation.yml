@@ -35,6 +35,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Validate locked research protocol
+        run: python tools/validate_protocol_lock.py
       - name: Unit tests
         run: python -m unittest discover -s tests -v
 
