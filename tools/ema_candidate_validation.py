@@ -1,8 +1,8 @@
 """Independent, fixed-rule EMA20/50 candidate validation.
 
-Uses completed daily candles, next-open execution, open-to-open returns, reset
-capital for each calendar-year window, explicit round-trip cost sensitivity,
-and buy-and-hold/SMA200/Donchian/RSI comparators. This is research only.
+Uses completed OHLC bars, next-open execution, open-to-open returns, reset
+capital for each calendar-year window, fixed round-trip costs, and benchmark
+comparators. Metrics infer the bar interval from timestamps. Research only.
 """
 from __future__ import annotations
 
