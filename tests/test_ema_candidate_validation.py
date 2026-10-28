@@ -2,7 +2,7 @@ import math
 import unittest
 from types import SimpleNamespace
 
-from tools.ema_candidate_validation import build_signals, validate_bars, validate_candidate, _moving_block_mean_ci
+from tools.ema_candidate_validation import build_signals, validate_bars, validate_candidate, _moving_block_mean_ci, infer_interval_seconds, score_window
 
 
 def make_bars(symbol="BTCUSDT", count=750):
@@ -63,7 +63,18 @@ class EmaCandidateValidationTests(unittest.TestCase):
         first = _moving_block_mean_ci(values, block_length=20, replicates=200, seed=7)
         second = _moving_block_mean_ci(values, block_length=20, replicates=200, seed=7)
         self.assertEqual(first, second)
-        self.assertGreater(first["ci95_low_mean_daily_excess_pct"], 0.0)
+        self.assertGreater(first["ci95_low_mean_bar_excess_pct"], 0.0)
+
+    def test_interval_aware_sharpe_uses_bar_frequency(self):
+        rows = make_bars(count=750)
+        for i, row in enumerate(rows):
+            row.ts = 1609459200000 + i * 4 * 3600000
+        self.assertEqual(infer_interval_seconds(rows), 14400.0)
+        result = score_window(rows, [1.0] * len(rows), 200, 300, 0.24)
+        self.assertEqual(result["bar_interval_seconds"], 14400.0)
+        self.assertIn("annualized_sharpe_approx", result)
+        self.assertIn("mean_bar_net_pct", result)
+        self.assertNotIn("daily_sharpe_approx", result)
 
     def test_long_short_ema_candidates_can_take_short_positions(self):
         rows = []
