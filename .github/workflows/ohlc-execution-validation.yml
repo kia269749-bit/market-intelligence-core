@@ -9,6 +9,9 @@ on:
       - "mi_core/costs.py"
       - "mi_core/real_data.py"
       - "tools/ohlc_execution_backtest.py"
+      - "tools/ema_candidate_validation.py"
+      - "tools/validate_protocol_lock.py"
+      - "research/protocol_lock.json"
       - "tests/**"
       - ".github/workflows/ohlc-execution-validation.yml"
   pull_request:
