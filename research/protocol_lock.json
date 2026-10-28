@@ -1,0 +1,83 @@
+{
+  "protocol_version": "2026-10-28-v1",
+  "status": "LOCKED_FOR_NEXT_EXPERIMENT; historical results are exploratory",
+  "created_utc": "2026-10-28",
+  "assets": [
+    "BTC",
+    "ETH",
+    "BNB",
+    "SOL",
+    "XRP"
+  ],
+  "market_data_basis": "Hyperliquid perpetuals for future target-market validation; Binance spot OHLCV is proxy research only and must be labeled",
+  "execution_cost_policy": {
+    "project_default_round_trip_pct": 0.24,
+    "sensitivity_round_trip_pct": [
+      0.24,
+      0.12,
+      0.04
+    ],
+    "unit": "percent of entry notional",
+    "note": "0.12% and 0.04% are diagnostic scenarios, not verified account-specific realized costs"
+  },
+  "historical_periods": {
+    "train": [
+      "2022-01-01",
+      "2023-06-30"
+    ],
+    "validation": [
+      "2023-07-01",
+      "2023-12-31"
+    ],
+    "test": [
+      "2024-01-01",
+      "2024-09-30"
+    ],
+    "status": "RETROSPECTIVE_ONLY_NOT_UNTOUCHED",
+    "reason": "These historical years overlap prior research/evaluation. They cannot be represented as a virgin holdout after results have been inspected."
+  },
+  "next_confirmatory_test": {
+    "status": "NOT_YET_AVAILABLE",
+    "rule": "Choose a future time interval only after the protocol is committed; do not tune on it; evaluate once after sufficient bars accumulate.",
+    "freeze_before_start": [
+      "assets",
+      "bar_interval",
+      "signal_rules",
+      "execution_timing",
+      "cost_scenarios",
+      "acceptance_criteria",
+      "baseline_definitions"
+    ]
+  },
+  "execution_rules": {
+    "signal_timing": "signal calculated only from completed bars at timestamp t",
+    "entry": "next bar open after signal",
+    "same_bar_signal_exit": "not allowed; exits begin no earlier than entry bar",
+    "ambiguous_same_bar_tp_sl": "conservative stop-first assumption unless intrabar data resolves ordering",
+    "missing_or_invalid_data": "fail closed; do not silently fill with another venue"
+  },
+  "baselines": [
+    "buy_and_hold",
+    "simple_ema_12_26",
+    "random_signal_matched_trade_count_seeded"
+  ],
+  "acceptance_criteria": {
+    "min_positive_non_overlapping_oos_windows": 2,
+    "min_net_expectancy_usd_per_trade": 0,
+    "max_drawdown_pct": 20,
+    "require_positive_cost_stress_at": "0.24% round trip",
+    "require_comparison_to_baselines": true,
+    "require_data_leakage_tests": true,
+    "require_minimum_sample_size_and_confidence_intervals": true
+  },
+  "stopping_rule": {
+    "if_positive_oos_windows_is_zero_and_net_expectancy_is_negative": "REJECT_CURRENT_HYPOTHESIS",
+    "instruction": "Do not tune parameters on the rejected holdout. Any new hypothesis requires a new versioned protocol and fresh unseen evaluation data."
+  },
+  "known_limitations": [
+    "This file records policy; existing backtest entry points do not yet universally enforce or hash-verify it.",
+    "A lock file alone does not prevent edits; enforcement and CI verification remain required.",
+    "The proposed 2022-2024 split is historical and contaminated by prior inspection, so it must not be used to claim confirmatory OOS proof.",
+    "No edge or profitability is asserted."
+  ]
+}
