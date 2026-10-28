@@ -2,6 +2,7 @@
 from __future__ import annotations
 import math, statistics
 from .models import MarketBar
+from .costs import ROUND_TRIP_COST_PCT
 
 
 def _ret(a, b):
@@ -369,7 +370,7 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
     }
 
 
-def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
+def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=ROUND_TRIP_COST_PCT):
     """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
     rows = [
         x for x in non_overlapping_predictions(result)
