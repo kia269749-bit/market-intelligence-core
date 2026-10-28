@@ -1,4 +1,5 @@
 from mi_core.backtest import run
+from mi_core.costs import ROUND_TRIP_COST_PCT
 from mi_core.models import MarketBar, Signal
 
 
@@ -23,6 +24,16 @@ def test_backtest_reports_research_metrics_and_costs():
     assert result["cost_total"] > 0
     assert result["profit_factor"] > 0
 
+
+def test_default_backtest_uses_central_round_trip_cost():
+    bars = _bars()
+    signals = [
+        Signal(ts=i, symbol="BTCUSDT", side="LONG" if i == 0 else "FLAT",
+               score=0.8 if i == 0 else 0.0, regime="BULL")
+        for i in range(len(bars))
+    ]
+    result = run(bars, signals, latency_bars=1, hold_bars=2)
+    assert abs(result["cost_total"] - 1000.0 * ROUND_TRIP_COST_PCT / 100.0) < 1e-9
 
 def test_backtest_rejects_unsafe_configuration():
     bars = _bars()

@@ -52,7 +52,7 @@ jobs:
           for label,horizon,train in configs:
               x=json.loads(Path(f"reports/robustness/{symbol}_{label}.json").read_text())
               edge=x.get("economic_edge",{}); metrics=x.get("metrics",{})
-              vals=[]; cost=float(edge.get("thresholds",{}).get("round_trip_cost_pct",0.35)); capital=float(edge.get("thresholds",{}).get("capital_usd",500))
+              vals=[]; cost=float(edge.get("thresholds",{}).get("round_trip_cost_pct",0.24)); capital=float(edge.get("thresholds",{}).get("capital_usd",500))
               for row in non_overlapping_predictions(x):
                   if row.get("pred") not in (-1,1) or row.get("actual_return_pct") is None: continue
                   actual=float(row["actual_return_pct"]); pred=int(row["pred"]); favorable=actual if pred==1 else -actual

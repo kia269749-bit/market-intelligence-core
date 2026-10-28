@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 from .models import Trade
+from .costs import ROUND_TRIP_COST_PCT
 
 
-def _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, risk_fraction):
+def _validate_config(initial, fee_bps, slippage_bps, round_trip_cost_pct, latency_bars, hold_bars, risk_fraction):
     if initial <= 0:
         raise ValueError("initial must be positive")
-    if fee_bps < 0 or slippage_bps < 0:
+    if (fee_bps is not None and fee_bps < 0) or (slippage_bps is not None and slippage_bps < 0):
         raise ValueError("fee_bps and slippage_bps must be non-negative")
+    if round_trip_cost_pct < 0:
+        raise ValueError("round_trip_cost_pct must be non-negative")
     if latency_bars < 0 or hold_bars < 1:
         raise ValueError("latency_bars must be non-negative and hold_bars positive")
     if not 0 < risk_fraction <= 1:
@@ -45,8 +48,9 @@ def run(
     bars,
     signals,
     initial=10000.0,
-    fee_bps=5.0,
-    slippage_bps=3.0,
+    fee_bps=None,
+    slippage_bps=None,
+    round_trip_cost_pct=ROUND_TRIP_COST_PCT,
     latency_bars=1,
     hold_bars=1,
     risk_fraction=.10,
@@ -54,7 +58,10 @@ def run(
     """Backtest signals chronologically with fee, slippage and latency modeling."""
     if len(bars) != len(signals):
         raise ValueError("bars and signals must have equal length")
-    _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, risk_fraction)
+    _validate_config(initial, fee_bps, slippage_bps, round_trip_cost_pct, latency_bars, hold_bars, risk_fraction)
+    legacy_component_costs = fee_bps is not None or slippage_bps is not None
+    effective_fee_bps = 5.0 if fee_bps is None else fee_bps
+    effective_slippage_bps = 3.0 if slippage_bps is None else slippage_bps
 
     equity = initial
     peak = initial
@@ -74,12 +81,15 @@ def run(
             break
 
         direction = 1 if s.side == "LONG" else -1
-        slip = slippage_bps / 10000.0
+        slip = effective_slippage_bps / 10000.0 if legacy_component_costs else 0.0
         entry = bars[entry_i].price * (1 + direction * slip)
         exitp = bars[exit_i].price * (1 - direction * slip)
         qty = equity * risk_fraction / max(entry, 1e-12)
         gross = direction * (exitp - entry) * qty
-        cost = (abs(entry * qty) + abs(exitp * qty)) * fee_bps / 10000.0
+        if legacy_component_costs:
+            cost = (abs(entry * qty) + abs(exitp * qty)) * effective_fee_bps / 10000.0
+        else:
+            cost = abs(entry * qty) * round_trip_cost_pct / 100.0
         pnl = gross - cost
         equity += pnl
 

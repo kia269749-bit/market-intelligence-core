@@ -28,7 +28,7 @@ jobs:
           echo "oos_horizon=60"
           echo "oos_train_window=300"
           echo "oos_fit_every=10"
-          echo "round_trip_cost_pct=0.35"
+          echo "round_trip_cost_pct=0.24"
           echo "capital_usd=500"
           echo "research_only=true"
           echo "live_orders=false"

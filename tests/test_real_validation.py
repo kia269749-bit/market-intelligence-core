@@ -21,10 +21,10 @@ class RealValidationTests(unittest.TestCase):
                 {"pred": 1, "actual_return_pct": -1.0},
             ]},
             capital_usd=500.0,
-            round_trip_cost_pct=0.35,
+            round_trip_cost_pct=0.24,
         )
         self.assertEqual(result["directional_predictions"], 3)
-        self.assertAlmostEqual(result["net_profit_usd"], -7.75, places=4)
+        self.assertAlmostEqual(result["net_profit_usd"], -6.1, places=4)
         self.assertLess(result["expectancy_usd"], 0.0)
         self.assertEqual(result["positive_net_outcomes"], 1)
 

@@ -3,9 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+# Project-wide research assumption: full round-trip cost as a percentage of notional.
+ROUND_TRIP_COST_PCT = 0.24
+
+
 @dataclass(frozen=True)
 class ExecutionCostConfig:
-    """Research-only execution-cost assumptions, expressed in basis points."""
+    """Diagnostic component assumptions, expressed in basis points.
+
+    These components are a separate decomposed estimate and are not the
+    project's fixed aggregate ROUND_TRIP_COST_PCT. Do not treat their default
+    sum (11 bps) as a replacement for the 24 bps project policy.
+    """
 
     taker_fee_bps: float = 5.0
     spread_bps: float = 2.0
@@ -42,11 +51,13 @@ def estimate_execution_cost(
     impact_bps: float | None = None,
     fee_bps: float | None = None,
 ) -> ExecutionCost:
-    """Estimate round-trip execution costs for a trade notional.
+    """Estimate the decomposed diagnostic cost for a trade notional.
 
-    The estimate deliberately keeps each cost component separate so validation
-    can report where profitability is being consumed. fee_bps, when supplied,
-    is a compatibility override for the taker fee used by the legacy backtest.
+    This function sums the explicitly supplied component assumptions. Its
+    default 11 bps component estimate is intentionally distinct from the
+    project's fixed aggregate ROUND_TRIP_COST_PCT (24 bps). fee_bps, when
+    supplied, is a compatibility override for the taker fee used by the legacy
+    backtest. Use ROUND_TRIP_COST_PCT for fixed-policy net-return validation.
     """
 
     if notional <= 0:

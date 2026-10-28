@@ -1,6 +1,6 @@
 import unittest
 from mi_core.models import MarketBar
-from mi_core.validated_forecast import forecast_now, walk_forward_forecast
+from mi_core.validated_forecast import forecast_now, score_capital_targets, walk_forward_forecast
 
 
 class TestValidatedForecast(unittest.TestCase):
@@ -13,6 +13,11 @@ class TestValidatedForecast(unittest.TestCase):
                                  buy_volume=120.0, sell_volume=80.0,
                                  oi=1000.0+i, funding=0.00001))
         return out
+
+    def test_capital_targets_default_to_project_round_trip_cost(self):
+        result = score_capital_targets({"predictions": []}, capital_usd=500.0)
+        self.assertAlmostEqual(result["min_required_move_pct"], 1.04)
+        self.assertAlmostEqual(result["preferred_required_move_pct"], 2.24)
 
     def test_walk_forward_is_oos_only(self):
         r=walk_forward_forecast(self._bars(), horizon=5, min_train=60)

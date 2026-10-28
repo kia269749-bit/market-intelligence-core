@@ -2,12 +2,16 @@ import unittest
 
 from mi_core.costs import (
     ExecutionCostConfig,
+    ROUND_TRIP_COST_PCT,
     apply_cost_to_gross_pnl,
     estimate_execution_cost,
 )
 
 
 class ExecutionCostTests(unittest.TestCase):
+    def test_project_round_trip_cost_is_locked_to_024_percent(self):
+        self.assertEqual(ROUND_TRIP_COST_PCT, 0.24)
+
     def test_default_components_are_explicit(self):
         cost = estimate_execution_cost(10_000.0)
         self.assertAlmostEqual(cost.fee, 5.0)

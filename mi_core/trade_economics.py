@@ -1,6 +1,8 @@
 """Capital-aware exchange economics for research signals."""
 from dataclasses import dataclass
 
+from .costs import ROUND_TRIP_COST_PCT
+
 @dataclass(frozen=True)
 class ExchangeProfile:
     name: str
@@ -32,15 +34,17 @@ class CapitalTarget:
 def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
                             min_profit_usd=4.0, preferred_profit_usd=10.0,
                             exchange="hyperliquid_perps", order_type="taker",
-                            spread_bps=None, slippage_bps=None):
+                            spread_bps=None, slippage_bps=None,
+                            round_trip_cost_pct=ROUND_TRIP_COST_PCT):
     if capital_usd <= 0 or min_profit_usd <= 0 or preferred_profit_usd < min_profit_usd:
         return CapitalTarget(False, "REJECT", capital_usd, min_profit_usd, preferred_profit_usd,
                              expected_move_pct, 0, 0, 0, 0, 0, "invalid_policy")
-    p = PROFILES[exchange]
-    fee = p.maker_fee_bps if str(order_type).lower() == "maker" else p.taker_fee_bps
-    spread = p.spread_bps if spread_bps is None else float(spread_bps)
-    slip = p.slippage_bps if slippage_bps is None else float(slippage_bps)
-    cost = 2.0 * (fee + spread + slip) / 100.0
+    # Project policy uses one explicit aggregate round-trip assumption.
+    # Exchange profiles remain available for diagnostics, but must not silently
+    # replace the agreed LBank Futures cost assumption with another venue model.
+    cost = float(round_trip_cost_pct)
+    if cost < 0:
+        raise ValueError("round_trip_cost_pct must be non-negative")
     net = float(expected_move_pct) - cost
     min_net_pct = min_profit_usd / capital_usd * 100.0
     preferred_net_pct = preferred_profit_usd / capital_usd * 100.0
