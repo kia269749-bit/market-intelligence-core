@@ -267,8 +267,10 @@ def _moving_block_mean_ci(differences, *, block_length=20, replicates=1000, seed
 
 
 def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_usd=500.0):
-    if tuple(float(c) for c in costs) != (0.24,):
-        raise ValueError("project cost is fixed at 0.24% round trip")
+    normalized_costs = tuple(float(c) for c in costs)
+    allowed_costs = {0.24, 0.12, 0.04}
+    if not normalized_costs or 0.24 not in normalized_costs or len(set(normalized_costs)) != len(normalized_costs) or not set(normalized_costs) <= allowed_costs:
+        raise ValueError("include the 0.24% project baseline; allowed sensitivity rates are 0.24, 0.12, and 0.04 percent round trip")
     symbol, stamps = validate_bars(bars, expected_symbol)
     signals = build_signals(bars)
     years = {}
@@ -388,12 +390,12 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--symbol", required=True)
-    parser.add_argument("--costs", default="0.24", help="locked project baseline: 0.24 percent round trip")
+    parser.add_argument("--costs", default="0.24", help="include 0.24 baseline; optional sensitivity rates: 0.24,0.12,0.04 percent round trip")
     parser.add_argument("--capital", type=float, default=500.0)
     args = parser.parse_args()
     costs = tuple(float(x.strip()) for x in args.costs.split(",") if x.strip())
-    if costs != (0.24,):
-        raise SystemExit("--costs is locked to the project baseline: --costs 0.24")
+    if not costs or 0.24 not in costs or len(set(costs)) != len(costs) or not set(costs) <= {0.24, 0.12, 0.04}:
+        raise SystemExit("--costs must include 0.24 and may include only 0.24, 0.12, 0.04")
     bars = load_bars(args.input)
     report = validate_candidate(bars, expected_symbol=args.symbol, costs=costs, capital_usd=args.capital)
     out = Path(args.out)
