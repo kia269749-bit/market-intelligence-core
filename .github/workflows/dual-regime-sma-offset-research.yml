@@ -50,9 +50,20 @@ jobs:
       - name: Download fixed 20-asset 4-hour Binance Spot proxy universe
         run: |
           mkdir -p data/dual-regime reports/dual-regime
-          for symbol in BTCUSDT ETHUSDT BNBUSDT SOLUSDT XRPUSDT ADAUSDT DOGEUSDT TRXUSDT LINKUSDT AVAXUSDT DOTUSDT LTCUSDT BCHUSDT UNIUSDT NEARUSDT APTUSDT ARBUSDT OPUSDT SUIUSDT FILUSDT; do
-            python -m mi_core.cli real --symbol "$symbol" --interval 4h --bars 12000 --out "data/dual-regime/${symbol}_4h.jsonl" --report "reports/dual-regime/${symbol}_data.json"
-          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from mi_core.real_data import download
+          symbols = "BTCUSDT ETHUSDT BNBUSDT SOLUSDT XRPUSDT ADAUSDT DOGEUSDT TRXUSDT LINKUSDT AVAXUSDT DOTUSDT LTCUSDT BCHUSDT UNIUSDT NEARUSDT APTUSDT ARBUSDT OPUSDT SUIUSDT FILUSDT".split()
+          for symbol in symbols:
+              out = Path("data/dual-regime") / f"{symbol}_4h.jsonl"
+              bars, path = download(symbol=symbol, interval="4h", bars=12000, out=str(out))
+              meta = {"symbol": symbol, "venue": "Binance Spot public OHLCV proxy", "interval": "4h",
+                      "bars": len(bars), "first_ts": bars[0].ts if bars else None,
+                      "last_ts": bars[-1].ts if bars else None, "research_only": True, "live_orders": False}
+              (Path("reports/dual-regime") / f"{symbol}_data.json").write_text(json.dumps(meta, indent=2))
+              print(json.dumps(meta, sort_keys=True))
+          PY
       - name: Run primary preregistered cost scenario
         run: |
           python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.24.json --costs 0.24
