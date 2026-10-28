@@ -142,7 +142,7 @@ def _ema(values, period):
 
 
 def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
-             risk_fraction=0.01, use_risk=True, use_trailing=True,
+             risk_fraction=0.01, use_risk=True, use_stops=True, use_trailing=True,
              use_time_exit=True, circuit_breaker=True):
     """Causal single-asset spot simulation; no leverage; returns detailed metrics."""
     if cost_pct not in COSTS_PCT:
@@ -152,7 +152,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
     if isinstance(signals, dict):
         entries, regime, atr_values = signals["entry"], signals["regime"], signals["atr"]
     else:
-        entries, regime, atr_values = list(signals), [True] * len(rows), [math.nan] * len(rows)
+        entries, regime, atr_values = list(signals), [True] * len(rows), atr(rows, 14)
     if len(entries) != len(rows) or len(regime) != len(rows):
         raise ValueError("signals length mismatch")
     cost_rate = cost_pct / 100.0
@@ -179,7 +179,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
                            "cost": costs, "net_pnl": pnl, "reason": pending_exit})
             position, pending_exit = None, None
         # A stop already known before this bar is evaluated conservatively against this bar's OHLC.
-        if position:
+        if position and use_stops:
             stop = position["stop"]
             if op <= stop or lo <= stop:
                 exit_price = op if op <= stop else stop
@@ -214,13 +214,13 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
         # Signal at prior completed close, execute at current open. First bar cannot enter.
         if position is None and not breaker and i > 0 and entries[i - 1] and regime[i - 1]:
             av = atr_values[i - 1] if i - 1 < len(atr_values) else math.nan
-            if not math.isfinite(av) or av <= 0 or op <= 0:
+            if op <= 0 or (use_risk and (not math.isfinite(av) or av <= 0)):
                 equity_path.append({"ts": ts, "equity": equity})
                 continue
-            stop = op - 2 * av
-            risk_per_unit = (op - stop) + op * cost_rate
+            stop = op - 2 * av if math.isfinite(av) and av > 0 else 0.0
+            risk_per_unit = (op - stop) + op * cost_rate if stop > 0 else op * cost_rate
             qty = min(equity / op, equity * risk_fraction / risk_per_unit) if use_risk else equity / op
-            if qty > 0 and stop > 0:
+            if qty > 0 and (not use_stops or stop > 0):
                 position = {"entry_ts": ts, "entry": op, "qty": qty, "stop": stop,
                             "highest_high": op, "bars": 0}
         equity_path.append({"ts": ts, "equity": marked})
@@ -311,9 +311,9 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
                 # Baselines use the same OOS bars; baseline signal timing is next-open.
                 ema_all = build_ema_signals(rows)
                 ema_result = simulate(sub_rows, ema_all[start:end], cost_pct=cost_pct,
-                                      use_risk=False, use_trailing=False, use_time_exit=False, circuit_breaker=False)
+                                      use_risk=False, use_stops=False, use_trailing=False, use_time_exit=False, circuit_breaker=False)
                 buyhold_result = simulate(sub_rows, [True] * len(sub_rows), cost_pct=cost_pct,
-                                          use_risk=False, use_trailing=False, use_time_exit=False, circuit_breaker=False)
+                                          use_risk=False, use_stops=False, use_trailing=False, use_time_exit=False, circuit_breaker=False)
                 random_results = []
                 candidate_count = candidate["trade_count"]
                 for seed in range(1000):
