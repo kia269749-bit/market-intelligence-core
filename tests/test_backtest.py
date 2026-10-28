@@ -23,6 +23,8 @@ def test_backtest_reports_research_metrics_and_costs():
     assert result["gross_profit"] > 0
     assert result["cost_total"] > 0
     assert result["profit_factor"] > 0
+    assert result["cost_model"] == "legacy_fee_slippage_override"
+    assert result["round_trip_cost_pct"] is None
 
 
 def test_default_backtest_uses_central_round_trip_cost():
@@ -34,6 +36,8 @@ def test_default_backtest_uses_central_round_trip_cost():
     ]
     result = run(bars, signals, latency_bars=1, hold_bars=2)
     assert abs(result["cost_total"] - 1000.0 * ROUND_TRIP_COST_PCT / 100.0) < 1e-9
+    assert result["cost_model"] == "fixed_aggregate_round_trip"
+    assert result["round_trip_cost_pct"] == ROUND_TRIP_COST_PCT
 
 def test_backtest_rejects_unsafe_configuration():
     bars = _bars()
