@@ -59,7 +59,7 @@ class EmaCandidateValidationTests(unittest.TestCase):
         self.assertIn("buy_and_hold", report["aggregate_by_cost"]["0.24"])
         self.assertIn("ema20_50_sma200_confirmed", report["aggregate_by_cost"]["0.24"])
         self.assertIn("median_window_net_profit_usd", report["aggregate_by_cost"]["0.24"]["ema20_50"])
-        with self.assertRaisesRegex(ValueError, "fixed at 0.24%"):
+        with self.assertRaisesRegex(ValueError, "allowed sensitivity rates"):
             validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.36,))
 
     def test_cost_sensitivity_and_baselines_are_reported(self):
