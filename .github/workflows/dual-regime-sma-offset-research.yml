@@ -2,15 +2,6 @@ name: Dual Regime SMA Offset Exploratory WFA
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main, 'audit/**']
-    paths:
-      - "tools/dual_regime_sma_offset.py"
-      - "tests/test_dual_regime_sma_offset.py"
-      - "research/experiments/dual_regime_sma_offset_protocol.md"
-      - ".github/workflows/dual-regime-sma-offset-research.yml"
-      - "mi_core/real_data.py"
-      - "mi_core/storage.py"
   pull_request:
     branches: [main, 'fix/**', 'audit/**']
     paths:
@@ -41,7 +32,7 @@ jobs:
   exploratory-wfa:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
