@@ -59,6 +59,13 @@ def _series(rows, attr):
     return [float(getattr(r, attr)) for r in rows]
 
 
+def validate_contiguous_timestamps(timestamps, interval_ms=BAR_MS):
+    """Reject missing aligned bars instead of compressing time across data gaps."""
+    for a, b in zip(timestamps, timestamps[1:]):
+        if int(b) - int(a) != interval_ms:
+            raise ValueError(f"non-contiguous aligned timestamps: gap {int(b) - int(a)} ms after {int(a)}")
+
+
 def align_universe(bars_by_symbol, universe=UNIVERSE):
     """Return timestamps where every fixed universe member has a completed bar."""
     indexed = {}
@@ -151,8 +158,10 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
         raise ValueError("rows and signals must have equal length")
     if isinstance(signals, dict):
         entries, regime, atr_values = signals["entry"], signals["regime"], signals["atr"]
+        target_state = signals.get("target")
     else:
         entries, regime, atr_values = list(signals), [True] * len(rows), atr(rows, 14)
+        target_state = entries
     if len(entries) != len(rows) or len(regime) != len(rows):
         raise ValueError("signals length mismatch")
     cost_rate = cost_pct / 100.0
@@ -214,7 +223,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
                 pending_exit = "time_exit"
             elif not regime[i]:
                 pending_exit = "regime_exit"
-            elif not isinstance(signals, dict) and not entries[i]:
+            elif target_state is not None and not target_state[i]:
                 pending_exit = "signal_exit"
         # Signal at prior completed close, execute at current open. First bar cannot enter.
         if position is None and not exited_this_bar and not breaker and i > 0 and entries[i - 1] and regime[i - 1]:
@@ -304,6 +313,7 @@ def random_matched_signals(rows, count, seed):
 def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS):
     """Non-overlapping 3-month OOS windows with 12-month prior context; exploratory only."""
     timestamps, indexed = align_universe(bars_by_symbol)
+    validate_contiguous_timestamps(timestamps)
     if len(timestamps) < 200 + 50:
         raise ValueError("insufficient exact-aligned 20-asset bars for regime warm-up")
     regime, breadth = build_regime(bars_by_symbol, timestamps, indexed)
@@ -328,24 +338,31 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
                 sub_rows = rows[start:end]
                 sub_sig = {k: v[start:end] for k, v in sig.items()}
                 candidate = simulate(sub_rows, sub_sig, cost_pct=cost_pct)
-                # Baselines use the same OOS bars; baseline signal timing is next-open.
+                simple_candidate = simulate(sub_rows, sub_sig, cost_pct=cost_pct,
+                                            use_risk=False, use_stops=False, use_trailing=False,
+                                            use_time_exit=False, circuit_breaker=False)
+                # Baselines use identical OOS bars and next-open execution.
                 ema_all = build_ema_signals(rows)
                 ema_result = simulate(sub_rows, ema_all[start:end], cost_pct=cost_pct,
-                                      use_risk=False, use_stops=False, use_trailing=False, use_time_exit=False, circuit_breaker=False)
+                                      use_risk=True, use_stops=True, use_trailing=False,
+                                      use_time_exit=False, circuit_breaker=True)
                 buyhold_result = simulate(sub_rows, [True] * len(sub_rows), cost_pct=cost_pct,
-                                          use_risk=False, use_stops=False, use_trailing=False, use_time_exit=False, circuit_breaker=False)
+                                          use_risk=False, use_stops=False, use_trailing=False,
+                                          use_time_exit=False, circuit_breaker=False)
                 random_results = []
-                candidate_count = candidate["trade_count"]
+                transition_count = min(2 * candidate["trade_count"], max(0, len(sub_rows) - 2))
                 for seed in range(1000):
-                    rand = random_matched_signals(sub_rows, candidate_count, seed + 1729)
-                    random_results.append(simulate(sub_rows, rand, cost_pct=cost_pct,
-                                                    use_risk=False, use_trailing=False, use_time_exit=False,
-                                                    circuit_breaker=False)["net_return_pct"])
+                    rand_target = random_matched_signals(sub_rows, transition_count, seed + 1729)
+                    rand_entries = [bool(rand_target[i] and (i == 0 or not rand_target[i - 1])) for i in range(len(rand_target))]
+                    rand_payload = {"entry": rand_entries, "target": rand_target,
+                                    "regime": sub_sig["regime"], "atr": sub_sig["atr"]}
+                    random_results.append(simulate(sub_rows, rand_payload, cost_pct=cost_pct)["net_return_pct"])
                 random_returns = sorted(random_results)
                 p_emp = (1 + sum(x >= candidate["net_return_pct"] for x in random_returns)) / (len(random_returns) + 1)
                 windows.append({
                     "start_ts": int(sub_rows[0].ts), "end_ts": int(sub_rows[-1].ts),
                     "candidate": {k: v for k, v in candidate.items() if k != "trades"},
+                    "dual_regime_sma_offset_simple": {k: v for k, v in simple_candidate.items() if k != "trades"},
                     "ema12_26": {k: v for k, v in ema_result.items() if k != "trades"},
                     "buy_and_hold": {k: v for k, v in buyhold_result.items() if k != "trades"},
                     "random_1000_return_pct_p05_median_p95": {
@@ -368,7 +385,7 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
         "breadth_valid_fraction": sum(math.isfinite(v) for v in breadth.values()) / len(breadth) if breadth else 0,
         "limitations": [
             "Historical data may have been previously inspected; this WFA is exploratory unless exposure audit proves otherwise.",
-            "Random comparator is diagnostic; empirical p-values are not adjusted for candidate-family multiple testing in this prototype.",
+            "Random comparator uses 1,000 seeded paths and matched position-change count, but p-values are not adjusted for candidate-family multiple testing in this prototype.",
             "PBO/CSCV is not calculated until independent partitions and candidate-family validity are reviewed.",
             "Slippage, order-book depth, funding, latency and partial fills are not represented by Binance Spot OHLCV.",
             "Portfolio-level equal-weight aggregation and block-bootstrap confidence intervals require separate review before any acceptance claim."
