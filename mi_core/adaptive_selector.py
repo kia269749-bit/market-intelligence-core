@@ -10,6 +10,7 @@ import statistics
 from typing import Sequence
 
 from .models import MarketBar
+from .costs import ROUND_TRIP_COST_PCT
 
 STRATEGIES = (
     "momentum_5", "ema_trend", "ema_trend_slow", "breakout_20", "breakout_50",
@@ -197,7 +198,7 @@ def _training_gate(metrics, min_trades):
 def evaluate_adaptive_selection(
     bars: Sequence[MarketBar],
     horizon: int = 60,
-    cost_pct: float = 0.24,
+    cost_pct: float = ROUND_TRIP_COST_PCT,
     train_window: int = 300,
     min_train_trades: int = 20,
     min_oos_trades: int = 12,
