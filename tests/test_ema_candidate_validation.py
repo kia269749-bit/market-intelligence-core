@@ -72,7 +72,7 @@ class EmaCandidateValidationTests(unittest.TestCase):
             self.assertIn("buy_and_hold", strategies)
             self.assertIn("ema12_26", strategies)
             self.assertIn("random_matched_trade_count", strategies)
-        self.assertIn("random_baseline", report["method"])
+        self.assertIn("random_matched_trade_count", report["method"]["comparators"])
 
     def test_block_bootstrap_is_reproducible_and_reports_uncertainty(self):
         values = [0.1] * 200
