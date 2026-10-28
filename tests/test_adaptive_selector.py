@@ -26,7 +26,7 @@ class AdaptiveSelectorTests(unittest.TestCase):
 
     def test_selector_returns_candidates_and_walk_forward_metrics(self):
         result = evaluate_adaptive_selection(
-            self._bars(), horizon=10, cost_pct=0.35,
+            self._bars(), horizon=10, cost_pct=0.24,
             train_window=120, min_train_trades=4, min_oos_trades=3,
         )
         self.assertTrue(result["available"])
@@ -56,7 +56,7 @@ class AdaptiveSelectorTests(unittest.TestCase):
 
     def test_flat_market_does_not_prove_a_profitable_edge(self):
         result = evaluate_adaptive_selection(
-            self._bars(flat=True), horizon=10, cost_pct=0.35,
+            self._bars(flat=True), horizon=10, cost_pct=0.24,
             train_window=120, min_train_trades=4, min_oos_trades=3,
         )
         self.assertFalse(result["accepted"])
