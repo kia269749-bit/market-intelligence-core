@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from .validated_forecast import non_overlapping_predictions
+from .costs import ROUND_TRIP_COST_PCT
 
 
 def _num(v, default=0.0):
@@ -40,7 +41,7 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.24,
+    round_trip_cost_pct=ROUND_TRIP_COST_PCT,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
