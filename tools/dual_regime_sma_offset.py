@@ -211,6 +211,8 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
                 pending_exit = "time_exit"
             elif not regime[i]:
                 pending_exit = "regime_exit"
+            elif not isinstance(signals, dict) and not entries[i]:
+                pending_exit = "signal_exit"
         # Signal at prior completed close, execute at current open. First bar cannot enter.
         if position is None and not breaker and i > 0 and entries[i - 1] and regime[i - 1]:
             av = atr_values[i - 1] if i - 1 < len(atr_values) else math.nan
