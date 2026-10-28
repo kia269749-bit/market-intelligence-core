@@ -62,6 +62,18 @@ class EmaCandidateValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "fixed at 0.24%"):
             validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.36,))
 
+    def test_cost_sensitivity_and_baselines_are_reported(self):
+        report = validate_candidate(
+            make_bars(), expected_symbol="BTCUSDT", costs=(0.24, 0.12, 0.04)
+        )
+        self.assertEqual(set(report["aggregate_by_cost"]), {"0.24", "0.12", "0.04"})
+        for cost in ("0.24", "0.12", "0.04"):
+            strategies = report["aggregate_by_cost"][cost]
+            self.assertIn("buy_and_hold", strategies)
+            self.assertIn("ema12_26", strategies)
+            self.assertIn("random_matched_trade_count", strategies)
+        self.assertIn("random_baseline", report["method"])
+
     def test_block_bootstrap_is_reproducible_and_reports_uncertainty(self):
         values = [0.1] * 200
         first = _moving_block_mean_ci(values, block_length=20, replicates=200, seed=7)
