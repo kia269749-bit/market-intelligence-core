@@ -22,7 +22,7 @@ if str(ROOT) not in sys.path:
 from mi_core.storage import load_bars
 
 
-STRATEGIES = ("ema20_50", "ema20_50_sma200_confirmed", "ema20_50_long_short", "ema20_50_sma200_long_short", "sma200", "donchian20_10", "rsi14", "buy_and_hold")
+STRATEGIES = ("ema12_26", "ema20_50", "ema20_50_sma200_confirmed", "ema20_50_long_short", "ema20_50_sma200_long_short", "sma200", "donchian20_10", "rsi14", "buy_and_hold", "random_matched_trade_count")
 DEFAULT_COSTS = (0.24,)
 
 
@@ -113,11 +113,14 @@ def build_signals(rows):
     n = len(rows)
     if n < 210:
         raise ValueError("at least 210 bars required for indicator warm-up")
+    e12, e26 = _ema(closes, 12), _ema(closes, 26)
     e20, e50 = _ema(closes, 20), _ema(closes, 50)
     s200, rsi = _sma(closes, 200), _rsi(closes)
     signals = {name: [0.0] * n for name in STRATEGIES}
     for i in range(n):
         signals["buy_and_hold"][i] = 1.0
+        if math.isfinite(e12[i]) and math.isfinite(e26[i]):
+            signals["ema12_26"][i] = 1.0 if e12[i] > e26[i] else 0.0
         if math.isfinite(e20[i]) and math.isfinite(e50[i]):
             signals["ema20_50"][i] = 1.0 if e20[i] > e50[i] else 0.0
             signals["ema20_50_long_short"][i] = 1.0 if e20[i] > e50[i] else -1.0 if e20[i] < e50[i] else 0.0
@@ -151,6 +154,23 @@ def build_signals(rows):
             elif holding == 1.0 and value > 50.0:
                 holding = 0.0
         signals["rsi14"][i] = holding
+    # Diagnostic random comparator: seeded and matched to the EMA20/50
+    # position-change count over the full supplied sample. This is post-hoc
+    # matching, not a prospective trading rule or confirmatory significance test.
+    candidate_changes = sum(
+        signals["ema20_50"][i] != signals["ema20_50"][i - 1]
+        for i in range(1, n)
+    )
+    eligible = list(range(50, n))
+    rng_seed = sum((i + 1) * ord(ch) for i, ch in enumerate(str(getattr(rows[0], "symbol", ""))))
+    rng = random.Random(rng_seed)
+    transition_count = min(candidate_changes, len(eligible))
+    transition_points = set(rng.sample(eligible, transition_count)) if transition_count else set()
+    holding = 0.0
+    for i in range(n):
+        if i in transition_points:
+            holding = 1.0 - holding
+        signals["random_matched_trade_count"][i] = holding
     return signals
 
 
