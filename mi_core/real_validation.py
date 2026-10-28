@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
+from .costs import ROUND_TRIP_COST_PCT
 from .economic_edge import diagnose_economic_edge
 SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
 
@@ -29,7 +30,7 @@ def _num(v, default=0.0):
         return default
 
 
-def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.24):
+def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=ROUND_TRIP_COST_PCT):
     rows = [
         r for r in result.get("predictions", [])
         if r.get("actual_return_pct") is not None and r.get("pred") in (-1, 1)
