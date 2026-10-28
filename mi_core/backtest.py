@@ -18,7 +18,7 @@ def _validate_config(initial, fee_bps, slippage_bps, round_trip_cost_pct, latenc
         raise ValueError("risk_fraction must be in (0, 1]")
 
 
-def _metrics(trades, initial, final, max_drawdown):
+def _metrics(trades, initial, final, max_drawdown, *, cost_model, round_trip_cost_pct):
     pnls = [t.pnl for t in trades]
     winners = [p for p in pnls if p > 0]
     losers = [p for p in pnls if p < 0]
@@ -38,6 +38,8 @@ def _metrics(trades, initial, final, max_drawdown):
         "profit_factor": gross_profit / gross_loss if gross_loss else (float("inf") if gross_profit else 0.0),
         "expectancy": sum(pnls) / len(pnls) if pnls else 0.0,
         "cost_total": sum(t.cost for t in trades),
+        "cost_model": cost_model,
+        "round_trip_cost_pct": round_trip_cost_pct,
         "research_only": True,
         "live_orders": False,
         "trades": trades,
@@ -55,7 +57,11 @@ def run(
     hold_bars=1,
     risk_fraction=.10,
 ):
-    """Backtest signals chronologically with fee, slippage and latency modeling."""
+    """Backtest chronologically and identify the effective cost model in results.
+
+    Explicit fee/slippage overrides remain available for sensitivity experiments;
+    reports must not mislabel those results as using the central aggregate cost.
+    """
     if len(bars) != len(signals):
         raise ValueError("bars and signals must have equal length")
     _validate_config(initial, fee_bps, slippage_bps, round_trip_cost_pct, latency_bars, hold_bars, risk_fraction)
@@ -103,4 +109,8 @@ def run(
         max_dd = max(max_dd, (peak - equity) / peak)
         i = exit_i + 1
 
-    return _metrics(trades, initial, equity, max_dd)
+    return _metrics(
+        trades, initial, equity, max_dd,
+        cost_model="legacy_fee_slippage_override" if legacy_component_costs else "fixed_aggregate_round_trip",
+        round_trip_cost_pct=None if legacy_component_costs else float(round_trip_cost_pct),
+    )
