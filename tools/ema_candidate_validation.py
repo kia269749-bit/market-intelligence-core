@@ -154,8 +154,19 @@ def build_signals(rows):
     return signals
 
 
+def infer_interval_seconds(rows):
+    """Infer bar interval from timestamps using the median positive delta."""
+    stamps = [int(row.ts) for row in rows]
+    deltas = [b - a for a, b in zip(stamps, stamps[1:]) if b > a]
+    if not deltas:
+        raise ValueError("cannot infer interval without increasing timestamps")
+    return median(deltas) / 1000.0
+
+
 def score_window(rows, signal, start, end, round_trip_cost_pct, capital_usd=500.0):
     """Score a fresh account for [start, end); indicators may use prior history."""
+    interval_seconds = infer_interval_seconds(rows)
+    annualization_bars = (365.25 * 24.0 * 3600.0) / interval_seconds
     opens = _series(rows, "open")
     equity = peak = float(capital_usd)
     max_dd = 0.0
@@ -191,15 +202,16 @@ def score_window(rows, signal, start, end, round_trip_cost_pct, capital_usd=500.
         "net_return_pct": round((equity / capital_usd - 1.0) * 100.0, 4),
         "max_drawdown_pct": round(max_dd, 4),
         "profit_factor": round(gains / losses, 4) if losses else ("infinite" if gains else None),
-        "mean_daily_net_pct": round(mean(daily_net), 6) if daily_net else 0.0,
-        "daily_sharpe_approx": round(mean(daily_net) / sd * math.sqrt(252), 4) if sd else None,
+        "mean_bar_net_pct": round(mean(daily_net), 6) if daily_net else 0.0,
+        "annualized_sharpe_approx": round(mean(daily_net) / sd * math.sqrt(annualization_bars), 4) if sd else None,
+        "bar_interval_seconds": round(interval_seconds, 3),
         "position_changes": changes,
         "exposure_pct": round(exposure / len(daily_net) * 100.0, 2) if daily_net else 0.0,
     }
 
 
-def _daily_net_returns(rows, signal, start, end, round_trip_cost_pct):
-    """Paired daily net returns for a reset account over a date window."""
+def _period_net_returns(rows, signal, start, end, round_trip_cost_pct):
+    """Paired per-bar net returns for a reset account over a date window."""
     opens = _series(rows, "open")
     returns = []
     first_i = max(start + 1, 1)
@@ -212,7 +224,7 @@ def _daily_net_returns(rows, signal, start, end, round_trip_cost_pct):
 
 
 def _moving_block_mean_ci(differences, *, block_length=20, replicates=1000, seed=0):
-    """Exploratory paired moving-block bootstrap CI for mean daily excess return."""
+    """Exploratory paired moving-block bootstrap CI for mean per-bar excess return."""
     n = len(differences)
     if n < max(60, block_length * 3):
         return None
@@ -227,10 +239,10 @@ def _moving_block_mean_ci(differences, *, block_length=20, replicates=1000, seed
         means.append(sum(sample[:n]) / n)
     means.sort()
     return {
-        "ci95_low_mean_daily_excess_pct": round(means[int(0.025 * (replicates - 1))], 7),
-        "ci95_high_mean_daily_excess_pct": round(means[int(0.975 * (replicates - 1))], 7),
+        "ci95_low_mean_bar_excess_pct": round(means[int(0.025 * (replicates - 1))], 7),
+        "ci95_high_mean_bar_excess_pct": round(means[int(0.975 * (replicates - 1))], 7),
         "bootstrap_replicates": replicates,
-        "block_length_days": block_length,
+        "block_length_bars": block_length,
     }
 
 
@@ -295,28 +307,28 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
         period_start, period_end = years[2021][0], years[2025][-1] + 1
         for cost in costs:
             per_strategy = {}
-            benchmark = _daily_net_returns(
+            benchmark = _period_net_returns(
                 bars, signals["buy_and_hold"], period_start, period_end, float(cost)
             )
             for name in ("ema20_50", "ema20_50_sma200_confirmed"):
-                candidate = _daily_net_returns(
+                candidate = _period_net_returns(
                     bars, signals[name], period_start, period_end, float(cost)
                 )
                 paired = [a - b for a, b in zip(candidate, benchmark)]
                 seed = sum((i + 1) * ord(ch) for i, ch in enumerate(f"{symbol}|{cost}|{name}"))
                 ci = _moving_block_mean_ci(paired, block_length=20, replicates=1000, seed=seed)
                 per_strategy[name] = {
-                    "days": len(paired),
-                    "mean_daily_excess_pct": round(mean(paired), 7) if paired else None,
+                    "bars": len(paired),
+                    "mean_bar_excess_pct": round(mean(paired), 7) if paired else None,
                     **(ci or {}),
-                    "ci_lower_above_zero": bool(ci and ci["ci95_low_mean_daily_excess_pct"] > 0),
+                    "ci_lower_above_zero": bool(ci and ci["ci95_low_mean_bar_excess_pct"] > 0),
                 }
             bootstrap_by_cost[str(float(cost))] = per_strategy
 
     return {
         "status": "ok",
         "symbol": symbol,
-        "interval": "1d",
+        "interval_seconds": round(infer_interval_seconds(bars), 3),
         "bars": len(bars),
         "first_timestamp_ms": stamps[0],
         "last_timestamp_ms": stamps[-1],
@@ -330,8 +342,9 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
             "comparators": list(STRATEGIES),
             "limitations": [
                 "primary aggregate includes full calendar years only; partial final year remains visible in raw windows but is excluded from aggregate",
-            "calendar-year slices are not statistically independent",
-            "block-bootstrap intervals are exploratory after candidate selection and do not establish a durable edge",
+                "calendar-year slices are not statistically independent",
+                "bar intervals are inferred from median timestamp spacing; missing bars may remain",
+                "block-bootstrap intervals are exploratory after candidate selection and do not establish a durable edge",
                 "no funding, borrow, liquidation, order-book impact, or actual LBank fills",
                 "positive historical return is not proof of future edge",
                 "partial final-year window is not directly comparable with full years",
@@ -341,7 +354,7 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
         "aggregate_by_cost": aggregate,
         "exploratory_block_bootstrap_vs_buy_and_hold": {
             "period": "full calendar years 2021-2025",
-            "interpretation": "paired 20-day moving-block bootstrap of mean daily net-return difference; descriptive only, not a confirmatory significance test",
+            "interpretation": "paired 20-bar moving-block bootstrap of mean per-bar net-return difference; descriptive only, not a confirmatory significance test",
             "by_cost": bootstrap_by_cost,
         },
         "research_only": True,
