@@ -165,6 +165,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
     rolling_equity = []
     pending_exit = None
     for i, row in enumerate(rows):
+        exited_this_bar = False
         ts = int(row.ts)
         op, hi, lo, close = map(float, (row.open, row.high, row.low, row.price))
         # Pending close-time exits execute at this bar's open.
@@ -178,6 +179,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
                            "exit": exit_price, "qty": position["qty"], "gross_pnl": gross,
                            "cost": costs, "net_pnl": pnl, "reason": pending_exit})
             position, pending_exit = None, None
+            exited_this_bar = True
         # A stop already known before this bar is evaluated conservatively against this bar's OHLC.
         if position and use_stops:
             stop = position["stop"]
@@ -191,6 +193,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
                                "exit": exit_price, "qty": position["qty"], "gross_pnl": gross,
                                "cost": costs, "net_pnl": pnl, "reason": "stop"})
                 position = None
+                exited_this_bar = True
         # Update rolling 30-day equity using marked-to-market equity at close.
         marked = equity + (position["qty"] * (close - position["entry"]) if position else 0.0)
         rolling_equity.append((ts, marked))
@@ -214,7 +217,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
             elif not isinstance(signals, dict) and not entries[i]:
                 pending_exit = "signal_exit"
         # Signal at prior completed close, execute at current open. First bar cannot enter.
-        if position is None and not breaker and i > 0 and entries[i - 1] and regime[i - 1]:
+        if position is None and not exited_this_bar and not breaker and i > 0 and entries[i - 1] and regime[i - 1]:
             av = atr_values[i - 1] if i - 1 < len(atr_values) else math.nan
             if op <= 0 or (use_risk and (not math.isfinite(av) or av <= 0)):
                 equity_path.append({"ts": ts, "equity": equity})
@@ -225,6 +228,21 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
             if qty > 0 and (not use_stops or stop > 0):
                 position = {"entry_ts": ts, "entry": op, "qty": qty, "stop": stop,
                             "highest_high": op, "bars": 0}
+                # The entry bar is active immediately after the next-open fill.
+                # If its low crosses the initial stop, assume a conservative stop fill.
+                if use_stops and lo <= stop:
+                    exit_price = stop
+                    gross = qty * (exit_price - op)
+                    costs = qty * (op + exit_price) * cost_rate / 2
+                    pnl = gross - costs
+                    equity += pnl
+                    trades.append({"entry_ts": ts, "exit_ts": ts, "entry": op, "exit": exit_price,
+                                   "qty": qty, "gross_pnl": gross, "cost": costs,
+                                   "net_pnl": pnl, "reason": "entry_bar_stop"})
+                    position = None
+                    exited_this_bar = True
+                elif not regime[i]:
+                    pending_exit = "regime_exit"
         equity_path.append({"ts": ts, "equity": marked})
     # Close any remaining position at final close, explicitly marked as end-of-window exit.
     if position and rows:
