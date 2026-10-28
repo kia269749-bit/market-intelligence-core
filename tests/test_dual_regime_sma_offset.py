@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 from tools.dual_regime_sma_offset import (
     UNIVERSE, align_universe, build_candidate_signals, build_regime,
-    simulate, random_matched_signals,
+    simulate, random_matched_signals, validate_contiguous_timestamps,
 )
 
 
@@ -41,6 +41,11 @@ class DualRegimeTests(unittest.TestCase):
             r.high *= 0.5
         second = build_candidate_signals(altered, regime, 0.05)["entry"]
         self.assertEqual(first[:400], second[:400])
+
+    def test_alignment_rejects_missing_four_hour_bar_instead_of_compressing_time(self):
+        start = 1609459200000
+        with self.assertRaisesRegex(ValueError, "non-contiguous"):
+            validate_contiguous_timestamps([start, start + 4 * 60 * 60 * 1000, start + 12 * 60 * 60 * 1000])
 
     def test_random_baseline_is_reproducible(self):
         rows = bars("BTCUSDT", [100 + i * 0.1 for i in range(100)])
