@@ -42,6 +42,26 @@ class OhlcExecutionTests(unittest.TestCase):
         self.assertFalse(result["trade_ready"])
         self.assertIn("holdout_oos", result["results"][0])
 
+    def test_forecast_builder_only_receives_prefix_through_signal_bar(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from tools.ohlc_execution_backtest import _forecast_candidates
+
+        bars = [bar(i, 100 + i) for i in range(8)]
+        seen_lengths = []
+
+        def fake_forecast(prefix, **kwargs):
+            seen_lengths.append(len(prefix))
+            return SimpleNamespace(horizons=[SimpleNamespace(
+                direction="UP", confidence=0.7, target_hit_probability=0.6
+            )])
+
+        with patch("tools.ohlc_execution_backtest.forecast_path", side_effect=fake_forecast):
+            candidates = _forecast_candidates(bars, [2, 5], 1.0, 2, 2)
+
+        self.assertEqual(seen_lengths, [3, 6])
+        self.assertEqual([c["ts"] for c in candidates], [bars[2].ts, bars[5].ts])
+
 
 if __name__ == "__main__":
     unittest.main()
