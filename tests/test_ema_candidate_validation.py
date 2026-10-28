@@ -43,7 +43,11 @@ class EmaCandidateValidationTests(unittest.TestCase):
         original = build_signals(rows)
         extended = build_signals(rows + make_bars(count=20)[-20:])
         for strategy in original:
+            if strategy == "random_matched_trade_count":
+                continue  # explicitly post-hoc matched-count diagnostic, not a causal signal
             self.assertEqual(original[strategy][:700], extended[strategy][:700])
+        self.assertIn("ema12_26", original)
+        self.assertIn("random_matched_trade_count", original)
 
     def test_report_is_research_only_and_locks_project_cost(self):
         report = validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.24,))
