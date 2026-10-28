@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 
 from mi_core.path_forecast import forecast_path
 from mi_core.storage import load_bars
+from mi_core.costs import ROUND_TRIP_COST_PCT
 
 
 def _bar_value(bar, name, fallback=None):
@@ -180,7 +181,7 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
 
 
 def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=300,
-             target_levels=(1.15, 2.35), stop_levels=(0.50, 0.75), cost_pct=0.24,
+             target_levels=(1.15, 2.35), stop_levels=(0.50, 0.75), cost_pct=ROUND_TRIP_COST_PCT,
              starting_capital=500.0):
     if len(bars) < min_history + horizon_bars + 2:
         return {"status": "insufficient_data", "bars": len(bars), "trade_ready": False,
@@ -242,7 +243,7 @@ def main():
     parser.add_argument("--step-bars", type=int, default=48)
     parser.add_argument("--max-evals", type=int, default=80)
     parser.add_argument("--min-history", type=int, default=300)
-    parser.add_argument("--cost-pct", type=float, default=0.24)
+    parser.add_argument("--cost-pct", type=float, default=ROUND_TRIP_COST_PCT)
     parser.add_argument("--capital", type=float, default=500.0)
     args = parser.parse_args()
     bars = load_bars(Path(args.input))
