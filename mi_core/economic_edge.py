@@ -40,7 +40,7 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.35,
+    round_trip_cost_pct=0.24,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
