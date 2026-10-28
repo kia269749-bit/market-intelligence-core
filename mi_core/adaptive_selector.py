@@ -197,7 +197,7 @@ def _training_gate(metrics, min_trades):
 def evaluate_adaptive_selection(
     bars: Sequence[MarketBar],
     horizon: int = 60,
-    cost_pct: float = 0.35,
+    cost_pct: float = 0.24,
     train_window: int = 300,
     min_train_trades: int = 20,
     min_oos_trades: int = 12,
