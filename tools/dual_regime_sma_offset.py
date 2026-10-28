@@ -87,18 +87,15 @@ def build_regime(bars_by_symbol, timestamps, indexed, universe=UNIVERSE):
     regime = {}
     breadth = {}
     for i, ts in enumerate(timestamps):
-        if not math.isfinite(btc_sma[i]) or not (float(btc_rows[i].price) > btc_sma[i]):
-            regime[ts] = False
-            breadth[ts] = math.nan
-            continue
         valid = [sma50_by_symbol[s][i] for s in universe]
-        if not all(math.isfinite(x) for x in valid):
+        if not math.isfinite(btc_sma[i]) or not all(math.isfinite(x) for x in valid):
             regime[ts] = False
             breadth[ts] = math.nan
             continue
         fraction = sum(float(indexed[s][ts].price) > sma50_by_symbol[s][i] for s in universe) / len(universe)
         breadth[ts] = fraction
-        regime[ts] = fraction >= 0.5
+        btc_trend_up = float(btc_rows[i].price) > btc_sma[i]
+        regime[ts] = btc_trend_up and fraction >= 0.5
     return regime, breadth
 
 
