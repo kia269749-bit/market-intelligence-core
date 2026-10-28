@@ -1,0 +1,70 @@
+name: Dual Regime SMA Offset Exploratory WFA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, 'audit/**']
+    paths:
+      - "tools/dual_regime_sma_offset.py"
+      - "tests/test_dual_regime_sma_offset.py"
+      - "research/experiments/dual_regime_sma_offset_protocol.md"
+      - ".github/workflows/dual-regime-sma-offset-research.yml"
+      - "mi_core/real_data.py"
+      - "mi_core/storage.py"
+  pull_request:
+    branches: [main, 'fix/**', 'audit/**']
+    paths:
+      - "tools/dual_regime_sma_offset.py"
+      - "tests/test_dual_regime_sma_offset.py"
+      - "research/experiments/dual_regime_sma_offset_protocol.md"
+      - ".github/workflows/dual-regime-sma-offset-research.yml"
+      - "mi_core/real_data.py"
+      - "mi_core/storage.py"
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate locked project protocol
+        run: python tools/validate_protocol_lock.py
+      - name: Run focused simulator tests
+        run: python -m unittest tests.test_dual_regime_sma_offset -v
+
+  exploratory-wfa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download fixed 20-asset 4-hour Binance Spot proxy universe
+        run: |
+          mkdir -p data/dual-regime reports/dual-regime
+          for symbol in BTCUSDT ETHUSDT BNBUSDT SOLUSDT XRPUSDT ADAUSDT DOGEUSDT TRXUSDT LINKUSDT AVAXUSDT DOTUSDT LTCUSDT BCHUSDT UNIUSDT NEARUSDT APTUSDT ARBUSDT OPUSDT SUIUSDT FILUSDT; do
+            python -m mi_core.cli real --symbol "$symbol" --interval 4h --bars 12000 --out "data/dual-regime/${symbol}_4h.jsonl" --report "reports/dual-regime/${symbol}_data.json"
+          done
+      - name: Run primary preregistered cost scenario
+        run: |
+          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.24.json --costs 0.24
+      - name: Run annex cost sensitivities
+        run: |
+          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.12.json --costs 0.12
+          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.04.json --costs 0.04
+      - name: Publish data, metadata and research reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dual-regime-sma-offset-exploratory-wfa
+          path: |
+            data/dual-regime/*.jsonl
+            reports/dual-regime/*.json
+          if-no-files-found: error
