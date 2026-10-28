@@ -36,7 +36,7 @@ jobs:
       - name: Validate locked project protocol
         run: python tools/validate_protocol_lock.py
       - name: Run focused simulator tests
-        run: python -m unittest tests.test_dual_regime_sma_offset -v
+        run: python -m unittest discover -s tests -p 'test_dual_regime_sma_offset.py' -v
 
   exploratory-wfa:
     runs-on: ubuntu-latest
