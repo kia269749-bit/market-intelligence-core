@@ -65,6 +65,24 @@ class EmaCandidateValidationTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertGreater(first["ci95_low_mean_daily_excess_pct"], 0.0)
 
+    def test_long_short_ema_candidates_can_take_short_positions(self):
+        rows = []
+        price = 200.0
+        for i in range(400):
+            price *= 0.998
+            rows.append(SimpleNamespace(
+                ts=1609459200000 + i * 4 * 3600000,
+                symbol="BTCUSDT",
+                open=price * 1.001,
+                high=price * 1.003,
+                low=price * 0.997,
+                price=price,
+            ))
+        signals = build_signals(rows)
+        self.assertTrue(any(x < 0 for x in signals["ema20_50_long_short"]))
+        self.assertTrue(any(x < 0 for x in signals["ema20_50_sma200_long_short"]))
+        self.assertTrue(all(x in (-1.0, 0.0, 1.0) for x in signals["ema20_50_sma200_long_short"]))
+
     def test_bad_ohlc_is_rejected(self):
         rows = make_bars()
         rows[100].high = rows[100].low / 2
