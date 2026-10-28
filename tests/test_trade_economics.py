@@ -22,10 +22,19 @@ class CapitalEconomicsTests(unittest.TestCase):
         self.assertEqual(r.tier, "STRONG")
         self.assertGreaterEqual(r.modeled_profit_usd, 10.0)
 
-    def test_maker_fee_is_lower_than_taker_fee(self):
-        taker = evaluate_capital_target(11.0, order_type="taker")
-        maker = evaluate_capital_target(11.0, order_type="maker")
-        self.assertLess(maker.round_trip_cost_pct, taker.round_trip_cost_pct)
+    def test_default_cost_uses_central_project_assumption(self):
+        r = evaluate_capital_target(1.2)
+        self.assertAlmostEqual(r.round_trip_cost_pct, 0.24)
+
+    def test_order_type_does_not_silently_change_fixed_project_cost(self):
+        taker = evaluate_capital_target(1.2, order_type="taker")
+        maker = evaluate_capital_target(1.2, order_type="maker")
+        self.assertAlmostEqual(taker.round_trip_cost_pct, 0.24)
+        self.assertAlmostEqual(maker.round_trip_cost_pct, 0.24)
+
+    def test_explicit_cost_override_is_respected(self):
+        r = evaluate_capital_target(1.2, round_trip_cost_pct=0.30)
+        self.assertAlmostEqual(r.round_trip_cost_pct, 0.30)
 
 
 if __name__ == "__main__":
