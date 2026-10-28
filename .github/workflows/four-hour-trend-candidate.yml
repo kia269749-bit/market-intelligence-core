@@ -1,0 +1,70 @@
+name: Four-Hour Trend Candidate Research
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/four-hour-trend-candidate.yml"
+      - "tools/ema_candidate_validation.py"
+      - "mi_core/real_data.py"
+      - "mi_core/storage.py"
+      - "tests/test_ema_candidate_validation.py"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        symbol: [BTCUSDT, ETHUSDT, BNBUSDT, SOLUSDT, XRPUSDT]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate research code
+        run: python -m unittest discover -s tests -p 'test_ema_candidate_validation.py' -v
+      - name: Download multi-year four-hour OHLC data
+        run: |
+          mkdir -p data/real reports/four-hour-trend
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 4h --bars 12000 --out data/real/${{ matrix.symbol }}_4h.jsonl --report reports/four-hour-trend/${{ matrix.symbol }}_data.json
+      - name: Validate fixed strategies against benchmarks at 0.24% round-trip cost
+        run: |
+          python tools/ema_candidate_validation.py \
+            --input data/real/${{ matrix.symbol }}_4h.jsonl \
+            --out reports/four-hour-trend/${{ matrix.symbol }}_4h_validation.json \
+            --symbol ${{ matrix.symbol }} --costs 0.24 --capital 500
+      - name: Print full-year out-of-sample comparison
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("reports/four-hour-trend/${{ matrix.symbol }}_4h_validation.json")
+          x=json.loads(p.read_text())
+          print(json.dumps({
+            "symbol": x.get("symbol"),
+            "bars": x.get("bars"),
+            "research_only": x.get("research_only"),
+            "trade_ready": x.get("trade_ready"),
+            "full_year_results": x.get("aggregate_by_cost", {}).get("0.24", {}),
+            "yearly_windows": [
+              {"year": w.get("year"), "window_type": w.get("window_type"),
+               "strategies": w.get("strategies", {})}
+              for w in x.get("windows", []) if w.get("window_type") == "full_calendar_year"
+            ]
+          }, sort_keys=True))
+          PY
+      - name: Publish data and reproducible report
+        uses: actions/upload-artifact@v4
+        with:
+          name: four-hour-trend-${{ matrix.symbol }}
+          path: |
+            data/real/${{ matrix.symbol }}_4h.jsonl
+            reports/four-hour-trend/${{ matrix.symbol }}_data.json
+            reports/four-hour-trend/${{ matrix.symbol }}_4h_validation.json
+          if-no-files-found: error
