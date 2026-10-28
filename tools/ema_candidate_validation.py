@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mi_core.storage import load_bars
+from tools.validate_protocol_lock import validate_protocol_lock
 
 
 STRATEGIES = ("ema12_26", "ema20_50", "ema20_50_sma200_confirmed", "ema20_50_long_short", "ema20_50_sma200_long_short", "sma200", "donchian20_10", "rsi14", "buy_and_hold", "random_matched_trade_count")
@@ -267,9 +268,14 @@ def _moving_block_mean_ci(differences, *, block_length=20, replicates=1000, seed
 
 
 def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_usd=500.0):
+    protocol = validate_protocol_lock()
     normalized_costs = tuple(float(c) for c in costs)
-    allowed_costs = {0.24, 0.12, 0.04}
-    if not normalized_costs or 0.24 not in normalized_costs or len(set(normalized_costs)) != len(normalized_costs) or not set(normalized_costs) <= allowed_costs:
+    cost_policy = protocol["execution_cost_policy"]
+    allowed_costs = set(float(c) for c in cost_policy["sensitivity_round_trip_pct"])
+    locked_baseline = float(cost_policy["project_default_round_trip_pct"])
+    if locked_baseline != 0.24:
+        raise ValueError("protocol baseline mismatch with project cost policy")
+    if not normalized_costs or locked_baseline not in normalized_costs or len(set(normalized_costs)) != len(normalized_costs) or not set(normalized_costs) <= allowed_costs:
         raise ValueError("include the 0.24% project baseline; allowed sensitivity rates are 0.24, 0.12, and 0.04 percent round trip")
     symbol, stamps = validate_bars(bars, expected_symbol)
     signals = build_signals(bars)
