@@ -40,8 +40,10 @@ All three predeclared offsets (3%, 5%, 7%) produced identical reported metrics a
 - `0eefcc1593f1c71300a859fc56fb88d735d0ab30`: added regression tests for offset sensitivity and entry-bar drawdown.
 - `e905fe0755e5833c062cbb50a70f2c9a6e07a200`: changed simulator timing so the prior completed-bar breaker state gates the current open entry; marks equity and updates the rolling breaker after current-bar execution.
 - `2d3591f092d2ace95daca1af2c4a4bc90aff8e35`: corrected the entry-bar drawdown test to use a warmed ATR.
+- `9d11a42d5b09d2912bf716f45e8dbd25538ccb83`: corrected final-window accounting so realized exit costs are included in the final equity-path point used for drawdown and return-volatility metrics.
+- `8cbd8af04f48c0d3f49bb8fa4d99c57f6b4d7ae1`: added a regression test proving final-window exit costs are reflected in drawdown.
 
-The first CI attempt failed because the new regression test attempted to enter before ATR warm-up, so no trade was created. The test was corrected in the latest commit. The latest CI runs are being checked; do not assume they pass until their conclusions are green.
+The first CI attempt failed because the new regression test attempted to enter before ATR warm-up, so no trade was created. The test was corrected. On latest commit `8cbd8af04f48c0d3f49bb8fa4d99c57f6b4d7ae1`, focused simulator tests and protocol validation pass; Market Intelligence CI and the OHLC/live-smoke matrix are still completing at the time of this note. The full WFA job is skipped on pull-request events by design.
 
 ## Required next gates
 
