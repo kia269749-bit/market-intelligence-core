@@ -46,7 +46,7 @@ jobs:
                   "available", "mode", "coin", "bars", "horizon_bars",
                   "predictions_generated", "directional_nonoverlap_trades",
                   "gross_mean_pct", "net_itemized_mean_pct", "net_itemized_sum_pct",
-                  "positive_net_rate", "profit_factor", "compounded_trade_sequence_drawdown_pct",
+                  "positive_net_rate", "profit_factor",
                   "policy_sensitivity", "block_bootstrap_mean_ci", "cost_model", "data_source",
               )
               print(json.dumps({key: data.get(key) for key in keys}, indent=2))
