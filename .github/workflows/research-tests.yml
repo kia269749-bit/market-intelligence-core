@@ -1,6 +1,9 @@
 name: Research strategy tests
 
 on:
+  push:
+    branches:
+      - feat/economic-edge-diagnostic
   pull_request:
     branches: ["**"]
   workflow_dispatch:
@@ -18,8 +21,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Run strategy and TP diagnostic tests
+      - name: Run focused research tests
         run: |
-          python -m unittest discover -s tests -p 'test_strategy_ensemble.py' -v
-          python -m unittest discover -s tests -p 'test_tp_path_validation.py' -v
-          python -m unittest discover -s tests -p 'test_tp_execution_backtest.py' -v
+          set -e
+          python -m unittest discover -s tests -p 'test_costs.py' -v
+          python -m unittest discover -s tests -p 'test_trade_economics.py' -v
+          python -m unittest discover -s tests -p 'test_economic_edge.py' -v
