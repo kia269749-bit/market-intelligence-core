@@ -26,6 +26,8 @@ def evaluate(report: dict, lock: dict, expected_cost: float | None = None) -> di
     allowed_acceptance_costs = {float(cost["project_default_round_trip_pct"]), float(cost["strict_stress_round_trip_pct"])}
     check("expected_cost_is_locked_acceptance_rate", expected_cost in allowed_acceptance_costs,
           f"expected cost must be one of the two locked acceptance rates: {sorted(allowed_acceptance_costs)}")
+    check("protocol_version", report.get("protocol_id") == "dual-regime-sma-offset-v4",
+          "report must identify the v4 protocol; v3 and earlier reports are not eligible")
     check("research_only", report.get("research_only") is True and report.get("live_orders") is False,
           "report must explicitly prohibit live orders")
     check("locked_cost", report.get("cost_pct_round_trip") == expected_cost
