@@ -4,6 +4,7 @@ import math, time, statistics
 from .fomo_live import scan_boosted
 from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
 from .trade_economics import evaluate_capital_target
+from .costs import ROUND_TRIP_COST_PCT
 from .timing_engine import evaluate_entry_timing
 
 def _num(v, d=0.0):
@@ -232,7 +233,7 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
         train_window=min(600,max(120,len(bars)//2)),
         min_train_trades=12, min_oos_trades=12)
     economics=path_to_economic_opportunity(path_result, capital_usd=500.0,
-                                           round_trip_cost_pct=0.35,
+                                           round_trip_cost_pct=ROUND_TRIP_COST_PCT,
                                            min_profit_usd=4.0, preferred_profit_usd=10.0)
     return {
         "available":True, "asset":asset, "samples":len(bars),
