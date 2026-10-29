@@ -138,12 +138,14 @@ class DualRegimeTests(unittest.TestCase):
 
     def test_aggregate_round_trip_cost_is_charged_once_on_entry_notional(self):
         rows = bars("BTCUSDT", [100.0] * 40)
-        result = simulate(
-            rows, [True] * len(rows), cost_pct=PRIMARY_COST_PCT, initial_equity=500.0,
-            use_risk=False, use_stops=False, use_trailing=False,
-            use_time_exit=False, circuit_breaker=False,
-        )
-        self.assertAlmostEqual(result["cost_total_usd"], 500.0 * PRIMARY_COST_PCT / 100.0, places=6)
+        for rate in (PRIMARY_COST_PCT, 0.45):
+            with self.subTest(rate=rate):
+                result = simulate(
+                    rows, [True] * len(rows), cost_pct=rate, initial_equity=500.0,
+                    use_risk=False, use_stops=False, use_trailing=False,
+                    use_time_exit=False, circuit_breaker=False,
+                )
+                self.assertAlmostEqual(result["cost_total_usd"], 500.0 * rate / 100.0, places=6)
 
     def test_acceptance_evaluator_fails_closed_without_portfolio_ci(self):
         lock = validate_protocol_lock()
