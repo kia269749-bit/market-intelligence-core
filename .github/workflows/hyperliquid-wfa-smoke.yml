@@ -1,0 +1,61 @@
+name: Hyperliquid Perpetual WFA Smoke
+on:
+  pull_request:
+    paths:
+      - "mi_core/hyperliquid_data.py"
+      - "mi_core/hyperliquid_wfa.py"
+      - "mi_core/block_bootstrap.py"
+      - "tests/test_hyperliquid_wfa.py"
+      - ".github/workflows/hyperliquid-wfa-smoke.yml"
+  workflow_dispatch:
+jobs:
+  historical-wfa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run tests first
+        run: python -m unittest discover -s tests -p 'test_hyperliquid_wfa.py' -v
+      - name: Fetch public Hyperliquid candles and realized funding
+        shell: bash
+        run: |
+          set -euo pipefail
+          END_MS="$(date -u +%s%3N)"
+          START_MS="$((END_MS - 45 * 24 * 60 * 60 * 1000))"
+          python -m mi_core.hyperliquid_wfa \
+            --coin BTC --interval 1h \
+            --start-ms "$START_MS" --end-ms "$END_MS" \
+            --horizon 24 --train-window 300 --min-train 60 \
+            --slippage-bps-per-side 2 --bootstrap-resamples 2000 \
+            --block-days 1 --out reports/hyperliquid_btc_1h_wfa_smoke.json
+      - name: Print concise WFA metrics
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          path = Path("reports/hyperliquid_btc_1h_wfa_smoke.json")
+          if not path.exists():
+              print("WFA_REPORT_MISSING")
+          else:
+              data = json.loads(path.read_text())
+              keys = (
+                  "available", "mode", "coin", "bars", "horizon_bars",
+                  "predictions_generated", "directional_nonoverlap_trades",
+                  "gross_mean_pct", "net_itemized_mean_pct", "net_itemized_sum_pct",
+                  "positive_net_rate", "profit_factor",
+                  "policy_sensitivity", "block_bootstrap_mean_ci", "block_bootstrap_sensitivity", "cost_model", "data_source",
+              )
+              print(json.dumps({key: data.get(key) for key in keys}, indent=2))
+          PY
+      - name: Upload WFA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperliquid-btc-1h-wfa-smoke
+          path: reports/hyperliquid_btc_1h_wfa_smoke.json
+          if-no-files-found: warn
+          retention-days: 14
