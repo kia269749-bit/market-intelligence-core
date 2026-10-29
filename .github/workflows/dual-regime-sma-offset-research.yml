@@ -2,15 +2,38 @@ name: Dual Regime SMA Offset Exploratory WFA
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: [main, 'fix/**', 'audit/**']
+    inputs:
+      as_of:
+        description: "Frozen UTC cutoff (ISO-8601)"
+        required: true
+        default: "2026-10-29T00:00:00Z"
+  push:
+    branches: ["audit/**"]
     paths:
       - "tools/dual_regime_sma_offset.py"
+      - "tools/validate_protocol_lock.py"
+      - "tools/evaluate_acceptance.py"
       - "tests/test_dual_regime_sma_offset.py"
+      - "research/protocol_lock.json"
       - "research/experiments/dual_regime_sma_offset_protocol.md"
       - ".github/workflows/dual-regime-sma-offset-research.yml"
       - "mi_core/real_data.py"
       - "mi_core/storage.py"
+  pull_request:
+    branches: [main, 'fix/**', 'audit/**']
+    paths:
+      - "tools/dual_regime_sma_offset.py"
+      - "tools/validate_protocol_lock.py"
+      - "tools/evaluate_acceptance.py"
+      - "tests/test_dual_regime_sma_offset.py"
+      - "research/protocol_lock.json"
+      - "research/experiments/dual_regime_sma_offset_protocol.md"
+      - ".github/workflows/dual-regime-sma-offset-research.yml"
+      - "mi_core/real_data.py"
+      - "mi_core/storage.py"
+
+env:
+  AS_OF_UTC: ${{ github.event.inputs.as_of || '2026-10-29T00:00:00Z' }}
 
 permissions:
   contents: read
@@ -32,7 +55,7 @@ jobs:
   exploratory-wfa:
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,26 +66,32 @@ jobs:
           mkdir -p data/dual-regime reports/dual-regime
           python - <<'PY'
           import json
+          from datetime import datetime
           from pathlib import Path
           from mi_core.real_data import download
+          as_of_ms = int(datetime.fromisoformat("${AS_OF_UTC}".replace("Z", "+00:00")).timestamp() * 1000)
           symbols = "BTCUSDT ETHUSDT BNBUSDT SOLUSDT XRPUSDT ADAUSDT DOGEUSDT TRXUSDT LINKUSDT AVAXUSDT DOTUSDT LTCUSDT BCHUSDT UNIUSDT NEARUSDT APTUSDT ARBUSDT OPUSDT SUIUSDT FILUSDT".split()
           for symbol in symbols:
               out = Path("data/dual-regime") / f"{symbol}_4h.jsonl"
-              bars, path = download(symbol=symbol, interval="4h", bars=12000, out=str(out))
+              bars, path = download(symbol=symbol, interval="4h", bars=12000, out=str(out), end_ms=as_of_ms)
               meta = {"symbol": symbol, "venue": "Binance Spot public OHLCV proxy", "interval": "4h",
-                      "bars": len(bars), "first_ts": bars[0].ts if bars else None,
+                      "bars": len(bars), "as_of_utc": "${AS_OF_UTC}", "first_ts": bars[0].ts if bars else None,
                       "last_ts": bars[-1].ts if bars else None, "research_only": True, "live_orders": False}
               (Path("reports/dual-regime") / f"{symbol}_data.json").write_text(json.dumps(meta, indent=2))
               print(json.dumps(meta, sort_keys=True))
           PY
       - name: Run primary preregistered cost scenario
         run: |
-          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.24.json --costs 0.24
+          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.24.json --costs 0.24 --as-of "$AS_OF_UTC"
       - name: Run annex cost sensitivities
         run: |
-          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.12.json --costs 0.12
-          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.04.json --costs 0.04
+          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.12.json --costs 0.12 --as-of "$AS_OF_UTC"
+          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.04.json --costs 0.04 --as-of "$AS_OF_UTC"
+      - name: Evaluate primary-cost acceptance gate
+        if: always() && hashFiles('reports/dual-regime/wfa_cost_0.24.json') != ''
+        run: python tools/evaluate_acceptance.py --report reports/dual-regime/wfa_cost_0.24.json --out reports/dual-regime/acceptance.json
       - name: Publish data, metadata and research reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dual-regime-sma-offset-exploratory-wfa
