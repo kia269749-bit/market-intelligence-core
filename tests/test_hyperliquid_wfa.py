@@ -46,7 +46,7 @@ class HyperliquidDataTests(unittest.TestCase):
 
     def test_funding_cost_uses_entry_notional_reference(self):
         result = funding_cost_pct(1, 2, [(110, 0.001), (120, 0.001)], entry_oracle_price=100)
-        self.assertAlmostEqual(result, 2.3)
+        self.assertAlmostEqual(result, 0.23)
 
     def test_itemized_cost_has_side_aware_funding_and_separate_slippage(self):
         candles = [
