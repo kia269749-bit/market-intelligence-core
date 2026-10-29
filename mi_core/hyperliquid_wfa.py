@@ -272,6 +272,27 @@ def run_hyperliquid_wfa(
     result.setdefault("data_source", {})
     result["data_source"]["requested_start_ms"] = int(start_ms)
     result["data_source"]["requested_end_ms"] = int(end_ms)
+    expected_funding_hours = max(0, (int(end_ms) - int(start_ms)) // 3_600_000)
+    if funding:
+        first_funding_ms = funding[0].timestamp_ms
+        last_funding_ms = funding[-1].timestamp_ms
+        funding_spans_range = (
+            first_funding_ms <= int(start_ms) + 2 * 3_600_000
+            and last_funding_ms >= int(end_ms) - 2 * 3_600_000
+        )
+        funding_count_ok = expected_funding_hours == 0 or len(funding) >= 0.95 * expected_funding_hours
+        funding_status = "WITHIN_TWO_HOURS_AND_95_PERCENT" if funding_spans_range and funding_count_ok else "PARTIAL_OR_UNVERIFIED"
+    else:
+        first_funding_ms = last_funding_ms = None
+        funding_status = "NO_FUNDING_EVENTS"
+    result["data_source"]["funding_coverage_check"] = {
+        "status": funding_status,
+        "expected_approx_hourly_events": expected_funding_hours,
+        "observed_events": len(funding),
+        "first_event_ms": first_funding_ms,
+        "last_event_ms": last_funding_ms,
+        "warning": "Funding event coverage is checked heuristically; this is not proof that no event is missing.",
+    }
     interval_ms = {
         "1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000,
         "30m": 1_800_000, "1h": 3_600_000, "2h": 7_200_000,
