@@ -95,7 +95,6 @@ jobs:
         run: python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.45.json --costs 0.45 --as-of "$AS_OF_UTC"
       - name: Run diagnostic-only cost sensitivities
         run: |
-          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.24.json --costs 0.24 --as-of "$AS_OF_UTC"
           python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.12.json --costs 0.12 --as-of "$AS_OF_UTC"
           python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.04.json --costs 0.04 --as-of "$AS_OF_UTC"
       - name: Evaluate base-cost acceptance gate
