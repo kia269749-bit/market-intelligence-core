@@ -210,13 +210,6 @@ def evaluate_candles(
     }
     wins = sum(value > 0 for value in net)
     losses = abs(sum(value for value in net if value < 0))
-    equity = peak = 1.0
-    max_dd_pct = 0.0
-    for value in net:
-        equity *= 1.0 + value / 100.0
-        peak = max(peak, equity)
-        if peak > 0:
-            max_dd_pct = max(max_dd_pct, (peak - equity) / peak * 100.0)
     return {
         "available": bool(sampled),
         "mode": "hyperliquid_perpetual_walk_forward_oos",
@@ -229,7 +222,6 @@ def evaluate_candles(
         "net_itemized_sum_pct": sum(net),
         "positive_net_rate": wins / len(net) if net else None,
         "profit_factor": sum(v for v in net if v > 0) / losses if losses else None,
-        "compounded_trade_sequence_drawdown_pct": max_dd_pct,
         "policy_sensitivity": {
             "fixed_cost_base_015_mean_net_pct": sum(base) / len(base) if base else None,
             "fixed_cost_stress_045_mean_net_pct": sum(stress) / len(stress) if stress else None,
