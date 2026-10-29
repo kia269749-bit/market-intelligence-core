@@ -1,6 +1,8 @@
 """Capital-aware exchange economics for research signals."""
 from dataclasses import dataclass
 
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy
+
 @dataclass(frozen=True)
 class ExchangeProfile:
     name: str
@@ -32,7 +34,9 @@ class CapitalTarget:
 def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
                             min_profit_usd=4.0, preferred_profit_usd=10.0,
                             exchange="hyperliquid_perps", order_type="taker",
-                            spread_bps=None, slippage_bps=None):
+                            spread_bps=None, slippage_bps=None,
+                            cost_policy: CostPolicy = DEFAULT_COST_POLICY,
+                            strict_cost: bool = False, cost_model="policy"):
     if capital_usd <= 0 or min_profit_usd <= 0 or preferred_profit_usd < min_profit_usd:
         return CapitalTarget(False, "REJECT", capital_usd, min_profit_usd, preferred_profit_usd,
                              expected_move_pct, 0, 0, 0, 0, 0, "invalid_policy")
@@ -40,7 +44,13 @@ def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
     fee = p.maker_fee_bps if str(order_type).lower() == "maker" else p.taker_fee_bps
     spread = p.spread_bps if spread_bps is None else float(spread_bps)
     slip = p.slippage_bps if slippage_bps is None else float(slippage_bps)
-    cost = 2.0 * (fee + spread + slip) / 100.0
+    if cost_model == "policy":
+        cost = cost_policy.strict_round_trip_pct if strict_cost else cost_policy.base_round_trip_pct
+    elif cost_model == "components":
+        # Explicit alternative decomposition. Do not add this to the policy rate.
+        cost = 2.0 * (fee + spread + slip) / 100.0
+    else:
+        raise ValueError("cost_model must be 'policy' or 'components'")
     net = float(expected_move_pct) - cost
     min_net_pct = min_profit_usd / capital_usd * 100.0
     preferred_net_pct = preferred_profit_usd / capital_usd * 100.0
