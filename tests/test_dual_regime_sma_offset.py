@@ -54,6 +54,19 @@ class DualRegimeTests(unittest.TestCase):
         self.assertEqual(result["trades"][0]["reason"], "entry_bar_stop")
         self.assertGreater(result["max_drawdown_pct"], 0.0)
 
+    def test_window_end_exit_cost_is_included_in_drawdown(self):
+        rows = bars("BTCUSDT", [100.0] * 40)
+        for row in rows:
+            row.open, row.high, row.low = 100.0, 101.0, 99.0
+        result = simulate(
+            rows, [True] * len(rows), cost_pct=0.24, initial_equity=500.0,
+            use_risk=False, use_stops=False, use_trailing=False,
+            use_time_exit=False, circuit_breaker=False,
+        )
+        self.assertEqual(result["trades"][-1]["reason"], "window_end")
+        self.assertLess(result["net_pnl_usd"], 0.0)
+        self.assertGreater(result["max_drawdown_pct"], 0.0)
+
     def test_future_bars_do_not_change_earlier_candidate_signals(self):
         prices = [100 + i * 0.2 + 2 * math.sin(i / 5) for i in range(500)]
         rows = bars("BTCUSDT", prices)
