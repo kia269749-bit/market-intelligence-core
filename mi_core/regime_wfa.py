@@ -188,7 +188,7 @@ def evaluate_regime_candles(
             rejected["flat_prediction"] += 1
             continue
         regime = regimes[signal_i]
-        if not regime["trend_ok"] or not regime["volatility_ok"]:
+        if float(regime["adx"] or 0.0) < float(adx_min) or not regime["volatility_ok"]:
             rejected["regime_filter"] += 1
             continue
         entry_i = signal_i + 1
