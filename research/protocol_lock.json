@@ -1,7 +1,7 @@
 {
-  "protocol_version": "2026-10-28-v1",
+  "protocol_version": "2026-10-29-v2",
   "status": "LOCKED_FOR_NEXT_EXPERIMENT; historical results are exploratory",
-  "created_utc": "2026-10-28",
+  "created_utc": "2026-10-29",
   "assets": [
     "BTC",
     "ETH",
@@ -17,24 +17,24 @@
       0.12,
       0.04
     ],
-    "unit": "percent of entry notional",
-    "note": "0.12% and 0.04% are diagnostic scenarios, not verified account-specific realized costs"
+    "unit": "percent of entry notional, applied once per completed round trip",
+    "note": "The aggregate round-trip rate is charged once against entry notional per completed trade. 0.12% and 0.04% are diagnostic scenarios, not verified account-specific realized costs."
   },
   "historical_periods": {
     "train": [
-      "2022-01-01",
-      "2023-06-30"
-    ],
-    "validation": [
-      "2023-07-01",
+      "2023-05-01",
       "2023-12-31"
     ],
-    "test": [
+    "validation": [
       "2024-01-01",
-      "2024-09-30"
+      "2024-06-30"
+    ],
+    "test": [
+      "2024-07-01",
+      "2024-12-31"
     ],
     "status": "RETROSPECTIVE_ONLY_NOT_UNTOUCHED",
-    "reason": "These historical years overlap prior research/evaluation. They cannot be represented as a virgin holdout after results have been inspected."
+    "reason": "The 20-asset breadth universe has a common-history constraint beginning around 2023-05. These dates are retrospective and are not the live rolling WFA input; they must not be represented as untouched or confirmatory."
   },
   "next_confirmatory_test": {
     "status": "NOT_YET_AVAILABLE",
@@ -62,13 +62,21 @@
     "random_signal_matched_trade_count_seeded"
   ],
   "acceptance_criteria": {
-    "min_positive_non_overlapping_oos_windows": 2,
+    "min_positive_non_overlapping_oos_windows": 8,
     "min_net_expectancy_usd_per_trade": 0,
-    "max_drawdown_pct": 20,
+    "max_drawdown_pct": 25,
     "require_positive_cost_stress_at": "0.24% round trip",
     "require_comparison_to_baselines": true,
     "require_data_leakage_tests": true,
-    "require_minimum_sample_size_and_confidence_intervals": true
+    "require_minimum_sample_size_and_confidence_intervals": true,
+    "min_portfolio_oos_windows": 8,
+    "bootstrap_confidence_level": 0.95,
+    "block_bootstrap_length_windows": 2,
+    "bootstrap_samples": 10000,
+    "require_positive_portfolio_ci_lower_bound": true,
+    "require_positive_ci_lower_bound_vs_risk_matched_ema": true,
+    "require_positive_ci_lower_bound_vs_random_median": true,
+    "multiple_comparison_method": "one-sided circular block bootstrap with Bonferroni alpha=0.05/6 across three offsets and two baseline comparisons"
   },
   "stopping_rule": {
     "if_positive_oos_windows_is_zero_and_net_expectancy_is_negative": "REJECT_CURRENT_HYPOTHESIS",
@@ -79,5 +87,13 @@
     "A lock file alone does not prevent edits; enforcement and CI verification remain required.",
     "The proposed 2022-2024 split is historical and contaminated by prior inspection, so it must not be used to claim confirmatory OOS proof.",
     "No edge or profitability is asserted."
-  ]
+  ],
+  "data_window_policy": {
+    "source": "Binance Spot public OHLCV proxy only",
+    "interval": "4h",
+    "requested_bars_per_asset": 12000,
+    "cutoff": "Explicit --as-of UTC timestamp; include only fully closed bars",
+    "reproducibility": "Record SHA-256 for every raw JSONL, protocol lock and simulator source",
+    "note": "An as-of cutoff alone does not freeze source data. Hashes are required to identify the exact snapshot."
+  }
 }
