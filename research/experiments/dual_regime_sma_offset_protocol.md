@@ -1,7 +1,7 @@
 # Dual Regime SMA Offset: Preregistered Research Protocol
 
-- Protocol ID: `dual-regime-sma-offset-v1`
-- Frozen on: 2026-10-28 UTC
+- Protocol ID: `dual-regime-sma-offset-v2`
+- Frozen on: 2026-10-29 UTC
 - Status: `PREREGISTERED_FOR_EXPLORATORY_WALK_FORWARD`
 - Research branch: `audit/cost-provenance-20261028`
 - Scope: research only. No live orders, no production strategy replacement, no main merge authorized by this protocol.
@@ -24,9 +24,9 @@ This experiment can reject the candidate. It cannot prove future profitability.
 
 ### Historical windows
 
-All historical periods must be audited against prior project exposure before being called untouched. The 2022-2024 periods are known retrospective/contaminated. 2025 H1 is only eligible as a holdout if repository reports, logs and prior experiments confirm it was not used to select rules. If exposure cannot be established, label it retrospective too. Do not use any period already inspected as confirmatory evidence.
+All historical periods must be audited against prior project exposure before being called untouched. The common-history constraint for the 20-asset breadth universe begins around 2023-05. The frozen historical split is train 2023-05-01 to 2023-12-31, validation 2024-01-01 to 2024-06-30, and test 2024-07-01 to 2024-12-31. All these dates are retrospective/contaminated. 2025 H1 is only eligible as a holdout if repository reports, logs and prior experiments confirm it was not used to select rules. If exposure cannot be established, label it retrospective too. Do not use any period already inspected as confirmatory evidence.
 
-Walk-forward exploratory report: use available 4-hour data, chronological expanding/rolling data, 12 months of preceding history for warm-up/context and non-overlapping 3-month OOS scoring windows. Fixed rules only; no parameter tuning in these windows. Do not call this a virgin test if the source period has already been inspected.
+Walk-forward exploratory report: use available 4-hour data through an explicit `--as-of` UTC cutoff, chronological expanding/rolling data, 12 months of preceding history for warm-up/context and non-overlapping 3-month OOS scoring windows. Download the source snapshot with the same end time. Record SHA-256 for every raw JSONL, the protocol lock and simulator code. An as-of cutoff without hashes does not establish that the source data was identical. Fixed rules only; no parameter tuning in these windows. Do not call this a virgin test if the source period has already been inspected.
 
 A future confirmatory test must use a data interval chosen and frozen before its evaluation, with no tuning or repeated peeking. Hyperliquid data is preferred for target-market confirmation once enough clean data is available.
 
@@ -60,13 +60,13 @@ Long-only; no shorting in v1. Trend condition: asset SMA(20) > SMA(50). A pullba
 
 On identical data, timestamps, execution timing and cost policy, report:
 1. Buy & Hold per asset and equally weighted portfolio (rebalance only at each OOS window start; state exact implementation).
-2. Simple EMA12/26 long/flat.
+2. EMA12/26 with the same risk sizing, initial/trailing stop, time exit and circuit breaker as the candidate, for signal-quality comparison. A raw un-managed EMA12/26 report is retained separately and is not treated as an execution-matched comparison.
 3. Seeded Random Matched Trade Count comparator. Match candidate position-change count per scored window; report seed and explicitly label this comparator post-hoc/diagnostic, not a clean prospective rule. Statistical comparison must use a distribution of seeded randomized paths, not a single random path.
 4. Dual Regime SMA Offset (fixed 5% primary, no ATR sizing/trailing stop; simple fixed notional, for ablation).
 5. Dual Regime SMA Offset + causal ATR sizing + initial/trailing stop + time exit + circuit breaker (full candidate).
 6. Offset 3% and 7% variants only for the preregistered small-family robustness/PBO analysis.
 
-All use 0.24% aggregate round-trip cost as the primary case. 0.12% and 0.04% are annex-only sensitivity scenarios; never promote either to the headline case or call them verified account costs.
+All use 0.24% aggregate round-trip cost as the primary case. The rate is applied once to entry notional per completed trade, including stop exits and window-end exits. It is not split between entry and exit notionals. 0.12% and 0.04% are annex-only sensitivity scenarios; never promote either to the headline case or call them verified account costs.
 
 ## 5. Metrics
 
@@ -83,15 +83,18 @@ Per asset, portfolio and OOS window report: net return, annualized Sharpe and So
 ## 7. Decision gate
 
 Research candidate is rejected for this protocol if any of these hold:
-- fewer than two non-overlapping OOS windows have positive net expectancy;
+- fewer than eight non-overlapping portfolio OOS windows have positive net returns, or fewer than eight portfolio windows are available;
 - aggregate net expectancy at 0.24% is <= 0;
-- maximum drawdown exceeds 25%;
+- compounded equal-weight portfolio maximum drawdown exceeds 25%;
+- the one-sided circular block-bootstrap lower confidence bound for primary portfolio return is not above zero;
+- the Bonferroni-corrected block-bootstrap lower confidence bound for candidate-minus-risk-matched-EMA or candidate-minus-random-median return is not above zero;
+- aggregate net expectancy across the portfolio windows is not positive;
 - the candidate does not outperform simple EMA12/26 and the randomized comparator on the predeclared primary metric after multiple-comparison correction;
 - the confidence interval for net expectancy includes zero;
 - material look-ahead, timestamp, cost, stop-fill, breadth-coverage or data-integrity defect is found;
 - circuit breaker or risk sizing tests fail.
 
-A Sharpe threshold of 1.0 is reported as a diagnostic, not the sole pass/fail criterion. PBO < 30% is required only if CSCV is statistically supportable; PBO > 50% is a reject signal. A final holdout must not be opened if the candidate fails the exploratory validation gate.
+A Sharpe threshold of 1.0 is reported as a diagnostic, not the sole pass/fail criterion. PBO < 30% is required only if CSCV is statistically supportable; PBO > 50% is a reject signal. The executable `tools/evaluate_acceptance.py` enforces the portfolio sample-size, positive-return, expectancy, drawdown, corrected block-bootstrap and reproducibility gates; a missing required field fails closed. A final holdout must not be opened if the candidate fails the exploratory validation gate.
 
 Passing these gates means only “eligible for a separate target-market validation,” never approval for live trading. Main merge and live execution require separate explicit review/authorization.
 
@@ -117,4 +120,4 @@ Passing these gates means only “eligible for a separate target-market validati
 5. Publish per-asset and portfolio reports plus raw-data hashes as CI artifacts.
 6. Review results before deciding whether a separately frozen Hyperliquid Perpetuals test is justified.
 
-No main merge, live orders, protected-service changes, or Termux deployment are authorized by this protocol.
+The CI workflow runs focused tests on pull requests and the full exploratory WFA on pushes to `audit/**` when relevant paths change. The workflow also exposes a manual dispatch input, but it is not available in GitHub's UI until the workflow is present on the default branch. No main merge, live orders, protected-service changes, or Termux deployment are authorized by this protocol.
