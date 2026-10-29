@@ -1,0 +1,61 @@
+name: Regime ATR Hyperliquid WFA Research
+on:
+  pull_request:
+    paths:
+      - "mi_core/regime_wfa.py"
+      - "tests/test_regime_wfa.py"
+      - ".github/workflows/regime-wfa-smoke.yml"
+  workflow_dispatch:
+jobs:
+  regime-wfa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Unit tests
+        run: python -m unittest discover -s tests -p 'test_regime_wfa.py' -v
+      - name: Run real-data Hyperliquid WFA
+        shell: bash
+        run: |
+          set -euo pipefail
+          END_MS="$(date -u +%s%3N)"
+          START_MS="$((END_MS - 90 * 24 * 60 * 60 * 1000))"
+          python -m mi_core.regime_wfa \
+            --coin BTC --interval 1h \
+            --start-ms "$START_MS" --end-ms "$END_MS" \
+            --horizon 24 --train-window 300 --min-train 60 \
+            --max-holding-bars 24 --slippage-bps-per-side 2 \
+            --bootstrap-resamples 2000 \
+            --out reports/hyperliquid_btc_1h_regime_wfa.json
+      - name: Print report summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("reports/hyperliquid_btc_1h_regime_wfa.json")
+          if not p.exists():
+              print("REGIME_WFA_REPORT_MISSING")
+          else:
+              d = json.loads(p.read_text())
+              keys = ("available", "status", "coin", "bars", "forecast_count",
+                      "sampled_forecast_count", "trade_count", "rejected_counts",
+                      "gross_mean_pct", "net_itemized_mean_pct", "net_itemized_sum_pct",
+                      "positive_net_rate", "profit_factor", "exit_reason_counts",
+                      "same_bar_ambiguity_count", "block_bootstrap_mean_ci",
+                      "block_bootstrap_sensitivity", "policy_sensitivity",
+                      "indicator_policy", "cost_model", "data_source",
+                      "research_only", "live_orders")
+              print(json.dumps({k: d.get(k) for k in keys}, indent=2))
+          PY
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperliquid-btc-1h-regime-wfa
+          path: reports/hyperliquid_btc_1h_regime_wfa.json
+          if-no-files-found: warn
+          retention-days: 30
