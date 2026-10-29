@@ -1,0 +1,41 @@
+name: Hyperliquid Perpetual WFA Smoke
+on:
+  pull_request:
+    paths:
+      - "mi_core/hyperliquid_data.py"
+      - "mi_core/hyperliquid_wfa.py"
+      - "mi_core/block_bootstrap.py"
+      - "tests/test_hyperliquid_wfa.py"
+      - ".github/workflows/hyperliquid-wfa-smoke.yml"
+  workflow_dispatch:
+jobs:
+  historical-wfa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run tests first
+        run: python -m unittest tests.test_hyperliquid_wfa -v
+      - name: Fetch public Hyperliquid candles and realized funding
+        shell: bash
+        run: |
+          set -euo pipefail
+          END_MS="$(date -u +%s%3N)"
+          START_MS="$((END_MS - 45 * 24 * 60 * 60 * 1000))"
+          python -m mi_core.hyperliquid_wfa \
+            --coin BTC --interval 1h \
+            --start-ms "$START_MS" --end-ms "$END_MS" \
+            --horizon 24 --train-window 300 --min-train 60 \
+            --slippage-bps-per-side 2 --bootstrap-resamples 2000 \
+            --block-days 1 --out reports/hyperliquid_btc_1h_wfa_smoke.json
+      - name: Upload WFA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperliquid-btc-1h-wfa-smoke
+          path: reports/hyperliquid_btc_1h_wfa_smoke.json
+          if-no-files-found: warn
+          retention-days: 14
