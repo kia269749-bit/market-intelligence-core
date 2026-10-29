@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 
 # Project-wide research assumption: full round-trip cost as a percentage of notional.
-ROUND_TRIP_COST_PCT = 0.24
+ROUND_TRIP_COST_PCT = 0.15
 
 
 @dataclass(frozen=True)
@@ -55,7 +55,7 @@ def estimate_execution_cost(
 
     This function sums the explicitly supplied component assumptions. Its
     default 11 bps component estimate is intentionally distinct from the
-    project's fixed aggregate ROUND_TRIP_COST_PCT (24 bps). fee_bps, when
+    project's fixed aggregate ROUND_TRIP_COST_PCT (15 bps). fee_bps, when
     supplied, is a compatibility override for the taker fee used by the legacy
     backtest. Use ROUND_TRIP_COST_PCT for fixed-policy net-return validation.
     """
