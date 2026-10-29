@@ -17,7 +17,7 @@ from typing import Any, Callable
 from .block_bootstrap import daily_block_bootstrap_mean_ci
 from .hyperliquid_data import FundingEvent, PerpCandle, _post_info, fetch_candles, fetch_funding_history, join_funding_feature
 from .models import MarketBar
-from .validated_forecast import non_overlapping_predictions, walk_forward_forecast
+from .validated_forecast import walk_forward_forecast
 
 BASE_POLICY_COST_PCT = 0.15
 STRICT_POLICY_COST_PCT = 0.45
@@ -178,8 +178,17 @@ def evaluate_candles(
     if not raw.get("available"):
         return {**raw, "mode": "hyperliquid_perpetual_wfa", "research_only": True, "live_orders": False}
 
-    all_trades = []
-    for prediction in raw.get("predictions", []):
+    raw_predictions = sorted(raw.get("predictions", []), key=lambda row: row.get("ts", 0))
+    # Sample the full forecast timeline first, before dropping FLAT predictions.
+    # Otherwise filtering FLAT rows first could accidentally reintroduce overlap.
+    selected_ts = {
+        int(row["ts"]) for row in raw_predictions[::max(1, int(horizon))]
+        if row.get("pred") in (-1, 1) and row.get("actual_return_pct") is not None
+    }
+    sampled = []
+    for prediction in raw_predictions:
+        if int(prediction.get("ts", -1)) not in selected_ts:
+            continue
         row = _trade_net_row(
             prediction, candles, funding_events, horizon,
             maker_entry=maker_entry, maker_exit=maker_exit,
@@ -187,11 +196,7 @@ def evaluate_candles(
             slippage_bps_per_side=slippage_bps_per_side,
         )
         if row is not None:
-            all_trades.append(row)
-    # Keep the existing non-overlap convention: at most one forecast per horizon.
-    sampled = non_overlapping_predictions(
-        {"horizon_bars": horizon, "predictions": all_trades}
-    )
+            sampled.append(row)
     net = [float(row["net_return_pct"]) for row in sampled]
     gross = [float(row["gross_return_pct"]) for row in sampled]
     base = [float(row["policy_base_015_net_pct"]) for row in sampled]
