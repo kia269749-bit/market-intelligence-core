@@ -220,7 +220,7 @@ def evaluate_candles(
     return {
         "available": bool(sampled),
         "mode": "hyperliquid_perpetual_walk_forward_oos",
-        "coin": coin, "interval_bars": len(candles), "horizon_bars": horizon,
+        "coin": coin, "bars": len(candles), "horizon_bars": horizon,
         "model_version": raw.get("model_version"),
         "predictions_generated": len(raw.get("predictions", [])),
         "directional_nonoverlap_trades": len(sampled),
@@ -268,7 +268,36 @@ def run_hyperliquid_wfa(
     """Fetch public Hyperliquid candles/funding then evaluate the rolling WFA."""
     candles = fetch_candles(coin, interval, start_ms, end_ms)
     funding = fetch_funding_history(coin, start_ms, end_ms)
-    return evaluate_candles(coin, candles, funding, **kwargs)
+    result = evaluate_candles(coin, candles, funding, **kwargs)
+    result.setdefault("data_source", {})
+    result["data_source"]["requested_start_ms"] = int(start_ms)
+    result["data_source"]["requested_end_ms"] = int(end_ms)
+    interval_ms = {
+        "1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000,
+        "30m": 1_800_000, "1h": 3_600_000, "2h": 7_200_000,
+        "4h": 14_400_000, "8h": 28_800_000, "12h": 43_200_000,
+        "1d": 86_400_000, "3d": 259_200_000, "1w": 604_800_000,
+    }.get(interval)
+    if candles and interval_ms:
+        start_observed = candles[0].timestamp_ms
+        end_observed = candles[-1].close_time_ms
+        complete = (
+            start_observed <= int(start_ms) + interval_ms
+            and end_observed >= int(end_ms) - interval_ms
+        )
+        result["data_source"]["coverage_check"] = {
+            "status": "WITHIN_ONE_BAR_TOLERANCE" if complete else "PARTIAL_OR_UNVERIFIED",
+            "first_candle_start_ms": start_observed,
+            "last_candle_close_ms": end_observed,
+            "tolerance_ms": interval_ms,
+            "warning": "This is a boundary check, not proof that every candle or funding event is present.",
+        }
+    else:
+        result["data_source"]["coverage_check"] = {
+            "status": "UNVERIFIED",
+            "warning": "No candles returned or interval coverage tolerance unavailable.",
+        }
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -280,7 +309,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--horizon", type=int, default=24)
     parser.add_argument("--train-window", type=int, default=300)
     parser.add_argument("--min-train", type=int, default=60)
-    parser.add_argument("--slippage-bps-per-side", type=float, default=2.0)
+    parser.add_argument("--maker-entry", action="store_true", help="model entry as maker; default is taker")
+    parser.add_argument("--maker-exit", action="store_true", help="model exit as maker; default is taker")
+    parser.add_argument("--maker-fee-rate", type=float, default=0.00015, help="decimal fee rate per maker side")
+    parser.add_argument("--taker-fee-rate", type=float, default=0.00045, help="decimal fee rate per taker side")
+    parser.add_argument("--slippage-bps-per-side", type=float, default=2.0, help="explicit assumption, not measured historical slippage")
     parser.add_argument("--bootstrap-resamples", type=int, default=10_000)
     parser.add_argument("--block-days", type=int, default=1)
     parser.add_argument("--out", default="")
@@ -288,7 +321,9 @@ def main(argv: list[str] | None = None) -> int:
     result = run_hyperliquid_wfa(
         args.coin, args.interval, args.start_ms, args.end_ms,
         horizon=args.horizon, train_window=args.train_window,
-        min_train=args.min_train, slippage_bps_per_side=args.slippage_bps_per_side,
+        min_train=args.min_train, maker_entry=args.maker_entry, maker_exit=args.maker_exit,
+        maker_fee_rate=args.maker_fee_rate, taker_fee_rate=args.taker_fee_rate,
+        slippage_bps_per_side=args.slippage_bps_per_side,
         bootstrap_resamples=args.bootstrap_resamples, block_days=args.block_days,
     )
     payload = json.dumps(result, indent=2, ensure_ascii=False)
