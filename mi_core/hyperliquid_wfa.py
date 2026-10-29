@@ -63,7 +63,7 @@ def trade_cost_components_pct(
     for event in eligible_events:
         proxy = None
         for candle in ordered_candles:
-            if candle.timestamp_ms > event.timestamp_ms:
+            if candle.close_time_ms > event.timestamp_ms:
                 break
             proxy = candle.close
         if proxy is None:
@@ -95,7 +95,7 @@ def _trade_net_row(
     taker_fee_rate: float,
     slippage_bps_per_side: float,
 ) -> dict[str, Any] | None:
-    by_ts = {candle.timestamp_ms: i for i, candle in enumerate(candles)}
+    by_ts = {candle.close_time_ms: i for i, candle in enumerate(candles)}
     entry_ts = int(prediction.get("ts", -1))
     if entry_ts not in by_ts:
         return None
@@ -124,6 +124,7 @@ def _trade_net_row(
         "entry_price": entry.close,
         "exit_price": exit_.close,
         "gross_return_pct": gross_pct,
+        "actual_return_pct": gross_pct,
         **costs,
         "net_return_pct": gross_pct - costs["total_itemized_cost_pct"],
         "policy_base_015_net_pct": gross_pct - BASE_POLICY_COST_PCT,
@@ -165,7 +166,7 @@ def evaluate_candles(
     features = join_funding_feature(candles, funding_events)
     bars = [
         MarketBar(
-            ts=c.timestamp_ms, symbol=coin, price=c.close, volume=c.volume,
+            ts=c.close_time_ms, symbol=coin, price=c.close, volume=c.volume,
             funding=features[i], open=c.open, high=c.high, low=c.low,
         )
         for i, c in enumerate(candles)
@@ -243,8 +244,8 @@ def evaluate_candles(
         "data_source": {
             "venue": "Hyperliquid", "instrument": "perpetual",
             "candles": "public candleSnapshot API", "funding": "public fundingHistory API",
-            "first_candle_ms": candles[0].timestamp_ms,
-            "last_candle_ms": candles[-1].timestamp_ms,
+            "first_candle_ms": candles[0].close_time_ms,
+            "last_candle_ms": candles[-1].close_time_ms,
             "funding_events": len(funding_events),
         },
         "trade_sample": sampled[:5],
