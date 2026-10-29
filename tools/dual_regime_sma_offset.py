@@ -200,15 +200,8 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
                                "cost": costs, "net_pnl": pnl, "reason": "stop"})
                 position = None
                 exited_this_bar = True
-        # Update rolling 30-day equity using marked-to-market equity at close.
-        marked = equity + (position["qty"] * (close - position["entry"]) if position else 0.0)
-        rolling_equity.append((ts, marked))
-        cutoff = ts - 30 * 24 * 60 * 60 * 1000
-        rolling_equity = [(t, e) for t, e in rolling_equity if t >= cutoff]
-        if circuit_breaker and rolling_equity:
-            rolling_peak = max(e for _, e in rolling_equity)
-            if marked <= rolling_peak * 0.80:
-                breaker = True
+        # The breaker state from prior completed bars gates this bar's open entry.
+        # Update marked equity and the rolling breaker only after this bar's execution path.
         if position:
             position["bars"] += 1
             position["highest_high"] = max(position["highest_high"], hi)
@@ -225,34 +218,39 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
         # Signal at prior completed close, execute at current open. First bar cannot enter.
         if position is None and not exited_this_bar and not breaker and i > 0 and entries[i - 1] and regime[i - 1]:
             av = atr_values[i - 1] if i - 1 < len(atr_values) else math.nan
-            if op <= 0 or (use_risk and (not math.isfinite(av) or av <= 0)):
-                equity_path.append({"ts": ts, "equity": equity})
-                continue
-            stop = op - 2 * av if math.isfinite(av) and av > 0 else 0.0
-            risk_per_unit = (op - stop) + op * cost_rate if stop > 0 else op * cost_rate
-            qty = min(equity / op, equity * risk_fraction / risk_per_unit) if use_risk else equity / op
-            if qty > 0 and (not use_stops or stop > 0):
-                position = {"entry_ts": ts, "entry": op, "qty": qty, "stop": stop,
-                            "highest_high": op, "bars": 0}
-                # The entry bar is active immediately after the next-open fill.
-                # If its low crosses the initial stop, assume a conservative stop fill.
-                if use_stops and lo <= stop:
-                    exit_price = stop
-                    gross = qty * (exit_price - op)
-                    costs = qty * (op + exit_price) * cost_rate / 2
-                    pnl = gross - costs
-                    equity += pnl
-                    trades.append({"entry_ts": ts, "exit_ts": ts, "entry": op, "exit": exit_price,
-                                   "qty": qty, "gross_pnl": gross, "cost": costs,
-                                   "net_pnl": pnl, "reason": "entry_bar_stop"})
-                    position = None
-                    exited_this_bar = True
-                elif not regime[i]:
-                    pending_exit = "regime_exit"
-        # Recompute marked equity after any entry or entry-bar stop on this bar.
-        # The earlier mark predates those actions and understated drawdown on entry bars.
-        marked_at_close = equity + (position["qty"] * (close - position["entry"]) if position else 0.0)
-        equity_path.append({"ts": ts, "equity": marked_at_close})
+            if op > 0 and (not use_risk or (math.isfinite(av) and av > 0)):
+                stop = op - 2 * av if math.isfinite(av) and av > 0 else 0.0
+                risk_per_unit = (op - stop) + op * cost_rate if stop > 0 else op * cost_rate
+                qty = min(equity / op, equity * risk_fraction / risk_per_unit) if use_risk else equity / op
+                if qty > 0 and (not use_stops or stop > 0):
+                    position = {"entry_ts": ts, "entry": op, "qty": qty, "stop": stop,
+                                "highest_high": op, "bars": 0}
+                    # The entry bar is active immediately after the next-open fill.
+                    # If its low crosses the initial stop, assume a conservative stop fill.
+                    if use_stops and lo <= stop:
+                        exit_price = stop
+                        gross = qty * (exit_price - op)
+                        costs = qty * (op + exit_price) * cost_rate / 2
+                        pnl = gross - costs
+                        equity += pnl
+                        trades.append({"entry_ts": ts, "exit_ts": ts, "entry": op, "exit": exit_price,
+                                       "qty": qty, "gross_pnl": gross, "cost": costs,
+                                       "net_pnl": pnl, "reason": "entry_bar_stop"})
+                        position = None
+                        exited_this_bar = True
+                    elif not regime[i]:
+                        pending_exit = "regime_exit"
+        # Mark at close after today's entries/exits. Use this only for the breaker
+        # observed at this close, so it cannot leak into today's open-entry decision.
+        marked = equity + (position["qty"] * (close - position["entry"]) if position else 0.0)
+        rolling_equity.append((ts, marked))
+        cutoff = ts - 30 * 24 * 60 * 60 * 1000
+        rolling_equity = [(t, e) for t, e in rolling_equity if t >= cutoff]
+        if circuit_breaker and rolling_equity:
+            rolling_peak = max(e for _, e in rolling_equity)
+            if marked <= rolling_peak * 0.80:
+                breaker = True
+        equity_path.append({"ts": ts, "equity": marked})
     # Close any remaining position at final close, explicitly marked as end-of-window exit.
     if position and rows:
         row = rows[-1]
