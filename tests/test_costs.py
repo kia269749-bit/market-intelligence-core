@@ -9,8 +9,8 @@ from mi_core.costs import (
 
 
 class ExecutionCostTests(unittest.TestCase):
-    def test_project_round_trip_cost_is_locked_to_024_percent(self):
-        self.assertEqual(ROUND_TRIP_COST_PCT, 0.24)
+    def test_project_round_trip_cost_is_locked_to_015_percent(self):
+        self.assertEqual(ROUND_TRIP_COST_PCT, 0.15)
 
     def test_default_components_are_explicit(self):
         cost = estimate_execution_cost(10_000.0)

@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from mi_core.storage import load_bars
+from mi_core.costs import ROUND_TRIP_COST_PCT
 
 LOCK_PATH = ROOT / "research" / "protocol_lock.json"
 _PROTOCOL_LOCK = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
@@ -28,6 +29,8 @@ COSTS_PCT = tuple(float(x) for x in _PROTOCOL_LOCK["execution_cost_policy"]["sen
 PRIMARY_COST_PCT = float(_PROTOCOL_LOCK["execution_cost_policy"]["project_default_round_trip_pct"])
 if not COSTS_PCT or PRIMARY_COST_PCT != COSTS_PCT[0]:
     raise RuntimeError("protocol lock primary cost must equal first sensitivity scenario")
+if PRIMARY_COST_PCT != ROUND_TRIP_COST_PCT:
+    raise RuntimeError("protocol lock primary cost must match central project cost config")
 UNIVERSE = (
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
     "ADAUSDT", "DOGEUSDT", "TRXUSDT", "LINKUSDT", "AVAXUSDT",
@@ -535,7 +538,7 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=PRIMARY_COST_PCT, offsets=CANDI
             "windows": rows_out,
         }
     return {
-        "protocol_id": "dual-regime-sma-offset-v3",
+        "protocol_id": "dual-regime-sma-offset-v4",
         "research_only": True, "live_orders": False,
         "data_basis": "Binance Spot OHLCV proxy; not Hyperliquid Perpetuals",
         "breadth_universe": list(UNIVERSE),

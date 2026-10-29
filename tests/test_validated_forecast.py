@@ -16,8 +16,8 @@ class TestValidatedForecast(unittest.TestCase):
 
     def test_capital_targets_default_to_project_round_trip_cost(self):
         result = score_capital_targets({"predictions": []}, capital_usd=500.0)
-        self.assertAlmostEqual(result["min_required_move_pct"], 1.04)
-        self.assertAlmostEqual(result["preferred_required_move_pct"], 2.24)
+        self.assertAlmostEqual(result["min_required_move_pct"], 0.95)
+        self.assertAlmostEqual(result["preferred_required_move_pct"], 2.15)
 
     def test_walk_forward_is_oos_only(self):
         r=walk_forward_forecast(self._bars(), horizon=5, min_train=60)

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK_PATH = ROOT / "research" / "protocol_lock.json"
 
 
-def evaluate(report: dict, lock: dict) -> dict:
+def evaluate(report: dict, lock: dict, expected_cost: float | None = None) -> dict:
     criteria = lock["acceptance_criteria"]
     checks = {}
 
@@ -22,11 +22,17 @@ def evaluate(report: dict, lock: dict) -> dict:
         checks[name] = {"passed": bool(passed), "detail": detail}
 
     cost = lock["execution_cost_policy"]
+    expected_cost = cost["project_default_round_trip_pct"] if expected_cost is None else float(expected_cost)
+    allowed_acceptance_costs = {float(cost["project_default_round_trip_pct"]), float(cost["strict_stress_round_trip_pct"])}
+    check("expected_cost_is_locked_acceptance_rate", expected_cost in allowed_acceptance_costs,
+          f"expected cost must be one of the two locked acceptance rates: {sorted(allowed_acceptance_costs)}")
+    check("protocol_version", report.get("protocol_id") == "dual-regime-sma-offset-v4",
+          "report must identify the v4 protocol; v3 and earlier reports are not eligible")
     check("research_only", report.get("research_only") is True and report.get("live_orders") is False,
           "report must explicitly prohibit live orders")
-    check("locked_cost", report.get("cost_pct_round_trip") == cost["project_default_round_trip_pct"]
+    check("locked_cost", report.get("cost_pct_round_trip") == expected_cost
           and report.get("cost_unit") == cost["unit"],
-          "report cost and unit must exactly match protocol lock")
+          "report cost must match the gate locked acceptance rate and cost unit")
     hashes = report.get("reproducibility", {}).get("data_sha256", {})
     valid_hashes = len(hashes) == 20 and all(re.fullmatch(r"[0-9a-f]{64}", str(v)) for v in hashes.values())
     check("data_hashes", valid_hashes, "SHA-256 must be recorded for all 20 raw asset files")
@@ -108,6 +114,7 @@ def evaluate(report: dict, lock: dict) -> dict:
         "protocol_version": lock["protocol_version"],
         "protocol_id": report.get("protocol_id"),
         "cost_pct_round_trip": report.get("cost_pct_round_trip"),
+        "expected_acceptance_cost_pct": expected_cost,
         "as_of_utc": reproducibility.get("as_of_utc"),
         "positive_portfolio_windows": positive_windows,
         "portfolio_window_count": len(windows),
@@ -120,12 +127,13 @@ def evaluate(report: dict, lock: dict) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--report", required=True, help="Path to primary 0.24% WFA JSON report")
+    parser.add_argument("--report", required=True, help="Path to a WFA JSON report at a locked acceptance rate")
+    parser.add_argument("--expected-cost", type=float, default=None, help="Locked acceptance rate expected for this gate (default: 0.15; stress: 0.45)")
     parser.add_argument("--out", required=True, help="Path for acceptance JSON")
     args = parser.parse_args()
     report = json.loads(Path(args.report).read_text(encoding="utf-8"))
     lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
-    result = evaluate(report, lock)
+    result = evaluate(report, lock, expected_cost=args.expected_cost)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2), encoding="utf-8")

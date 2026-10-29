@@ -50,24 +50,24 @@ class EmaCandidateValidationTests(unittest.TestCase):
         self.assertIn("random_matched_trade_count", original)
 
     def test_report_is_research_only_and_locks_project_cost(self):
-        report = validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.24,))
+        report = validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.15,))
         self.assertEqual(report["symbol"], "BTCUSDT")
-        self.assertEqual(set(report["aggregate_by_cost"]), {"0.24"})
+        self.assertEqual(set(report["aggregate_by_cost"]), {"0.15"})
         self.assertTrue(report["research_only"])
         self.assertFalse(report["live_orders"])
         self.assertFalse(report["trade_ready"])
-        self.assertIn("buy_and_hold", report["aggregate_by_cost"]["0.24"])
-        self.assertIn("ema20_50_sma200_confirmed", report["aggregate_by_cost"]["0.24"])
-        self.assertIn("median_window_net_profit_usd", report["aggregate_by_cost"]["0.24"]["ema20_50"])
+        self.assertIn("buy_and_hold", report["aggregate_by_cost"]["0.15"])
+        self.assertIn("ema20_50_sma200_confirmed", report["aggregate_by_cost"]["0.15"])
+        self.assertIn("median_window_net_profit_usd", report["aggregate_by_cost"]["0.15"]["ema20_50"])
         with self.assertRaisesRegex(ValueError, "allowed sensitivity rates"):
             validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.36,))
 
     def test_cost_sensitivity_and_baselines_are_reported(self):
         report = validate_candidate(
-            make_bars(), expected_symbol="BTCUSDT", costs=(0.24, 0.12, 0.04)
+            make_bars(), expected_symbol="BTCUSDT", costs=(0.15, 0.45, 0.24, 0.12, 0.04)
         )
-        self.assertEqual(set(report["aggregate_by_cost"]), {"0.24", "0.12", "0.04"})
-        for cost in ("0.24", "0.12", "0.04"):
+        self.assertEqual(set(report["aggregate_by_cost"]), {"0.15", "0.45", "0.24", "0.12", "0.04"})
+        for cost in ("0.15", "0.45", "0.24", "0.12", "0.04"):
             strategies = report["aggregate_by_cost"][cost]
             self.assertIn("buy_and_hold", strategies)
             self.assertIn("ema12_26", strategies)
@@ -86,7 +86,7 @@ class EmaCandidateValidationTests(unittest.TestCase):
         for i, row in enumerate(rows):
             row.ts = 1609459200000 + i * 4 * 3600000
         self.assertEqual(infer_interval_seconds(rows), 14400.0)
-        result = score_window(rows, [1.0] * len(rows), 200, 300, 0.24)
+        result = score_window(rows, [1.0] * len(rows), 200, 300, 0.15)
         self.assertEqual(result["bar_interval_seconds"], 14400.0)
         self.assertIn("annualized_sharpe_approx", result)
         self.assertIn("mean_bar_net_pct", result)

@@ -19,6 +19,7 @@ on:
       - ".github/workflows/dual-regime-sma-offset-research.yml"
       - "mi_core/real_data.py"
       - "mi_core/storage.py"
+      - "mi_core/costs.py"
   pull_request:
     branches: [main, 'fix/**', 'audit/**']
     paths:
@@ -31,6 +32,7 @@ on:
       - ".github/workflows/dual-regime-sma-offset-research.yml"
       - "mi_core/real_data.py"
       - "mi_core/storage.py"
+      - "mi_core/costs.py"
 
 env:
   AS_OF_UTC: ${{ github.event.inputs.as_of || '2026-10-29T00:00:00Z' }}
@@ -88,14 +90,19 @@ jobs:
           PY
       - name: Run primary preregistered cost scenario
         run: |
-          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.24.json --costs 0.24 --as-of "$AS_OF_UTC"
-      - name: Run annex cost sensitivities
+          python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.15.json --costs 0.15 --as-of "$AS_OF_UTC"
+      - name: Run mandatory strict-stress cost scenario
+        run: python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.45.json --costs 0.45 --as-of "$AS_OF_UTC"
+      - name: Run diagnostic-only cost sensitivities
         run: |
           python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.12.json --costs 0.12 --as-of "$AS_OF_UTC"
           python tools/dual_regime_sma_offset.py --data-dir data/dual-regime --out reports/dual-regime/wfa_cost_0.04.json --costs 0.04 --as-of "$AS_OF_UTC"
-      - name: Evaluate primary-cost acceptance gate
-        if: always() && hashFiles('reports/dual-regime/wfa_cost_0.24.json') != ''
-        run: python tools/evaluate_acceptance.py --report reports/dual-regime/wfa_cost_0.24.json --out reports/dual-regime/acceptance.json
+      - name: Evaluate base-cost acceptance gate
+        if: always() && hashFiles('reports/dual-regime/wfa_cost_0.15.json') != ''
+        run: python tools/evaluate_acceptance.py --report reports/dual-regime/wfa_cost_0.15.json --expected-cost 0.15 --out reports/dual-regime/acceptance_base_0.15.json
+      - name: Evaluate strict-stress acceptance gate
+        if: always() && hashFiles('reports/dual-regime/wfa_cost_0.45.json') != ''
+        run: python tools/evaluate_acceptance.py --report reports/dual-regime/wfa_cost_0.45.json --expected-cost 0.45 --out reports/dual-regime/acceptance_stress_0.45.json
       - name: Publish data, metadata and research reports
         if: always()
         uses: actions/upload-artifact@v4

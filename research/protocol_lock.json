@@ -1,6 +1,6 @@
 {
-  "protocol_version": "2026-10-29-v3",
-  "status": "LOCKED_FOR_NEXT_EXPERIMENT; historical results are exploratory",
+  "protocol_version": "2026-10-29-v4",
+  "status": "LOCKED_FOR_V4_WFA; v3 execution remains unchanged and is not v4 evidence",
   "created_utc": "2026-10-29",
   "assets": [
     "BTC",
@@ -11,14 +11,22 @@
   ],
   "market_data_basis": "Hyperliquid perpetuals for future target-market validation; Binance spot OHLCV is proxy research only and must be labeled",
   "execution_cost_policy": {
-    "project_default_round_trip_pct": 0.24,
+    "project_default_round_trip_pct": 0.15,
+    "strict_stress_round_trip_pct": 0.45,
     "sensitivity_round_trip_pct": [
+      0.15,
+      0.45,
+      0.24,
+      0.12,
+      0.04
+    ],
+    "diagnostic_round_trip_pct": [
       0.24,
       0.12,
       0.04
     ],
     "unit": "percent of entry notional, applied once per completed round trip",
-    "note": "The aggregate round-trip rate is charged once against entry notional per completed trade. 0.12% and 0.04% are diagnostic scenarios, not verified account-specific realized costs."
+    "note": "0.15% is the primary base case and 0.45% is a mandatory strict-stress acceptance case. Both require separate passing gates. 0.24% is retained only as a diagnostic comparison to the superseded v3 policy; 0.12% and 0.04% are diagnostic-only and can never satisfy acceptance."
   },
   "historical_periods": {
     "train": [
@@ -65,7 +73,7 @@
     "min_positive_non_overlapping_oos_windows": 8,
     "min_net_expectancy_usd_per_trade": 0,
     "max_drawdown_pct": 25,
-    "require_positive_cost_stress_at": "0.24% round trip",
+    "require_positive_cost_stress_at": "0.45% round trip",
     "require_comparison_to_baselines": true,
     "require_data_leakage_tests": true,
     "require_minimum_sample_size_and_confidence_intervals": true,
@@ -110,6 +118,14 @@
       "supersedes": "2026-10-29-v2",
       "prior_runs": "Runs on earlier SHAs including a902d409 and 99429b76 are implementation/debug runs only and must not be used as v3 evidence.",
       "status": "LOCKED_FOR_V3_WFA; no tuning on inspected holdout; any further method change requires v4 and a new frozen evaluation."
+    },
+    {
+      "version": "2026-10-29-v4",
+      "date": "2026-10-29",
+      "reason": "User-authorized cost-policy correction: set central base round-trip cost to 0.15% and mandatory strict-stress cost to 0.45%; retain 0.24%, 0.12%, and 0.04% only as diagnostic scenarios. Synchronize central configuration, protocol lock, simulator, acceptance evaluator, workflow, and tests. This is a prospective protocol change and does not alter or reinterpret any v3 run.",
+      "supersedes": "2026-10-29-v3",
+      "prior_runs": "All v3 and earlier runs, including runs on ae33772, fbed20e1, and a902d409, are ineligible as v4 evidence and must not be pooled.",
+      "status": "LOCKED_FOR_V4_WFA; both 0.15% base and 0.45% strict-stress gates required; new frozen evaluation only."
     }
   ]
 }
