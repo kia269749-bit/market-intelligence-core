@@ -28,6 +28,32 @@ class DualRegimeTests(unittest.TestCase):
         self.assertEqual(len(stamps), 4)
         self.assertTrue(all(all(t in indexed[s] for s in UNIVERSE) for t in stamps))
 
+    def test_offset_band_changes_signal_on_controlled_pullback(self):
+        prices = [100 + i * 0.5 for i in range(100)]
+        rows = bars("BTCUSDT", prices)
+        # One completed close 4% below SMA20 but still above SMA50, then reclaim.
+        from tools.dual_regime_sma_offset import sma
+        closes = [r.price for r in rows]
+        dip = sma(closes, 20)[-1] * 0.96
+        rows.extend(bars("BTCUSDT", [dip, dip * 1.09], start=rows[-1].ts + 4 * 60 * 60 * 1000))
+        regime = {r.ts: True for r in rows}
+        entries_3 = build_candidate_signals(rows, regime, 0.03)["entry"]
+        entries_5 = build_candidate_signals(rows, regime, 0.05)["entry"]
+        entries_7 = build_candidate_signals(rows, regime, 0.07)["entry"]
+        self.assertFalse(any(entries_3))
+        self.assertTrue(any(entries_5))
+        self.assertTrue(any(entries_7))
+
+    def test_entry_bar_stop_loss_is_included_in_drawdown(self):
+        rows = bars("BTCUSDT", [100.0] * 40)
+        # The signal at bar 0 enters at bar 1 open; force the entry bar through its stop.
+        rows[1].low = rows[1].open - 10.0
+        signals = [False] * len(rows)
+        signals[0] = True
+        result = simulate(rows, signals, cost_pct=0.24, initial_equity=500.0)
+        self.assertEqual(result["trades"][0]["reason"], "entry_bar_stop")
+        self.assertGreater(result["max_drawdown_pct"], 0.0)
+
     def test_future_bars_do_not_change_earlier_candidate_signals(self):
         prices = [100 + i * 0.2 + 2 * math.sin(i / 5) for i in range(500)]
         rows = bars("BTCUSDT", prices)
