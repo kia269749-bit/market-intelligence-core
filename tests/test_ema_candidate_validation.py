@@ -43,7 +43,11 @@ class EmaCandidateValidationTests(unittest.TestCase):
         original = build_signals(rows)
         extended = build_signals(rows + make_bars(count=20)[-20:])
         for strategy in original:
+            if strategy == "random_matched_trade_count":
+                continue  # explicitly post-hoc matched-count diagnostic, not a causal signal
             self.assertEqual(original[strategy][:700], extended[strategy][:700])
+        self.assertIn("ema12_26", original)
+        self.assertIn("random_matched_trade_count", original)
 
     def test_report_is_research_only_and_locks_project_cost(self):
         report = validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.24,))
@@ -55,8 +59,20 @@ class EmaCandidateValidationTests(unittest.TestCase):
         self.assertIn("buy_and_hold", report["aggregate_by_cost"]["0.24"])
         self.assertIn("ema20_50_sma200_confirmed", report["aggregate_by_cost"]["0.24"])
         self.assertIn("median_window_net_profit_usd", report["aggregate_by_cost"]["0.24"]["ema20_50"])
-        with self.assertRaisesRegex(ValueError, "fixed at 0.24%"):
+        with self.assertRaisesRegex(ValueError, "allowed sensitivity rates"):
             validate_candidate(make_bars(), expected_symbol="BTCUSDT", costs=(0.36,))
+
+    def test_cost_sensitivity_and_baselines_are_reported(self):
+        report = validate_candidate(
+            make_bars(), expected_symbol="BTCUSDT", costs=(0.24, 0.12, 0.04)
+        )
+        self.assertEqual(set(report["aggregate_by_cost"]), {"0.24", "0.12", "0.04"})
+        for cost in ("0.24", "0.12", "0.04"):
+            strategies = report["aggregate_by_cost"][cost]
+            self.assertIn("buy_and_hold", strategies)
+            self.assertIn("ema12_26", strategies)
+            self.assertIn("random_matched_trade_count", strategies)
+        self.assertIn("random_matched_trade_count", report["method"]["comparators"])
 
     def test_block_bootstrap_is_reproducible_and_reports_uncertainty(self):
         values = [0.1] * 200

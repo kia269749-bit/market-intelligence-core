@@ -58,12 +58,12 @@ def rows_to_bars(rows, symbol):
         ))
     return bars
 
-def download(symbol="BTCUSDT", interval="1h", bars=1000, out="data/real/btcusdt_1h.jsonl", sleep_s=0.15):
+def download(symbol="BTCUSDT", interval="1h", bars=1000, out="data/real/btcusdt_1h.jsonl", sleep_s=0.15, end_ms=None):
     if bars < 1:
         raise ValueError("bars must be positive")
     step = INTERVAL_MS[interval]
     remaining = bars
-    end_ms = int(time.time() * 1000)
+    end_ms = int(end_ms) if end_ms is not None else int(time.time() * 1000)
     all_bars = []
     while remaining:
         take = min(1000, remaining)

@@ -20,9 +20,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mi_core.storage import load_bars
+from tools.validate_protocol_lock import validate_protocol_lock
 
 
-STRATEGIES = ("ema20_50", "ema20_50_sma200_confirmed", "ema20_50_long_short", "ema20_50_sma200_long_short", "sma200", "donchian20_10", "rsi14", "buy_and_hold")
+STRATEGIES = ("ema12_26", "ema20_50", "ema20_50_sma200_confirmed", "ema20_50_long_short", "ema20_50_sma200_long_short", "sma200", "donchian20_10", "rsi14", "buy_and_hold", "random_matched_trade_count")
 DEFAULT_COSTS = (0.24,)
 
 
@@ -113,11 +114,14 @@ def build_signals(rows):
     n = len(rows)
     if n < 210:
         raise ValueError("at least 210 bars required for indicator warm-up")
+    e12, e26 = _ema(closes, 12), _ema(closes, 26)
     e20, e50 = _ema(closes, 20), _ema(closes, 50)
     s200, rsi = _sma(closes, 200), _rsi(closes)
     signals = {name: [0.0] * n for name in STRATEGIES}
     for i in range(n):
         signals["buy_and_hold"][i] = 1.0
+        if math.isfinite(e12[i]) and math.isfinite(e26[i]):
+            signals["ema12_26"][i] = 1.0 if e12[i] > e26[i] else 0.0
         if math.isfinite(e20[i]) and math.isfinite(e50[i]):
             signals["ema20_50"][i] = 1.0 if e20[i] > e50[i] else 0.0
             signals["ema20_50_long_short"][i] = 1.0 if e20[i] > e50[i] else -1.0 if e20[i] < e50[i] else 0.0
@@ -151,6 +155,23 @@ def build_signals(rows):
             elif holding == 1.0 and value > 50.0:
                 holding = 0.0
         signals["rsi14"][i] = holding
+    # Diagnostic random comparator: seeded and matched to the EMA20/50
+    # position-change count over the full supplied sample. This is post-hoc
+    # matching, not a prospective trading rule or confirmatory significance test.
+    candidate_changes = sum(
+        signals["ema20_50"][i] != signals["ema20_50"][i - 1]
+        for i in range(1, n)
+    )
+    eligible = list(range(50, n))
+    rng_seed = sum((i + 1) * ord(ch) for i, ch in enumerate(str(getattr(rows[0], "symbol", ""))))
+    rng = random.Random(rng_seed)
+    transition_count = min(candidate_changes, len(eligible))
+    transition_points = set(rng.sample(eligible, transition_count)) if transition_count else set()
+    holding = 0.0
+    for i in range(n):
+        if i in transition_points:
+            holding = 1.0 - holding
+        signals["random_matched_trade_count"][i] = holding
     return signals
 
 
@@ -247,8 +268,15 @@ def _moving_block_mean_ci(differences, *, block_length=20, replicates=1000, seed
 
 
 def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_usd=500.0):
-    if tuple(float(c) for c in costs) != (0.24,):
-        raise ValueError("project cost is fixed at 0.24% round trip")
+    protocol = validate_protocol_lock()
+    normalized_costs = tuple(float(c) for c in costs)
+    cost_policy = protocol["execution_cost_policy"]
+    allowed_costs = set(float(c) for c in cost_policy["sensitivity_round_trip_pct"])
+    locked_baseline = float(cost_policy["project_default_round_trip_pct"])
+    if locked_baseline != 0.24:
+        raise ValueError("protocol baseline mismatch with project cost policy")
+    if not normalized_costs or locked_baseline not in normalized_costs or len(set(normalized_costs)) != len(normalized_costs) or not set(normalized_costs) <= allowed_costs:
+        raise ValueError("include the 0.24% project baseline; allowed sensitivity rates are 0.24, 0.12, and 0.04 percent round trip")
     symbol, stamps = validate_bars(bars, expected_symbol)
     signals = build_signals(bars)
     years = {}
@@ -368,12 +396,12 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--symbol", required=True)
-    parser.add_argument("--costs", default="0.24", help="locked project baseline: 0.24 percent round trip")
+    parser.add_argument("--costs", default="0.24", help="include 0.24 baseline; optional sensitivity rates: 0.24,0.12,0.04 percent round trip")
     parser.add_argument("--capital", type=float, default=500.0)
     args = parser.parse_args()
     costs = tuple(float(x.strip()) for x in args.costs.split(",") if x.strip())
-    if costs != (0.24,):
-        raise SystemExit("--costs is locked to the project baseline: --costs 0.24")
+    if not costs or 0.24 not in costs or len(set(costs)) != len(costs) or not set(costs) <= {0.24, 0.12, 0.04}:
+        raise SystemExit("--costs must include 0.24 and may include only 0.24, 0.12, 0.04")
     bars = load_bars(args.input)
     report = validate_candidate(bars, expected_symbol=args.symbol, costs=costs, capital_usd=args.capital)
     out = Path(args.out)
