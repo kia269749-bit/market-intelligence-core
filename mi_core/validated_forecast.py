@@ -2,6 +2,7 @@
 from __future__ import annotations
 import math, statistics
 from .models import MarketBar
+from .cost_policy import DEFAULT_COST_POLICY
 
 
 def _ret(a, b):
@@ -333,7 +334,7 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
     }
 
 
-def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
+def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct):
     """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
     rows = [
         x for x in result.get("predictions", [])
