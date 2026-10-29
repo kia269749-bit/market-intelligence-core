@@ -46,10 +46,10 @@ class DualRegimeTests(unittest.TestCase):
 
     def test_entry_bar_stop_loss_is_included_in_drawdown(self):
         rows = bars("BTCUSDT", [100.0] * 40)
-        # The signal at bar 0 enters at bar 1 open; force the entry bar through its stop.
-        rows[1].low = rows[1].open - 10.0
+        # ATR is available from bar 13; signal at bar 14 enters at bar 15 open.
+        rows[15].low = rows[15].open - 10.0
         signals = [False] * len(rows)
-        signals[0] = True
+        signals[14] = True
         result = simulate(rows, signals, cost_pct=0.24, initial_equity=500.0)
         self.assertEqual(result["trades"][0]["reason"], "entry_bar_stop")
         self.assertGreater(result["max_drawdown_pct"], 0.0)
