@@ -35,6 +35,20 @@ class HyperliquidDataTests(unittest.TestCase):
         self.assertEqual([row.timestamp_ms for row in rows], [1000, 2000])
         self.assertAlmostEqual(rows[0].rate, -0.0002)
 
+    def test_funding_history_chunks_long_ranges(self):
+        calls = []
+        def fake(payload):
+            calls.append((payload["startTime"], payload["endTime"]))
+            return [{
+                "coin": "BTC", "time": payload["startTime"],
+                "fundingRate": "0.0001",
+            }]
+        end = 30 * 24 * 60 * 60 * 1000
+        rows = fetch_funding_history("BTC", 0, end, post_json=fake)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(len({row.timestamp_ms for row in rows}), 3)
+
     def test_funding_feature_does_not_use_event_at_candle_close(self):
         candles = [
             PerpCandle("BTC", 0, 1000, 100, 102, 99, 101, 10, 1),
