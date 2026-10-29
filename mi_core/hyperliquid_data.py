@@ -145,7 +145,9 @@ def join_funding_feature(candles: list[PerpCandle], events: list[FundingEvent]) 
     latest: float | None = None
     out = []
     for candle in sorted(candles, key=lambda item: item.timestamp_ms):
-        while j < len(ordered) and ordered[j].timestamp_ms <= candle.timestamp_ms:
+        # A candle's close is only available at close_time_ms. Strictly exclude
+        # an event at that exact timestamp because ordering may be ambiguous.
+        while j < len(ordered) and ordered[j].timestamp_ms < candle.close_time_ms:
             latest = ordered[j].rate
             j += 1
         out.append(latest)
@@ -156,6 +158,8 @@ def funding_cost_pct(
     side: int,
     position_size: float,
     oracle_prices_and_rates: list[tuple[float, float]],
+    *,
+    entry_oracle_price: float | None = None,
 ) -> float:
     """Funding cost as percent of constant position notional over discrete events.
 
@@ -170,9 +174,10 @@ def funding_cost_pct(
         raise ValueError("position_size must be positive")
     if not oracle_prices_and_rates:
         return 0.0
-    initial_notional = sum(price * position_size for price, _ in oracle_prices_and_rates[:1])
-    if initial_notional <= 0:
-        raise ValueError("oracle price must be positive")
+    reference_price = entry_oracle_price if entry_oracle_price is not None else oracle_prices_and_rates[0][0]
+    if reference_price <= 0:
+        raise ValueError("entry oracle price must be positive")
+    initial_notional = reference_price * position_size
     cash_cost = 0.0
     for price, rate in oracle_prices_and_rates:
         if price <= 0 or not (-1.0 <= rate <= 1.0):
