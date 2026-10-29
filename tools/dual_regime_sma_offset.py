@@ -249,7 +249,10 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
                     exited_this_bar = True
                 elif not regime[i]:
                     pending_exit = "regime_exit"
-        equity_path.append({"ts": ts, "equity": marked})
+        # Recompute marked equity after any entry or entry-bar stop on this bar.
+        # The earlier mark predates those actions and understated drawdown on entry bars.
+        marked_at_close = equity + (position["qty"] * (close - position["entry"]) if position else 0.0)
+        equity_path.append({"ts": ts, "equity": marked_at_close})
     # Close any remaining position at final close, explicitly marked as end-of-window exit.
     if position and rows:
         row = rows[-1]
