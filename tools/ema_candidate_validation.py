@@ -20,11 +20,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from mi_core.storage import load_bars
+from mi_core.costs import ROUND_TRIP_COST_PCT
 from tools.validate_protocol_lock import validate_protocol_lock
 
 
 STRATEGIES = ("ema12_26", "ema20_50", "ema20_50_sma200_confirmed", "ema20_50_long_short", "ema20_50_sma200_long_short", "sma200", "donchian20_10", "rsi14", "buy_and_hold", "random_matched_trade_count")
-DEFAULT_COSTS = (0.24,)
+DEFAULT_COSTS = (ROUND_TRIP_COST_PCT, 0.45, 0.24, 0.12, 0.04)
 
 
 def _series(rows, key):
@@ -273,10 +274,10 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
     cost_policy = protocol["execution_cost_policy"]
     allowed_costs = set(float(c) for c in cost_policy["sensitivity_round_trip_pct"])
     locked_baseline = float(cost_policy["project_default_round_trip_pct"])
-    if locked_baseline != 0.24:
+    if locked_baseline != ROUND_TRIP_COST_PCT:
         raise ValueError("protocol baseline mismatch with project cost policy")
     if not normalized_costs or locked_baseline not in normalized_costs or len(set(normalized_costs)) != len(normalized_costs) or not set(normalized_costs) <= allowed_costs:
-        raise ValueError("include the 0.24% project baseline; allowed sensitivity rates are 0.24, 0.12, and 0.04 percent round trip")
+        raise ValueError("include the 0.15% project base; 0.45% is strict stress; 0.24%, 0.12%, and 0.04% are diagnostic-only")
     symbol, stamps = validate_bars(bars, expected_symbol)
     signals = build_signals(bars)
     years = {}
@@ -366,7 +367,7 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
             "parameter_search": False,
             "execution": "signal from completed close, delayed to next open; open-to-open returns",
             "windowing": "fresh $500 account for each calendar-year slice; prior bars used only for indicator warm-up",
-            "fixed_round_trip_cost_pct": 0.24,
+            "fixed_round_trip_cost_pct": ROUND_TRIP_COST_PCT,
             "comparators": list(STRATEGIES),
             "limitations": [
                 "primary aggregate includes full calendar years only; partial final year remains visible in raw windows but is excluded from aggregate",
@@ -396,12 +397,14 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--out", required=True)
     parser.add_argument("--symbol", required=True)
-    parser.add_argument("--costs", default="0.24", help="include 0.24 baseline; optional sensitivity rates: 0.24,0.12,0.04 percent round trip")
+    parser.add_argument("--costs", default="0.15,0.45,0.24,0.12,0.04", help="include 0.15 base and 0.45 strict stress; 0.24,0.12,0.04 are diagnostic-only")
     parser.add_argument("--capital", type=float, default=500.0)
     args = parser.parse_args()
     costs = tuple(float(x.strip()) for x in args.costs.split(",") if x.strip())
-    if not costs or 0.24 not in costs or len(set(costs)) != len(costs) or not set(costs) <= {0.24, 0.12, 0.04}:
-        raise SystemExit("--costs must include 0.24 and may include only 0.24, 0.12, 0.04")
+    policy = validate_protocol_lock()["execution_cost_policy"]
+    allowed_costs = set(float(c) for c in policy["sensitivity_round_trip_pct"])
+    if not costs or ROUND_TRIP_COST_PCT not in costs or len(set(costs)) != len(costs) or not set(costs) <= allowed_costs:
+        raise SystemExit("--costs must include the 0.15 base and use only locked v4 rates")
     bars = load_bars(args.input)
     report = validate_candidate(bars, expected_symbol=args.symbol, costs=costs, capital_usd=args.capital)
     out = Path(args.out)
