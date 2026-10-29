@@ -399,8 +399,16 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
             ema_returns = [float(w["ema12_26_risk_matched"]["net_return_pct"]) for w in entries]
             random_returns = [float(w["random_1000_return_pct_p05_median_p95"]["median"]) for w in entries]
             buyhold_returns = [float(w["buy_and_hold"]["net_return_pct"]) for w in entries]
+            candidate_trade_counts = [int(w["candidate"]["trade_count"]) for w in entries]
+            candidate_net_pnls = [float(w["candidate"]["net_pnl_usd"]) for w in entries]
+            candidate_trade_count = sum(candidate_trade_counts)
+            candidate_net_pnl = sum(candidate_net_pnls)
+            candidate_expectancy = candidate_net_pnl / candidate_trade_count if candidate_trade_count else None
             rows_out.append({
                 "start_ts": entries[0]["start_ts"], "end_ts": entries[0]["end_ts"],
+                "candidate_trade_count": candidate_trade_count,
+                "candidate_net_pnl_usd": candidate_net_pnl,
+                "candidate_expectancy_usd_per_trade": candidate_expectancy,
                 "candidate_return_pct": mean(candidate_returns),
                 "ema_risk_matched_return_pct": mean(ema_returns),
                 "random_median_return_pct": mean(random_returns),
