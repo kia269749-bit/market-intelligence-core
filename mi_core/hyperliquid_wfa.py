@@ -115,11 +115,11 @@ def _trade_net_row(
         maker_entry=maker_entry, maker_exit=maker_exit,
         maker_fee_rate=maker_fee_rate, taker_fee_rate=taker_fee_rate,
         slippage_bps_per_side=slippage_bps_per_side,
-        entry_ts=entry.timestamp_ms, exit_ts=exit_.timestamp_ms,
+        entry_ts=entry.close_time_ms, exit_ts=exit_.close_time_ms,
     )
     return {
-        "ts": entry.timestamp_ms,
-        "exit_ts": exit_.timestamp_ms,
+        "ts": entry.close_time_ms,
+        "exit_ts": exit_.close_time_ms,
         "side": side,
         "entry_price": entry.close,
         "exit_price": exit_.close,
