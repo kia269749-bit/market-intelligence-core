@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from .cost_policy import DEFAULT_COST_POLICY
+
 
 def _num(v, default=0.0):
     try:
@@ -38,7 +40,7 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.35,
+    round_trip_cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
