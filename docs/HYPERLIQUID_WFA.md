@@ -17,7 +17,7 @@ The example dates are an example range only. Do not treat the command as proof t
 - **Funding price limitation:** Hyperliquid funding uses oracle-price notional. The candle endpoint does not supply historical oracle price for each event, so this implementation uses the nearest prior candle close as a clearly labelled proxy. Results are not oracle-exact.
 - **Slippage limitation:** slippage_bps_per_side is an explicit model assumption, not observed historical execution slippage. Candle OHLC data alone cannot reconstruct historical bid/ask depth or actual fills. Do not describe this as measured slippage.
 - **No double counting:** itemized fees + slippage + funding are the primary net-return estimate. Fixed 0.15% base and 0.45% strict cost cases are reported separately as sensitivity diagnostics and are not added to the itemized costs.
-- **Return basis:** returns are measured as percentage of entry notional for one-unit exposure. This is not a portfolio/equity curve, not a liquidation simulation, and not a real account drawdown calculation.
+- **Return basis:** returns are measured as percentage of entry notional for one-unit exposure. No drawdown metric is reported because there is no defined portfolio sizing/equity model here. This is not a portfolio/equity curve or a liquidation simulation.
 
 ## WFA and dependence
 
