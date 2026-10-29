@@ -60,8 +60,12 @@ def validate_protocol_lock(path: Path = LOCK_PATH) -> dict:
         raise ValueError("portfolio minimum OOS window count must be at least eight")
     if acceptance.get("bootstrap_samples") != 10000 or acceptance.get("block_bootstrap_length_windows") != 2:
         raise ValueError("block-bootstrap settings changed without protocol review")
-    if acceptance.get("multiple_comparison_method") != "one-sided circular block bootstrap with Bonferroni alpha=0.05/9 across three offsets and three baseline comparisons":
+    if acceptance.get("multiple_comparison_method") != "one-sided circular block bootstrap p-values and lower bounds with Bonferroni alpha=0.05/9 across three offsets and three baseline comparisons":
         raise ValueError("multiple-comparison correction is not locked")
+    if acceptance.get("max_pbo") != 0.30 or acceptance.get("cscv_min_portfolio_windows") != 8:
+        raise ValueError("CSCV/PBO acceptance policy changed")
+    if acceptance.get("cscv_blocks") != 8 or acceptance.get("cscv_expected_splits") != 70:
+        raise ValueError("CSCV partition settings changed")
     if acceptance.get("min_net_expectancy_usd_per_trade") != 0:
         raise ValueError("minimum net expectancy changed")
     if acceptance.get("max_drawdown_pct") != 25:
@@ -71,7 +75,7 @@ def validate_protocol_lock(path: Path = LOCK_PATH) -> dict:
     stopping = lock.get("stopping_rule", {})
     if not stopping.get("if_positive_oos_windows_is_zero_and_net_expectancy_is_negative"):
         raise ValueError("fail-closed stopping rule is missing")
-    if lock.get("protocol_version") != "2026-10-29-v2":
+    if lock.get("protocol_version") != "2026-10-29-v3":
         raise ValueError("protocol version must be bumped when the frozen policy changes")
     if lock.get("status") != "LOCKED_FOR_NEXT_EXPERIMENT; historical results are exploratory":
         raise ValueError("protocol status must clearly mark historical results exploratory")

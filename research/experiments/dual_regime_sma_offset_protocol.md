@@ -1,6 +1,6 @@
 # Dual Regime SMA Offset: Preregistered Research Protocol
 
-- Protocol ID: `dual-regime-sma-offset-v2`
+- Protocol ID: `dual-regime-sma-offset-v3`
 - Frozen on: 2026-10-29 UTC
 - Status: `PREREGISTERED_FOR_EXPLORATORY_WALK_FORWARD`
 - Research branch: `audit/cost-provenance-20261028`
@@ -87,7 +87,7 @@ Research candidate is rejected for this protocol if any of these hold:
 - aggregate net expectancy at 0.24% is <= 0;
 - compounded equal-weight portfolio maximum drawdown exceeds 25%;
 - the one-sided circular block-bootstrap lower confidence bound for primary portfolio return is not above zero;
-- the Bonferroni-corrected block-bootstrap lower confidence bound for candidate-minus-risk-matched-EMA, risk-matched Buy & Hold, or random-median return is not above zero;
+- the Bonferroni-corrected block-bootstrap lower confidence bound or adjusted p-value fails for candidate-minus-risk-matched-EMA, risk-matched Buy & Hold, or random-median return;\n- CSCV/PBO is unavailable or PBO is not below 30%;
 - aggregate net expectancy across the portfolio windows is not positive;
 - the candidate does not outperform simple EMA12/26 and the randomized comparator on the predeclared primary metric after multiple-comparison correction;
 - the confidence interval for net expectancy includes zero;

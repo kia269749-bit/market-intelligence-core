@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from tools.dual_regime_sma_offset import (
     UNIVERSE, align_universe, build_candidate_signals, build_regime,
     simulate, random_matched_signals, validate_contiguous_timestamps,
-    COSTS_PCT, PRIMARY_COST_PCT,
+    COSTS_PCT, PRIMARY_COST_PCT, _calculate_cscv_pbo,
 )
 from tools.validate_protocol_lock import validate_protocol_lock
 from tools.evaluate_acceptance import evaluate
@@ -169,6 +169,18 @@ class DualRegimeTests(unittest.TestCase):
         result = evaluate(report, lock)
         self.assertEqual(result["acceptance"], "REJECT_OR_INSUFFICIENT_EVIDENCE")
         self.assertFalse(result["checks"]["positive_portfolio_return_and_ci"]["passed"])
+
+    def test_cscv_pbo_calculates_for_three_variants_and_eight_windows(self):
+        portfolio = {}
+        for offset, lift in (("0.03", 0.0), ("0.05", 1.0), ("0.07", 0.2)):
+            portfolio[offset] = {"windows": [
+                {"candidate_return_pct": float(i) + lift} for i in range(8)
+            ]}
+        result = _calculate_cscv_pbo(portfolio, (0.03, 0.05, 0.07))
+        self.assertEqual(result["status"], "CALCULATED_EXPLORATORY")
+        self.assertEqual(result["split_count"], 70)
+        self.assertGreaterEqual(result["pbo"], 0.0)
+        self.assertLessEqual(result["pbo"], 1.0)
 
 
 if __name__ == "__main__":

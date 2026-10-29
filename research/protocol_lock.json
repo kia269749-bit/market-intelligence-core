@@ -1,5 +1,5 @@
 {
-  "protocol_version": "2026-10-29-v2",
+  "protocol_version": "2026-10-29-v3",
   "status": "LOCKED_FOR_NEXT_EXPERIMENT; historical results are exploratory",
   "created_utc": "2026-10-29",
   "assets": [
@@ -76,8 +76,13 @@
     "require_positive_portfolio_ci_lower_bound": true,
     "require_positive_ci_lower_bound_vs_risk_matched_ema": true,
     "require_positive_ci_lower_bound_vs_random_median": true,
-    "multiple_comparison_method": "one-sided circular block bootstrap with Bonferroni alpha=0.05/9 across three offsets and three baseline comparisons",
-    "require_positive_ci_lower_bound_vs_risk_matched_buy_and_hold": true
+    "multiple_comparison_method": "one-sided circular block bootstrap p-values and lower bounds with Bonferroni alpha=0.05/9 across three offsets and three baseline comparisons",
+    "require_positive_ci_lower_bound_vs_risk_matched_buy_and_hold": true,
+    "max_pbo": 0.3,
+    "require_cscv_pbo": true,
+    "cscv_min_portfolio_windows": 8,
+    "cscv_blocks": 8,
+    "cscv_expected_splits": 70
   },
   "stopping_rule": {
     "if_positive_oos_windows_is_zero_and_net_expectancy_is_negative": "REJECT_CURRENT_HYPOTHESIS",

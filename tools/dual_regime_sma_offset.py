@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import random
+from itertools import combinations
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -318,7 +319,86 @@ def random_matched_signals(rows, count, seed):
     return out
 
 
-def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS):
+def _block_bootstrap_lower_bound(values, *, samples=10000, block_length=2, alpha=0.05 / 9, seed=20261029):
+    """One-sided circular block-bootstrap lower bound for mean(values) > 0."""
+    values = [float(v) for v in values]
+    if len(values) < 2 or not 0 < alpha < 0.5:
+        return None
+    rng = random.Random(seed)
+    n = len(values)
+    means = []
+    for _ in range(samples):
+        sample = []
+        while len(sample) < n:
+            start = rng.randrange(n)
+            sample.extend(values[(start + j) % n] for j in range(block_length))
+        means.append(mean(sample[:n]))
+    means.sort()
+    return means[min(len(means) - 1, max(0, int(alpha * len(means))))]
+
+
+def _block_bootstrap_p_value(values, *, samples=10000, block_length=2, seed=20261029):
+    """One-sided centered circular block-bootstrap p-value for mean(values) > 0."""
+    values = [float(v) for v in values]
+    if len(values) < 2:
+        return None
+    observed = mean(values)
+    centered = [v - observed for v in values]
+    rng = random.Random(seed)
+    n = len(centered)
+    exceed = 0
+    for _ in range(samples):
+        sample = []
+        while len(sample) < n:
+            start = rng.randrange(n)
+            sample.extend(centered[(start + j) % n] for j in range(block_length))
+        if mean(sample[:n]) >= observed:
+            exceed += 1
+    return (exceed + 1) / (samples + 1)
+
+
+def _calculate_cscv_pbo(portfolio_results, offsets):
+    """Exploratory CSCV/PBO over the preregistered offset family and portfolio windows."""
+    keys = [str(x) for x in offsets]
+    arrays = {key: [float(w["candidate_return_pct"])
+                    for w in portfolio_results.get(key, {}).get("windows", [])] for key in keys}
+    n = min((len(v) for v in arrays.values()), default=0)
+    if len(keys) < 3 or n < 8:
+        return {"status": "UNAVAILABLE_INSUFFICIENT_VARIANTS_OR_WINDOWS",
+                "pbo": None, "window_count": n, "variant_count": len(keys)}
+    blocks = []
+    for i in range(8):
+        start = round(i * n / 8)
+        end = round((i + 1) * n / 8)
+        blocks.append(list(range(start, end)))
+    if any(not block for block in blocks):
+        return {"status": "UNAVAILABLE_EMPTY_CSCV_BLOCK", "pbo": None,
+                "window_count": n, "variant_count": len(keys)}
+    below_median, total = 0, 0
+    for in_sample_blocks in combinations(range(8), 4):
+        in_block_set = set(in_sample_blocks)
+        in_indices = [idx for block_i, block in enumerate(blocks) if block_i in in_block_set for idx in block]
+        out_indices = [idx for block_i, block in enumerate(blocks) if block_i not in in_block_set for idx in block]
+        in_scores = {key: mean(arrays[key][idx] for idx in in_indices) for key in keys}
+        selected = max(keys, key=lambda key: in_scores[key])
+        out_scores = [mean(arrays[key][idx] for idx in out_indices) for key in keys]
+        selected_score = mean(arrays[selected][idx] for idx in out_indices)
+        less = sum(v < selected_score for v in out_scores)
+        equal = sum(abs(v - selected_score) <= 1e-12 for v in out_scores)
+        percentile = (less + 0.5 * equal) / len(out_scores)
+        if percentile < 0.5:
+            below_median += 1
+        total += 1
+    return {
+        "status": "CALCULATED_EXPLORATORY", "pbo": below_median / total if total else None,
+        "split_count": total, "block_count": 8, "windows_per_family": n,
+        "variant_count": len(keys), "variant_keys": keys,
+        "definition": "fraction of CSCV splits where the in-sample winner ranks below the median out-of-sample",
+        "warning": "Small candidate family and dependent portfolio windows; diagnostic only, not a profitability proof",
+    }
+
+
+def run_walk_forward(bars_by_symbol, *, cost_pct=PRIMARY_COST_PCT, offsets=CANDIDATE_OFFSETS):
     """Non-overlapping 3-month OOS windows with 12-month prior context; exploratory only."""
     timestamps, indexed = align_universe(bars_by_symbol)
     validate_contiguous_timestamps(timestamps)
@@ -440,19 +520,22 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
             "candidate_minus_ema_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(ema_diffs, seed=20262029 + int(offset * 100)),
             "candidate_minus_random_median_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(random_diffs, seed=20263029 + int(offset * 100)),
             "candidate_minus_buy_hold_risk_matched_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(buyhold_diffs, seed=20264029 + int(offset * 100)),
+            "candidate_minus_ema_p_value_bonferroni_adjusted": min(1.0, _block_bootstrap_p_value(ema_diffs, seed=20265029 + int(offset * 100)) * 9),
+            "candidate_minus_random_p_value_bonferroni_adjusted": min(1.0, _block_bootstrap_p_value(random_diffs, seed=20266029 + int(offset * 100)) * 9),
+            "candidate_minus_buy_hold_p_value_bonferroni_adjusted": min(1.0, _block_bootstrap_p_value(buyhold_diffs, seed=20267029 + int(offset * 100)) * 9),
             "max_drawdown_pct_compounded_equal_weight_windows": round(max_dd * 100.0, 4),
             "multiple_comparison_method": "one-sided circular block bootstrap; Bonferroni alpha=0.05/9 across 3 offsets x 3 baseline comparisons",
             "block_length_windows": 2, "bootstrap_samples": 10000,
             "windows": rows_out,
         }
     return {
-        "protocol_id": "dual-regime-sma-offset-v2",
+        "protocol_id": "dual-regime-sma-offset-v3",
         "research_only": True, "live_orders": False,
         "data_basis": "Binance Spot OHLCV proxy; not Hyperliquid Perpetuals",
         "breadth_universe": list(UNIVERSE),
         "cost_pct_round_trip": cost_pct,
         "cost_unit": _PROTOCOL_LOCK["execution_cost_policy"]["unit"],
-        "portfolio_results": portfolio_results,
+        "portfolio_results": portfolio_results,\n        "cscv_pbo": _calculate_cscv_pbo(portfolio_results, offsets),
         "sensitivity_rates_pct": list(COSTS_PCT),
         "window_policy": {"context_bars_approx_12m": warmup_bars, "oos_bars_approx_3m": window_bars, "non_overlapping": True},
         "common_aligned_timestamps": len(timestamps),

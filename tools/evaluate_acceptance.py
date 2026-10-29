@@ -62,6 +62,9 @@ def evaluate(report: dict, lock: dict) -> dict:
     ema_lower = portfolio.get("candidate_minus_ema_ci_lower_pct_bonferroni_block_bootstrap")
     random_lower = portfolio.get("candidate_minus_random_median_ci_lower_pct_bonferroni_block_bootstrap")
     buyhold_lower = portfolio.get("candidate_minus_buy_hold_risk_matched_ci_lower_pct_bonferroni_block_bootstrap")
+    ema_p_adj = portfolio.get("candidate_minus_ema_p_value_bonferroni_adjusted")
+    random_p_adj = portfolio.get("candidate_minus_random_p_value_bonferroni_adjusted")
+    buyhold_p_adj = portfolio.get("candidate_minus_buy_hold_p_value_bonferroni_adjusted")
     check("beats_risk_matched_ema",
           isinstance(ema_lower, (int, float)) and ema_lower > 0,
           f"corrected lower bound of paired candidate-minus-risk-matched-EMA return={ema_lower}")
@@ -71,6 +74,9 @@ def evaluate(report: dict, lock: dict) -> dict:
     check("beats_risk_matched_buy_and_hold",
           isinstance(buyhold_lower, (int, float)) and buyhold_lower > 0,
           f"corrected lower bound of paired candidate-minus-risk-matched-buy-and-hold return={buyhold_lower}")
+    check("adjusted_p_values",
+          all(isinstance(p, (int, float)) and p < 0.05 for p in (ema_p_adj, random_p_adj, buyhold_p_adj)),
+          f"Bonferroni-adjusted bootstrap p-values: EMA={ema_p_adj}, random={random_p_adj}, Buy & Hold={buyhold_p_adj}")
 
     max_dd = portfolio.get("max_drawdown_pct_compounded_equal_weight_windows")
     check("drawdown_limit", isinstance(max_dd, (int, float)) and max_dd <= criteria["max_drawdown_pct"],
@@ -82,6 +88,14 @@ def evaluate(report: dict, lock: dict) -> dict:
     check("positive_net_expectancy",
           isinstance(expectancy, (int, float)) and expectancy > criteria["min_net_expectancy_usd_per_trade"],
           f"aggregate net expectancy USD/trade={expectancy}; required > {criteria['min_net_expectancy_usd_per_trade']}")
+
+    pbo = report.get("cscv_pbo", {})
+    check("cscv_pbo",
+          pbo.get("status") == "CALCULATED_EXPLORATORY"
+          and isinstance(pbo.get("pbo"), (int, float))
+          and pbo.get("pbo") < criteria["max_pbo"]
+          and int(pbo.get("split_count", 0)) >= int(criteria["cscv_expected_splits"]),
+          f"CSCV/PBO={pbo.get('pbo')}; status={pbo.get('status')}; splits={pbo.get('split_count')}; required PBO < {criteria['max_pbo']}")
 
     check("multiple_comparison_method",
           "Bonferroni" in str(portfolio.get("multiple_comparison_method", ""))
