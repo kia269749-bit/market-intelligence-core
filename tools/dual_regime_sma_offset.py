@@ -550,10 +550,10 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=PRIMARY_COST_PCT, offsets=CANDI
         "breadth_valid_fraction": sum(math.isfinite(v) for v in breadth.values()) / len(breadth) if breadth else 0,
         "limitations": [
             "Historical data may have been previously inspected; this WFA is exploratory unless exposure audit proves otherwise.",
-            "Random comparator uses 1,000 seeded paths and matched position-change count, but p-values are not adjusted for candidate-family multiple testing in this prototype.",
-            "PBO/CSCV is not calculated until independent partitions and candidate-family validity are reviewed.",
+            "Random comparator uses 1,000 seeded paths and matched position-change count; corrected bootstrap comparisons are exploratory and remain subject to dependence and small-family limitations.",
+            "CSCV/PBO is a diagnostic over only three preregistered offsets and dependent portfolio windows; it is not proof of generalization.",
             "Slippage, order-book depth, funding, latency and partial fills are not represented by Binance Spot OHLCV.",
-            "Portfolio-level equal-weight aggregation and block-bootstrap confidence intervals require separate review before any acceptance claim."
+            "Portfolio aggregation and block-bootstrap intervals are implemented for the exploratory gate, but their statistical assumptions require independent review before any acceptance claim."
         ],
         "results": results,
     }

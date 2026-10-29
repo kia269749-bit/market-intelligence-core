@@ -6,6 +6,10 @@
 - Research branch: `audit/cost-provenance-20261028`
 - Scope: research only. No live orders, no production strategy replacement, no main merge authorized by this protocol.
 
+## Protocol version change rationale
+
+Version v3 supersedes v2 for methodological and reproducibility reasons, not because a prior strategy result was favorable: (1) bind all cost scenarios to the machine-readable lock and verify the simulator formula against its round-trip entry-notional definition; (2) make the acceptance gate executable and fail-closed; (3) add portfolio-level paired comparisons, risk-matched Buy & Hold, corrected block-bootstrap bounds/p-values, and an exploratory CSCV/PBO diagnostic; (4) freeze the as-of cutoff and hash every input file, the lock, and simulator. Prior runs on earlier SHAs (including `a902d409` and `99429b76`) are superseded implementation checks and must not be pooled with or cited as results for v3. The first v3 run on its final SHA is the only run eligible for this version's gate. This is still retrospective proxy research, not a virgin holdout or target-market validation.
+
 ## 1. Research question and hypothesis
 
 Primary hypothesis: a long-only Dual Regime SMA Offset strategy has positive net expectancy after the locked 0.24% round-trip cost and improves risk-adjusted performance versus Buy & Hold, simple EMA12/26, and a seeded random comparator with matched position-change count.

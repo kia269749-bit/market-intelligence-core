@@ -101,5 +101,15 @@
     "cutoff": "Explicit --as-of UTC timestamp; include only fully closed bars",
     "reproducibility": "Record SHA-256 for every raw JSONL, protocol lock and simulator source",
     "note": "An as-of cutoff alone does not freeze source data. Hashes are required to identify the exact snapshot."
-  }
+  },
+  "protocol_change_log": [
+    {
+      "version": "2026-10-29-v3",
+      "date": "2026-10-29",
+      "reason": "Methodology/reproducibility hardening only: bind and validate aggregate round-trip cost policy; add executable fail-closed portfolio acceptance gate, risk-matched baselines, corrected block-bootstrap comparisons and exploratory CSCV/PBO; record fixed as-of and SHA-256 hashes. Not triggered by strategy performance.",
+      "supersedes": "2026-10-29-v2",
+      "prior_runs": "Runs on earlier SHAs including a902d409 and 99429b76 are implementation/debug runs only and must not be used as v3 evidence.",
+      "status": "LOCKED_FOR_V3_WFA; no tuning on inspected holdout; any further method change requires v4 and a new frozen evaluation."
+    }
+  ]
 }
