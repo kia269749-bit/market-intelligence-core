@@ -357,6 +357,12 @@ def _block_bootstrap_p_value(values, *, samples=10000, block_length=2, seed=2026
     return (exceed + 1) / (samples + 1)
 
 
+
+def _bonferroni_adjusted_p_value(values, *, seed):
+    p_value = _block_bootstrap_p_value(values, seed=seed)
+    return min(1.0, p_value * 9) if p_value is not None else None
+
+
 def _calculate_cscv_pbo(portfolio_results, offsets):
     """Exploratory CSCV/PBO over the preregistered offset family and portfolio windows."""
     keys = [str(x) for x in offsets]
@@ -520,9 +526,9 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=PRIMARY_COST_PCT, offsets=CANDI
             "candidate_minus_ema_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(ema_diffs, seed=20262029 + int(offset * 100)),
             "candidate_minus_random_median_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(random_diffs, seed=20263029 + int(offset * 100)),
             "candidate_minus_buy_hold_risk_matched_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(buyhold_diffs, seed=20264029 + int(offset * 100)),
-            "candidate_minus_ema_p_value_bonferroni_adjusted": min(1.0, _block_bootstrap_p_value(ema_diffs, seed=20265029 + int(offset * 100)) * 9),
-            "candidate_minus_random_p_value_bonferroni_adjusted": min(1.0, _block_bootstrap_p_value(random_diffs, seed=20266029 + int(offset * 100)) * 9),
-            "candidate_minus_buy_hold_p_value_bonferroni_adjusted": min(1.0, _block_bootstrap_p_value(buyhold_diffs, seed=20267029 + int(offset * 100)) * 9),
+            "candidate_minus_ema_p_value_bonferroni_adjusted": _bonferroni_adjusted_p_value(ema_diffs, seed=20265029 + int(offset * 100)),
+            "candidate_minus_random_p_value_bonferroni_adjusted": _bonferroni_adjusted_p_value(random_diffs, seed=20266029 + int(offset * 100)),
+            "candidate_minus_buy_hold_p_value_bonferroni_adjusted": _bonferroni_adjusted_p_value(buyhold_diffs, seed=20267029 + int(offset * 100)),
             "max_drawdown_pct_compounded_equal_weight_windows": round(max_dd * 100.0, 4),
             "multiple_comparison_method": "one-sided circular block bootstrap; Bonferroni alpha=0.05/9 across 3 offsets x 3 baseline comparisons",
             "block_length_windows": 2, "bootstrap_samples": 10000,
