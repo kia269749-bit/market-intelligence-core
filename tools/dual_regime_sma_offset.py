@@ -262,6 +262,10 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
         trades.append({"entry_ts": position["entry_ts"], "exit_ts": int(row.ts), "entry": position["entry"],
                        "exit": exit_price, "qty": position["qty"], "gross_pnl": gross,
                        "cost": costs, "net_pnl": pnl, "reason": "window_end"})
+        # The final close is an executed exit, not merely an unrealized mark.
+        # Include its realized costs in drawdown and return-volatility metrics.
+        if equity_path:
+            equity_path[-1]["equity"] = equity
     pnls = [t["net_pnl"] for t in trades]
     wins = sum(p > 0 for p in pnls)
     gross_profit = sum(p for p in pnls if p > 0)
