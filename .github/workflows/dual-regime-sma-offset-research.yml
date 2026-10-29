@@ -66,16 +66,18 @@ jobs:
           mkdir -p data/dual-regime reports/dual-regime
           python - <<'PY'
           import json
+          import os
           from datetime import datetime
           from pathlib import Path
           from mi_core.real_data import download
-          as_of_ms = int(datetime.fromisoformat("${AS_OF_UTC}".replace("Z", "+00:00")).timestamp() * 1000)
+          as_of_utc = os.environ["AS_OF_UTC"]
+          as_of_ms = int(datetime.fromisoformat(as_of_utc.replace("Z", "+00:00")).timestamp() * 1000)
           symbols = "BTCUSDT ETHUSDT BNBUSDT SOLUSDT XRPUSDT ADAUSDT DOGEUSDT TRXUSDT LINKUSDT AVAXUSDT DOTUSDT LTCUSDT BCHUSDT UNIUSDT NEARUSDT APTUSDT ARBUSDT OPUSDT SUIUSDT FILUSDT".split()
           for symbol in symbols:
               out = Path("data/dual-regime") / f"{symbol}_4h.jsonl"
               bars, path = download(symbol=symbol, interval="4h", bars=12000, out=str(out), end_ms=as_of_ms)
               meta = {"symbol": symbol, "venue": "Binance Spot public OHLCV proxy", "interval": "4h",
-                      "bars": len(bars), "as_of_utc": "${AS_OF_UTC}", "first_ts": bars[0].ts if bars else None,
+                      "bars": len(bars), "as_of_utc": as_of_utc, "first_ts": bars[0].ts if bars else None,
                       "last_ts": bars[-1].ts if bars else None, "research_only": True, "live_orders": False}
               (Path("reports/dual-regime") / f"{symbol}_data.json").write_text(json.dumps(meta, indent=2))
               print(json.dumps(meta, sort_keys=True))
