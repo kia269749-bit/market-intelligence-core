@@ -6,6 +6,7 @@ orders are simulated at the next bar open. Missing/unmatched breadth inputs fail
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import random
@@ -20,7 +21,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from mi_core.storage import load_bars
 
-COSTS_PCT = (0.24, 0.12, 0.04)
+LOCK_PATH = ROOT / "research" / "protocol_lock.json"
+_PROTOCOL_LOCK = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+COSTS_PCT = tuple(float(x) for x in _PROTOCOL_LOCK["execution_cost_policy"]["sensitivity_round_trip_pct"])
+PRIMARY_COST_PCT = float(_PROTOCOL_LOCK["execution_cost_policy"]["project_default_round_trip_pct"])
+if not COSTS_PCT or PRIMARY_COST_PCT != COSTS_PCT[0]:
+    raise RuntimeError("protocol lock primary cost must equal first sensitivity scenario")
 UNIVERSE = (
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT",
     "ADAUSDT", "DOGEUSDT", "TRXUSDT", "LINKUSDT", "AVAXUSDT",
@@ -145,7 +151,7 @@ def _ema(values, period):
     return out
 
 
-def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
+def simulate(rows, signals, *, cost_pct=PRIMARY_COST_PCT, initial_equity=500.0,
              risk_fraction=0.01, use_risk=True, use_stops=True, use_trailing=True,
              use_time_exit=True, circuit_breaker=True):
     """Causal single-asset spot simulation; no leverage; returns detailed metrics."""
@@ -178,7 +184,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
         if position and pending_exit:
             exit_price = op
             gross = position["qty"] * (exit_price - position["entry"])
-            costs = position["qty"] * (position["entry"] + exit_price) * cost_rate / 2
+            costs = position["qty"] * position["entry"] * cost_rate
             pnl = gross - costs
             equity += pnl
             trades.append({"entry_ts": position["entry_ts"], "exit_ts": ts, "entry": position["entry"],
@@ -230,7 +236,7 @@ def simulate(rows, signals, *, cost_pct=0.24, initial_equity=500.0,
                     if use_stops and lo <= stop:
                         exit_price = stop
                         gross = qty * (exit_price - op)
-                        costs = qty * (op + exit_price) * cost_rate / 2
+                        costs = qty * op * cost_rate
                         pnl = gross - costs
                         equity += pnl
                         trades.append({"entry_ts": ts, "exit_ts": ts, "entry": op, "exit": exit_price,
@@ -346,8 +352,11 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
                 # Baselines use identical OOS bars and next-open execution.
                 ema_all = build_ema_signals(rows)
                 ema_result = simulate(sub_rows, ema_all[start:end], cost_pct=cost_pct,
-                                      use_risk=True, use_stops=True, use_trailing=False,
-                                      use_time_exit=False, circuit_breaker=True)
+                                      use_risk=True, use_stops=True, use_trailing=True,
+                                      use_time_exit=True, circuit_breaker=True)
+                ema_raw_result = simulate(sub_rows, ema_all[start:end], cost_pct=cost_pct,
+                                          use_risk=False, use_stops=False, use_trailing=False,
+                                          use_time_exit=False, circuit_breaker=False)
                 buyhold_result = simulate(sub_rows, [True] * len(sub_rows), cost_pct=cost_pct,
                                           use_risk=False, use_stops=False, use_trailing=False,
                                           use_time_exit=False, circuit_breaker=False)
@@ -365,7 +374,8 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
                     "start_ts": int(sub_rows[0].ts), "end_ts": int(sub_rows[-1].ts),
                     "candidate": {k: v for k, v in candidate.items() if k != "trades"},
                     "dual_regime_sma_offset_simple": {k: v for k, v in simple_candidate.items() if k != "trades"},
-                    "ema12_26": {k: v for k, v in ema_result.items() if k != "trades"},
+                    "ema12_26_risk_matched": {k: v for k, v in ema_result.items() if k != "trades"},
+                    "ema12_26_raw": {k: v for k, v in ema_raw_result.items() if k != "trades"},
                     "buy_and_hold": {k: v for k, v in buyhold_result.items() if k != "trades"},
                     "random_1000_return_pct_p05_median_p95": {
                         "p05": random_returns[49], "median": random_returns[499], "p95": random_returns[949]},
@@ -374,12 +384,58 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
                 start = end
             per_offset[str(offset)] = windows
         results[symbol] = {"status": "exploratory", "bars": len(rows), "offset_results": per_offset}
+    # Equal-weight portfolio comparisons use identical non-overlapping windows.
+    # Random comparator is the median of the 1,000 seeded paths per asset/window.
+    portfolio_results = {}
+    for offset in offsets:
+        offset_key = str(offset)
+        asset_windows = [results.get(sym, {}).get("offset_results", {}).get(offset_key, [])
+                         for sym in ("BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT")]
+        window_count = min((len(x) for x in asset_windows), default=0)
+        rows_out = []
+        for wi in range(window_count):
+            entries = [asset_windows[ai][wi] for ai in range(len(asset_windows))]
+            candidate_returns = [float(w["candidate"]["net_return_pct"]) for w in entries]
+            ema_returns = [float(w["ema12_26_risk_matched"]["net_return_pct"]) for w in entries]
+            random_returns = [float(w["random_1000_return_pct_p05_median_p95"]["median"]) for w in entries]
+            buyhold_returns = [float(w["buy_and_hold"]["net_return_pct"]) for w in entries]
+            rows_out.append({
+                "start_ts": entries[0]["start_ts"], "end_ts": entries[0]["end_ts"],
+                "candidate_return_pct": mean(candidate_returns),
+                "ema_risk_matched_return_pct": mean(ema_returns),
+                "random_median_return_pct": mean(random_returns),
+                "buy_and_hold_raw_return_pct": mean(buyhold_returns),
+                "candidate_minus_ema_pct": mean(candidate_returns) - mean(ema_returns),
+                "candidate_minus_random_median_pct": mean(candidate_returns) - mean(random_returns),
+            })
+        candidate_values = [w["candidate_return_pct"] for w in rows_out]
+        ema_diffs = [w["candidate_minus_ema_pct"] for w in rows_out]
+        random_diffs = [w["candidate_minus_random_median_pct"] for w in rows_out]
+        equity, peak, max_dd = 1.0, 1.0, 0.0
+        for value in candidate_values:
+            equity *= max(0.0, 1.0 + value / 100.0)
+            peak = max(peak, equity)
+            if peak:
+                max_dd = max(max_dd, (peak - equity) / peak)
+        portfolio_results[offset_key] = {
+            "window_count": len(rows_out),
+            "equal_weight_mean_candidate_return_pct_per_window": mean(candidate_values) if candidate_values else None,
+            "candidate_return_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(candidate_values, seed=20261029 + int(offset * 100)),
+            "candidate_minus_ema_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(ema_diffs, seed=20262029 + int(offset * 100)),
+            "candidate_minus_random_median_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(random_diffs, seed=20263029 + int(offset * 100)),
+            "max_drawdown_pct_compounded_equal_weight_windows": round(max_dd * 100.0, 4),
+            "multiple_comparison_method": "one-sided circular block bootstrap; Bonferroni alpha=0.05/6 across 3 offsets x 2 baseline comparisons",
+            "block_length_windows": 2, "bootstrap_samples": 10000,
+            "windows": rows_out,
+        }
     return {
-        "protocol_id": "dual-regime-sma-offset-v1",
+        "protocol_id": "dual-regime-sma-offset-v2",
         "research_only": True, "live_orders": False,
         "data_basis": "Binance Spot OHLCV proxy; not Hyperliquid Perpetuals",
         "breadth_universe": list(UNIVERSE),
         "cost_pct_round_trip": cost_pct,
+        "cost_unit": _PROTOCOL_LOCK["execution_cost_policy"]["unit"],
+        "portfolio_results": portfolio_results,
         "sensitivity_rates_pct": list(COSTS_PCT),
         "window_policy": {"context_bars_approx_12m": warmup_bars, "oos_bars_approx_3m": window_bars, "non_overlapping": True},
         "common_aligned_timestamps": len(timestamps),
@@ -400,24 +456,41 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-dir", required=True, help="Directory with SYMBOL_4h.jsonl files for the full 20-asset universe")
     parser.add_argument("--out", required=True)
-    parser.add_argument("--costs", default="0.24", help="Run one pre-registered rate per invocation; primary is 0.24")
+    parser.add_argument("--costs", default=str(PRIMARY_COST_PCT), help="Run one pre-registered rate from protocol_lock.json")
+    parser.add_argument("--as-of", required=True, help="UTC cutoff, ISO-8601; only fully closed bars at/before this instant are included")
     args = parser.parse_args()
     cost = float(args.costs)
+    try:
+        as_of = datetime.fromisoformat(args.as_of.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise SystemExit("--as-of must be an ISO-8601 UTC timestamp") from exc
+    if as_of.tzinfo is None or as_of.utcoffset() is None or as_of.utcoffset().total_seconds() != 0:
+        raise SystemExit("--as-of must include UTC timezone (Z or +00:00)")
+    as_of_ms = int(as_of.timestamp() * 1000)
     if cost not in COSTS_PCT:
         raise SystemExit(f"--costs must be one of {COSTS_PCT}")
-    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
     by_symbol = {}
+    data_hashes = {}
     for symbol in UNIVERSE:
         path = Path(args.data_dir) / f"{symbol}_4h.jsonl"
         if not path.exists():
             raise SystemExit(f"missing required breadth data file: {path}")
-        rows = [r for r in load_bars(path) if int(r.ts) + BAR_MS <= now_ms]
+        rows = [r for r in load_bars(path) if int(r.ts) + BAR_MS <= as_of_ms]
         by_symbol[symbol] = rows
+        data_hashes[symbol] = hashlib.sha256(path.read_bytes()).hexdigest()
     report = run_walk_forward(by_symbol, cost_pct=cost)
+    report["reproducibility"] = {
+        "as_of_utc": as_of.isoformat().replace("+00:00", "Z"),
+        "as_of_timestamp_ms": as_of_ms,
+        "data_sha256": data_hashes,
+        "protocol_lock_sha256": hashlib.sha256(LOCK_PATH.read_bytes()).hexdigest(),
+        "simulator_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "cost_unit": _PROTOCOL_LOCK["execution_cost_policy"]["unit"],
+    }
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
-    print(json.dumps({"out": str(out), "cost_pct_round_trip": cost, "aligned_timestamps": report["common_aligned_timestamps"],
+    print(json.dumps({"out": str(out), "cost_pct_round_trip": cost, "as_of_utc": report["reproducibility"]["as_of_utc"], "aligned_timestamps": report["common_aligned_timestamps"],
                       "data_basis": report["data_basis"], "research_only": True, "live_orders": False}, indent=2))
 
 
