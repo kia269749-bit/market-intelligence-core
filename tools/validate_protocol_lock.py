@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from mi_core.costs import ROUND_TRIP_COST_PCT
 from tools.dual_regime_sma_offset import COSTS_PCT, PRIMARY_COST_PCT
 
 LOCK_PATH = ROOT / "research" / "protocol_lock.json"
@@ -22,6 +23,12 @@ def validate_protocol_lock(path: Path = LOCK_PATH) -> dict:
     costs = lock.get("execution_cost_policy", {})
     if costs.get("project_default_round_trip_pct") != PRIMARY_COST_PCT:
         raise ValueError("protocol primary cost does not match simulator cost")
+    if costs.get("project_default_round_trip_pct") != ROUND_TRIP_COST_PCT:
+        raise ValueError("protocol primary cost does not match central project cost config")
+    if costs.get("strict_stress_round_trip_pct") != 0.45:
+        raise ValueError("strict stress cost must be locked at 0.45%")
+    if costs.get("diagnostic_round_trip_pct") != [0.24, 0.12, 0.04]:
+        raise ValueError("0.24%, 0.12%, and 0.04% must remain diagnostic-only")
     if tuple(costs.get("sensitivity_round_trip_pct", [])) != COSTS_PCT:
         raise ValueError("protocol sensitivity rates do not match simulator cost scenarios")
     if PRIMARY_COST_PCT != COSTS_PCT[0]:
@@ -70,12 +77,12 @@ def validate_protocol_lock(path: Path = LOCK_PATH) -> dict:
         raise ValueError("minimum net expectancy changed")
     if acceptance.get("max_drawdown_pct") != 25:
         raise ValueError("maximum drawdown limit changed")
-    if acceptance.get("require_positive_cost_stress_at") != "0.24% round trip":
+    if acceptance.get("require_positive_cost_stress_at") != "0.45% round trip":
         raise ValueError("baseline cost acceptance threshold changed")
     stopping = lock.get("stopping_rule", {})
     if not stopping.get("if_positive_oos_windows_is_zero_and_net_expectancy_is_negative"):
         raise ValueError("fail-closed stopping rule is missing")
-    if lock.get("protocol_version") != "2026-10-29-v3":
+    if lock.get("protocol_version") != "2026-10-29-v4":
         raise ValueError("protocol version must be bumped when the frozen policy changes")
     if lock.get("status") != "LOCKED_FOR_NEXT_EXPERIMENT; historical results are exploratory":
         raise ValueError("protocol status must clearly mark historical results exploratory")
