@@ -201,12 +201,31 @@ def evaluate_candles(
     gross = [float(row["gross_return_pct"]) for row in sampled]
     base = [float(row["policy_base_015_net_pct"]) for row in sampled]
     stress = [float(row["policy_stress_045_net_pct"]) for row in sampled]
+    bootstrap_observations = [
+        (int(row["ts"]), float(row["net_return_pct"])) for row in sampled
+    ]
     block_ci = daily_block_bootstrap_mean_ci(
-        [(int(row["ts"]), float(row["net_return_pct"])) for row in sampled],
+        bootstrap_observations,
         n_resamples=bootstrap_resamples, block_days=block_days, seed=seed,
     ) if sampled else {
         "status": "NO_TRADES", "mean_pct": None, "ci_low_pct": None, "ci_high_pct": None,
         "n_trades": 0, "n_days": 0,
+    }
+    # Pre-registered sensitivity: same exact trade outcomes, seed, confidence,
+    # and resample count; only calendar block length changes.
+    block_sensitivity = {
+        str(days): daily_block_bootstrap_mean_ci(
+            bootstrap_observations,
+            n_resamples=bootstrap_resamples,
+            block_days=days,
+            seed=seed,
+        )
+        for days in (1, 3, 7)
+    } if sampled else {
+        str(days): {"status": "NO_TRADES", "mean_pct": None,
+                    "ci_low_pct": None, "ci_high_pct": None,
+                    "n_trades": 0, "n_days": 0, "block_days": days}
+        for days in (1, 3, 7)
     }
     wins = sum(value > 0 for value in net)
     losses = abs(sum(value for value in net if value < 0))
@@ -228,6 +247,7 @@ def evaluate_candles(
             "warning": "policy sensitivity is separate from itemized fees/slippage/funding; do not add the two models together",
         },
         "block_bootstrap_mean_ci": block_ci,
+        "block_bootstrap_sensitivity": block_sensitivity,
         "cost_model": {
             "maker_entry": maker_entry, "maker_exit": maker_exit,
             "maker_fee_rate_per_side": maker_fee_rate,
