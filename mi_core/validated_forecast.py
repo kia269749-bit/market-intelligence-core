@@ -109,6 +109,15 @@ def _labels_cache(bars, horizon, flat_band):
     return labels
 
 
+def _training_indices(i, horizon, train_window, min_index=20):
+    """Return training indices whose labels are fully known before prediction time."""
+    lo = max(min_index, i - train_window)
+    hi = i - horizon
+    if hi <= lo:
+        return range(0, 0)
+    return range(lo, hi)
+
+
 def _fit(X, y, epochs=50, lr=.035, l2=.02):
     means = [sum(x[j] for x in X) / len(X) for j in range(len(X[0]))]
     scales = [statistics.pstdev(x[j] for x in X) or 1 for j in range(len(X[0]))]
@@ -159,7 +168,7 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         lo = max(20, i - train_window)
         X = []
         y = []
-        for j in range(lo, i):
+        for j in _training_indices(i, horizon, train_window):
             f = feature_cache[j]
             lab = label_cache[j]
             if f is not None and lab is not None:
@@ -211,7 +220,7 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         "resolved": resolved,
         "accuracy": round(correct / resolved, 6) if resolved else 0,
         "predictions": preds,
-        "model_version": "wf-logit-v2",
+        "model_version": "wf-logit-v3-no-leak",
         "research_only": True,
         "live_orders": False,
     }

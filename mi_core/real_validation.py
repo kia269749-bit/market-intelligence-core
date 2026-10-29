@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
+from .economic_edge import diagnose_economic_edge
 SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
 
 from .validated_forecast import (
@@ -170,6 +171,13 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         economic_metrics = _directional_metrics(result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
         path_metrics = _path_excursion_metrics(result)
+        edge_diagnostic = diagnose_economic_edge(
+            result,
+            capital_usd=capital_usd,
+            round_trip_cost_pct=round_trip_cost_pct,
+            min_profit_usd=min_profit_usd,
+            preferred_profit_usd=preferred_profit_usd,
+        )
         integrity_metrics = _oos_integrity_metrics(result, horizon)
         gate = forecast_acceptance_gate(prediction_metrics, capital_metrics,
                                         min_oos_samples=100, min_high_conf_samples=20,
@@ -188,7 +196,7 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
-            "integrity_metrics": integrity_metrics,
+            "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
         })
     aggregate = _aggregate(asset_results)

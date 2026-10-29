@@ -1,0 +1,29 @@
+name: Research strategy tests
+
+on:
+  push:
+    branches:
+      - feat/economic-edge-diagnostic
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  focused-research-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run focused research tests
+        run: |
+          set -e
+          python -m unittest discover -s tests -p 'test_costs.py' -v
+          python -m unittest discover -s tests -p 'test_trade_economics.py' -v
+          python -m unittest discover -s tests -p 'test_economic_edge.py' -v

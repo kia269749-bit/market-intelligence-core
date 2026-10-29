@@ -20,6 +20,7 @@ from .validated_forecast import walk_forward_forecast, score_predictions, score_
 from .multi_asset_forecast import scan_project60, load_project60_assets
 from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
+from .oos_multihorizon import evaluate_project60_multihorizon
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -169,6 +170,7 @@ def main():
     v=sp.add_parser("forecast-validate"); v.add_argument("--input",required=True); v.add_argument("--horizon",type=int,default=60); v.add_argument("--train-window",type=int,default=300); v.add_argument("--out")
     pv=sp.add_parser("forecast-project60"); pv.add_argument("--input",required=True); pv.add_argument("--asset",default="BTC"); pv.add_argument("--horizon",type=int,default=60); pv.add_argument("--max-rows",type=int,default=800); pv.add_argument("--out")
     ms=sp.add_parser("forecast-scan"); ms.add_argument("--input",required=True); ms.add_argument("--top",type=int,default=5); ms.add_argument("--horizon",type=int,default=60); ms.add_argument("--max-rows",type=int,default=800); ms.add_argument("--out")
+    mh=sp.add_parser("forecast-multihorizon-project60"); mh.add_argument("--input",required=True); mh.add_argument("--asset",default="BTC"); mh.add_argument("--max-rows",type=int,default=4600); mh.add_argument("--out")
     sr=sp.add_parser("shadow-report"); sr.add_argument("--journal",required=True)
     z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default="")
     x=ap.parse_args()
@@ -182,6 +184,13 @@ def main():
         result=scan_project60(x.input,top_n=x.top,max_rows=x.max_rows,horizon=x.horizon)
         write_report(result,x.out or Path(x.input).with_suffix(".forecast_scan.json"),{"mode":"Project60 multi-asset shortlist + validated forecast","top_n":x.top,"horizon_bars":x.horizon,"research_only":True,"live_orders":False})
         print("EARLY_OPPORTUNITY_WATCH count=" + str(result.get("early_watch_count", 0)))
+    elif x.cmd=="forecast-multihorizon-project60":
+        bars=load_project60_bars(x.input,x.asset,x.max_rows)
+        result=evaluate_project60_multihorizon(bars)
+        result["metadata"]={"mode":"Project60 leakage-safe multi-horizon OOS","asset":x.asset,"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0}
+        write_report(result,x.out or Path(x.input).with_suffix(".forecast_multihorizon.json"),result["metadata"])
+        for h,m in result["horizons"].items():
+            print("H={} resolved={} acc={:.4f} high_conf={:.4f} $4={:.4f} $10={:.4f} gate={}".format(h,m["resolved"],m["accuracy"],m["high_conf_accuracy"],m["usd4_hit_rate"],m["usd10_hit_rate"],m["acceptance"]["status"]))
     elif x.cmd=="forecast-project60":
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
