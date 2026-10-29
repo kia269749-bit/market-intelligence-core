@@ -198,7 +198,7 @@ def simulate(rows, signals, *, cost_pct=PRIMARY_COST_PCT, initial_equity=500.0,
             if op <= stop or lo <= stop:
                 exit_price = op if op <= stop else stop
                 gross = position["qty"] * (exit_price - position["entry"])
-                costs = position["qty"] * (position["entry"] + exit_price) * cost_rate / 2
+                costs = position["qty"] * position["entry"] * cost_rate
                 pnl = gross - costs
                 equity += pnl
                 trades.append({"entry_ts": position["entry_ts"], "exit_ts": ts, "entry": position["entry"],
@@ -262,7 +262,7 @@ def simulate(rows, signals, *, cost_pct=PRIMARY_COST_PCT, initial_equity=500.0,
         row = rows[-1]
         exit_price = float(row.price)
         gross = position["qty"] * (exit_price - position["entry"])
-        costs = position["qty"] * (position["entry"] + exit_price) * cost_rate / 2
+        costs = position["qty"] * position["entry"] * cost_rate
         pnl = gross - costs
         equity += pnl
         trades.append({"entry_ts": position["entry_ts"], "exit_ts": int(row.ts), "entry": position["entry"],
