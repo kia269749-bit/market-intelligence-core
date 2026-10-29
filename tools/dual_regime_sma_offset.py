@@ -530,7 +530,7 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=PRIMARY_COST_PCT, offsets=CANDI
             "candidate_minus_random_p_value_bonferroni_adjusted": _bonferroni_adjusted_p_value(random_diffs, seed=20266029 + int(offset * 100)),
             "candidate_minus_buy_hold_p_value_bonferroni_adjusted": _bonferroni_adjusted_p_value(buyhold_diffs, seed=20267029 + int(offset * 100)),
             "max_drawdown_pct_compounded_equal_weight_windows": round(max_dd * 100.0, 4),
-            "multiple_comparison_method": "one-sided circular block bootstrap; Bonferroni alpha=0.05/9 across 3 offsets x 3 baseline comparisons",
+            "multiple_comparison_method": "one-sided circular block bootstrap p-values and lower bounds with Bonferroni alpha=0.05/9 across three offsets and three baseline comparisons",
             "block_length_windows": 2, "bootstrap_samples": 10000,
             "windows": rows_out,
         }
