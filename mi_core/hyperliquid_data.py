@@ -115,20 +115,31 @@ def fetch_funding_history(
     """Fetch realized historical funding rates; each row is a discrete funding event."""
     if not coin or int(start_ms) < 0 or int(end_ms) <= int(start_ms):
         raise ValueError("coin and valid time range are required")
-    raw = post_json({
-        "type": "fundingHistory", "coin": coin,
-        "startTime": int(start_ms), "endTime": int(end_ms),
-    })
-    if not isinstance(raw, list):
-        raise ValueError("unexpected funding response: expected a list")
-    events = []
-    for row in raw:
-        if not isinstance(row, dict):
-            continue
-        rate = float(row["fundingRate"])
-        if not (-1.0 <= rate <= 1.0):
-            raise ValueError("funding rate outside defensive bounds")
-        events.append(FundingEvent(coin, int(row["time"]), rate))
+    # Funding history can be capped per response. Query 14-day windows (about
+    # 336 hourly events) so long backtests do not silently stop at a page limit.
+    max_window_ms = 14 * 24 * 60 * 60 * 1000
+    events: list[FundingEvent] = []
+    cursor = int(start_ms)
+    while cursor <= int(end_ms):
+        chunk_end = min(cursor + max_window_ms, int(end_ms))
+        raw = post_json({
+            "type": "fundingHistory", "coin": coin,
+            "startTime": cursor, "endTime": chunk_end,
+        })
+        if not isinstance(raw, list):
+            raise ValueError("unexpected funding response: expected a list")
+        for row in raw:
+            if not isinstance(row, dict):
+                continue
+            rate = float(row["fundingRate"])
+            if not (-1.0 <= rate <= 1.0):
+                raise ValueError("funding rate outside defensive bounds")
+            timestamp_ms = int(row["time"])
+            if int(start_ms) <= timestamp_ms <= int(end_ms):
+                events.append(FundingEvent(coin, timestamp_ms, rate))
+        if chunk_end >= int(end_ms):
+            break
+        cursor = chunk_end + 1
     events.sort(key=lambda item: item.timestamp_ms)
     by_time = {item.timestamp_ms: item for item in events}
     return list(by_time.values())
