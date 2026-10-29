@@ -9,6 +9,7 @@ from tools.dual_regime_sma_offset import (
 )
 from tools.validate_protocol_lock import validate_protocol_lock
 from tools.evaluate_acceptance import evaluate
+from mi_core.costs import ROUND_TRIP_COST_PCT
 
 
 def bars(symbol, prices, start=1609459200000):
@@ -129,6 +130,9 @@ class DualRegimeTests(unittest.TestCase):
         lock = validate_protocol_lock()
         self.assertEqual(tuple(lock["execution_cost_policy"]["sensitivity_round_trip_pct"]), COSTS_PCT)
         self.assertEqual(lock["execution_cost_policy"]["project_default_round_trip_pct"], PRIMARY_COST_PCT)
+        self.assertEqual(ROUND_TRIP_COST_PCT, PRIMARY_COST_PCT)
+        self.assertEqual(lock["execution_cost_policy"]["strict_stress_round_trip_pct"], 0.45)
+        self.assertEqual(lock["execution_cost_policy"]["diagnostic_round_trip_pct"], [0.24, 0.12, 0.04])
         self.assertEqual(lock["execution_cost_policy"]["unit"],
                          "percent of entry notional, applied once per completed round trip")
 
@@ -144,7 +148,7 @@ class DualRegimeTests(unittest.TestCase):
     def test_acceptance_evaluator_fails_closed_without_portfolio_ci(self):
         lock = validate_protocol_lock()
         report = {
-            "protocol_id": "dual-regime-sma-offset-v2",
+            "protocol_id": "dual-regime-sma-offset-v4",
             "research_only": True, "live_orders": False,
             "cost_pct_round_trip": PRIMARY_COST_PCT,
             "cost_unit": lock["execution_cost_policy"]["unit"],
@@ -169,6 +173,12 @@ class DualRegimeTests(unittest.TestCase):
         result = evaluate(report, lock)
         self.assertEqual(result["acceptance"], "REJECT_OR_INSUFFICIENT_EVIDENCE")
         self.assertFalse(result["checks"]["positive_portfolio_return_and_ci"]["passed"])
+
+    def test_acceptance_evaluator_accepts_only_locked_base_or_strict_cost_rates(self):
+        lock = validate_protocol_lock()
+        self.assertTrue(evaluate({"cost_pct_round_trip": 0.15}, lock)["checks"]["expected_cost_is_locked_acceptance_rate"]["passed"])
+        self.assertTrue(evaluate({"cost_pct_round_trip": 0.45}, lock, expected_cost=0.45)["checks"]["expected_cost_is_locked_acceptance_rate"]["passed"])
+        self.assertFalse(evaluate({"cost_pct_round_trip": 0.24}, lock, expected_cost=0.24)["checks"]["expected_cost_is_locked_acceptance_rate"]["passed"])
 
     def test_cscv_pbo_calculates_for_three_variants_and_eight_windows(self):
         portfolio = {}
