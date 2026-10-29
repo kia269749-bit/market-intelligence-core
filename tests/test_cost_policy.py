@@ -1,6 +1,9 @@
 import unittest
 
 from mi_core.cost_policy import CostPolicy, DEFAULT_COST_POLICY
+from mi_core.economic_edge import diagnose_economic_edge
+from mi_core.real_validation import _directional_metrics
+from mi_core.validated_forecast import score_capital_targets
 
 
 class CostPolicyTests(unittest.TestCase):
@@ -20,6 +23,24 @@ class CostPolicyTests(unittest.TestCase):
     def test_reject_invalid_policy(self):
         with self.assertRaises(ValueError):
             CostPolicy(base_round_trip_pct=0.45, strict_round_trip_pct=0.15)
+
+    def test_oos_modules_use_central_base_default(self):
+        edge = diagnose_economic_edge({"predictions": [
+            {"pred": 1, "actual_return_pct": 1.0}
+        ]})
+        self.assertEqual(edge["thresholds"]["round_trip_cost_pct"], 0.15)
+
+        directional = _directional_metrics({"predictions": [
+            {"pred": 1, "actual_return_pct": 1.0}
+        ]})
+        self.assertAlmostEqual(directional["net_profit_usd"], 4.25)
+
+        capital = score_capital_targets({"predictions": [
+            {"pred": 1, "actual_return_pct": 1.0}
+        ]})
+        self.assertEqual(capital["min_required_move_pct"], 0.95)
+        self.assertTrue(capital["research_only"])
+        self.assertFalse(capital["live_orders"])
 
     def test_reject_negative_notional(self):
         with self.assertRaises(ValueError):
