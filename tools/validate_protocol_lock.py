@@ -84,7 +84,7 @@ def validate_protocol_lock(path: Path = LOCK_PATH) -> dict:
         raise ValueError("fail-closed stopping rule is missing")
     if lock.get("protocol_version") != "2026-10-29-v4":
         raise ValueError("protocol version must be bumped when the frozen policy changes")
-    if lock.get("status") != "LOCKED_FOR_NEXT_EXPERIMENT; historical results are exploratory":
+    if lock.get("status") != "LOCKED_FOR_V4_WFA; v3 execution remains unchanged and is not v4 evidence":
         raise ValueError("protocol status must clearly mark historical results exploratory")
     return lock
 
