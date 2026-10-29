@@ -277,7 +277,7 @@ def validate_candidate(bars, expected_symbol=None, costs=DEFAULT_COSTS, capital_
     if locked_baseline != ROUND_TRIP_COST_PCT:
         raise ValueError("protocol baseline mismatch with project cost policy")
     if not normalized_costs or locked_baseline not in normalized_costs or len(set(normalized_costs)) != len(normalized_costs) or not set(normalized_costs) <= allowed_costs:
-        raise ValueError("include the 0.15% project base; 0.45% is strict stress; 0.24%, 0.12%, and 0.04% are diagnostic-only")
+        raise ValueError("include the 0.15% project base; 0.45% is strict stress; 0.24%, 0.12%, and 0.04% are diagnostic-only; allowed sensitivity rates are locked in protocol v4")
     symbol, stamps = validate_bars(bars, expected_symbol)
     signals = build_signals(bars)
     years = {}
