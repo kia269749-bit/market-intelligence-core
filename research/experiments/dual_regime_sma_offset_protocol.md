@@ -3,12 +3,12 @@
 - Protocol ID: `dual-regime-sma-offset-v4`
 - Frozen on: 2026-10-29 UTC
 - Status: `PREREGISTERED_FOR_EXPLORATORY_WALK_FORWARD`
-- Research branch: `audit/cost-provenance-20261028`
+- Research branch: `audit/cost-policy-v4-015-045`
 - Scope: research only. No live orders, no production strategy replacement, no main merge authorized by this protocol.
 
 ## Protocol version change rationale
 
-Version v3 (the preceding protocol) remains immutable and its running evaluation is not modified by v4. Version v4 changes the cost policy and corresponding acceptance wiring prospectively, as requested. No v3 output may be re-labelled as v4 evidence. The v3 methodology history is retained here for audit: (1) bind all cost scenarios to the machine-readable lock and verify the simulator formula against its round-trip entry-notional definition; (2) make the acceptance gate executable and fail-closed; (3) add portfolio-level paired comparisons, risk-matched Buy & Hold, corrected block-bootstrap bounds/p-values, and an exploratory CSCV/PBO diagnostic; (4) freeze the as-of cutoff and hash every input file, the lock, and simulator. Prior runs on earlier SHAs (including `a902d409` and `99429b76`) are superseded implementation checks and must not be pooled with or cited as results for v3. The first v3 run on its final SHA is the only run eligible for this version's gate. This is still retrospective proxy research, not a virgin holdout or target-market validation.
+Version v3 (the preceding protocol) remains immutable and its running evaluation is not modified by v4. Version v4 changes the cost policy and corresponding acceptance wiring prospectively, as requested. No v3 output may be re-labelled as v4 evidence. The v3 methodology history is retained here for audit: (1) bind all cost scenarios to the machine-readable lock and verify the simulator formula against its round-trip entry-notional definition; (2) make the acceptance gate executable and fail-closed; (3) add portfolio-level paired comparisons, risk-matched Buy & Hold, corrected block-bootstrap bounds/p-values, and an exploratory CSCV/PBO diagnostic; (4) freeze the as-of cutoff and hash every input file, the lock, and simulator. Prior runs on earlier SHAs (including `a902d409` and `99429b76`) are superseded implementation checks and must not be pooled with or cited as results for v3. The first v3 run on its final SHA was eligible only for the v3 gate. This is still retrospective proxy research, not a virgin holdout or target-market validation.
 
 ## 1. Research question and hypothesis
 
@@ -88,7 +88,7 @@ Per asset, portfolio and OOS window report: net return, annualized Sharpe and So
 
 Research candidate is rejected for this protocol if any of these hold:
 - fewer than eight non-overlapping portfolio OOS windows have positive net returns, or fewer than eight portfolio windows are available;
-- aggregate net expectancy at 0.24% is <= 0;
+- aggregate net expectancy at either the 0.15% base or 0.45% strict-stress acceptance rate is <= 0;
 - compounded equal-weight portfolio maximum drawdown exceeds 25%;
 - the one-sided circular block-bootstrap lower confidence bound for primary portfolio return is not above zero;
 - the Bonferroni-corrected block-bootstrap lower confidence bound or adjusted p-value fails for candidate-minus-risk-matched-EMA, risk-matched Buy & Hold, or random-median return;\n- CSCV/PBO is unavailable or PBO is not below 30%;
