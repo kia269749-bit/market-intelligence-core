@@ -5,7 +5,10 @@ from types import SimpleNamespace
 from tools.dual_regime_sma_offset import (
     UNIVERSE, align_universe, build_candidate_signals, build_regime,
     simulate, random_matched_signals, validate_contiguous_timestamps,
+    COSTS_PCT, PRIMARY_COST_PCT,
 )
+from tools.validate_protocol_lock import validate_protocol_lock
+from tools.evaluate_acceptance import evaluate
 
 
 def bars(symbol, prices, start=1609459200000):
@@ -121,6 +124,51 @@ class DualRegimeTests(unittest.TestCase):
             atr_at_signal = atr(rows)[idx - 1]
             risk_per_unit = 2 * atr_at_signal + trade["entry"] * (0.24 / 100.0)
             self.assertLessEqual(trade["qty"] * risk_per_unit, 5.000001)
+
+    def test_locked_cost_scenarios_match_simulator_and_protocol_unit(self):
+        lock = validate_protocol_lock()
+        self.assertEqual(tuple(lock["execution_cost_policy"]["sensitivity_round_trip_pct"]), COSTS_PCT)
+        self.assertEqual(lock["execution_cost_policy"]["project_default_round_trip_pct"], PRIMARY_COST_PCT)
+        self.assertEqual(lock["execution_cost_policy"]["unit"],
+                         "percent of entry notional, applied once per completed round trip")
+
+    def test_aggregate_round_trip_cost_is_charged_once_on_entry_notional(self):
+        rows = bars("BTCUSDT", [100.0] * 40)
+        result = simulate(
+            rows, [True] * len(rows), cost_pct=PRIMARY_COST_PCT, initial_equity=500.0,
+            use_risk=False, use_stops=False, use_trailing=False,
+            use_time_exit=False, circuit_breaker=False,
+        )
+        self.assertAlmostEqual(result["cost_total_usd"], 500.0 * PRIMARY_COST_PCT / 100.0, places=6)
+
+    def test_acceptance_evaluator_fails_closed_without_portfolio_ci(self):
+        lock = validate_protocol_lock()
+        report = {
+            "protocol_id": "dual-regime-sma-offset-v2",
+            "research_only": True, "live_orders": False,
+            "cost_pct_round_trip": PRIMARY_COST_PCT,
+            "cost_unit": lock["execution_cost_policy"]["unit"],
+            "reproducibility": {
+                "as_of_utc": "2026-10-29T00:00:00Z",
+                "protocol_lock_sha256": "a" * 64, "simulator_sha256": "b" * 64,
+                "data_sha256": {f"ASSET{i}": "c" * 64 for i in range(20)},
+            },
+            "portfolio_results": {"0.05": {
+                "window_count": 8,
+                "equal_weight_mean_candidate_return_pct_per_window": 1.0,
+                "candidate_return_ci_lower_pct_bonferroni_block_bootstrap": None,
+                "candidate_minus_ema_ci_lower_pct_bonferroni_block_bootstrap": 0.2,
+                "candidate_minus_random_median_ci_lower_pct_bonferroni_block_bootstrap": 0.1,
+                "max_drawdown_pct_compounded_equal_weight_windows": 10.0,
+                "multiple_comparison_method": "Bonferroni circular block bootstrap",
+                "bootstrap_samples": 10000, "block_length_windows": 2,
+                "windows": [{"candidate_return_pct": 1.0, "candidate_trade_count": 1,
+                             "candidate_net_pnl_usd": 1.0} for _ in range(8)],
+            }},
+        }
+        result = evaluate(report, lock)
+        self.assertEqual(result["acceptance"], "REJECT_OR_INSUFFICIENT_EVIDENCE")
+        self.assertFalse(result["checks"]["positive_portfolio_return_and_ci"]["passed"])
 
 
 if __name__ == "__main__":
