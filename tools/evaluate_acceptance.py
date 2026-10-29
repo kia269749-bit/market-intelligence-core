@@ -61,12 +61,16 @@ def evaluate(report: dict, lock: dict) -> dict:
 
     ema_lower = portfolio.get("candidate_minus_ema_ci_lower_pct_bonferroni_block_bootstrap")
     random_lower = portfolio.get("candidate_minus_random_median_ci_lower_pct_bonferroni_block_bootstrap")
+    buyhold_lower = portfolio.get("candidate_minus_buy_hold_risk_matched_ci_lower_pct_bonferroni_block_bootstrap")
     check("beats_risk_matched_ema",
           isinstance(ema_lower, (int, float)) and ema_lower > 0,
           f"corrected lower bound of paired candidate-minus-risk-matched-EMA return={ema_lower}")
     check("beats_random_median",
           isinstance(random_lower, (int, float)) and random_lower > 0,
           f"corrected lower bound of paired candidate-minus-random-median return={random_lower}")
+    check("beats_risk_matched_buy_and_hold",
+          isinstance(buyhold_lower, (int, float)) and buyhold_lower > 0,
+          f"corrected lower bound of paired candidate-minus-risk-matched-buy-and-hold return={buyhold_lower}")
 
     max_dd = portfolio.get("max_drawdown_pct_compounded_equal_weight_windows")
     check("drawdown_limit", isinstance(max_dd, (int, float)) and max_dd <= criteria["max_drawdown_pct"],

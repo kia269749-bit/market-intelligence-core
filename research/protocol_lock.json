@@ -76,7 +76,8 @@
     "require_positive_portfolio_ci_lower_bound": true,
     "require_positive_ci_lower_bound_vs_risk_matched_ema": true,
     "require_positive_ci_lower_bound_vs_random_median": true,
-    "multiple_comparison_method": "one-sided circular block bootstrap with Bonferroni alpha=0.05/6 across three offsets and two baseline comparisons"
+    "multiple_comparison_method": "one-sided circular block bootstrap with Bonferroni alpha=0.05/9 across three offsets and three baseline comparisons",
+    "require_positive_ci_lower_bound_vs_risk_matched_buy_and_hold": true
   },
   "stopping_rule": {
     "if_positive_oos_windows_is_zero_and_net_expectancy_is_negative": "REJECT_CURRENT_HYPOTHESIS",

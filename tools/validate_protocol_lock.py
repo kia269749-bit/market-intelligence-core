@@ -60,7 +60,7 @@ def validate_protocol_lock(path: Path = LOCK_PATH) -> dict:
         raise ValueError("portfolio minimum OOS window count must be at least eight")
     if acceptance.get("bootstrap_samples") != 10000 or acceptance.get("block_bootstrap_length_windows") != 2:
         raise ValueError("block-bootstrap settings changed without protocol review")
-    if acceptance.get("multiple_comparison_method") != "one-sided circular block bootstrap with Bonferroni alpha=0.05/6 across three offsets and two baseline comparisons":
+    if acceptance.get("multiple_comparison_method") != "one-sided circular block bootstrap with Bonferroni alpha=0.05/9 across three offsets and three baseline comparisons":
         raise ValueError("multiple-comparison correction is not locked")
     if acceptance.get("min_net_expectancy_usd_per_trade") != 0:
         raise ValueError("minimum net expectancy changed")

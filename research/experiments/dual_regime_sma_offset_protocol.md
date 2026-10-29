@@ -59,7 +59,7 @@ Long-only; no shorting in v1. Trend condition: asset SMA(20) > SMA(50). A pullba
 ## 4. Frozen baselines and comparisons
 
 On identical data, timestamps, execution timing and cost policy, report:
-1. Buy & Hold per asset and equally weighted portfolio (rebalance only at each OOS window start; state exact implementation).
+1. Raw Buy & Hold per asset and equally weighted portfolio (rebalance only at each OOS window start), plus a separate Buy & Hold signal with the candidate risk/execution overlay for risk-matched comparison.
 2. EMA12/26 with the same risk sizing, initial/trailing stop, time exit and circuit breaker as the candidate, for signal-quality comparison. A raw un-managed EMA12/26 report is retained separately and is not treated as an execution-matched comparison.
 3. Seeded Random Matched Trade Count comparator. Match candidate position-change count per scored window; report seed and explicitly label this comparator post-hoc/diagnostic, not a clean prospective rule. Statistical comparison must use a distribution of seeded randomized paths, not a single random path.
 4. Dual Regime SMA Offset (fixed 5% primary, no ATR sizing/trailing stop; simple fixed notional, for ablation).
@@ -87,7 +87,7 @@ Research candidate is rejected for this protocol if any of these hold:
 - aggregate net expectancy at 0.24% is <= 0;
 - compounded equal-weight portfolio maximum drawdown exceeds 25%;
 - the one-sided circular block-bootstrap lower confidence bound for primary portfolio return is not above zero;
-- the Bonferroni-corrected block-bootstrap lower confidence bound for candidate-minus-risk-matched-EMA or candidate-minus-random-median return is not above zero;
+- the Bonferroni-corrected block-bootstrap lower confidence bound for candidate-minus-risk-matched-EMA, risk-matched Buy & Hold, or random-median return is not above zero;
 - aggregate net expectancy across the portfolio windows is not positive;
 - the candidate does not outperform simple EMA12/26 and the randomized comparator on the predeclared primary metric after multiple-comparison correction;
 - the confidence interval for net expectancy includes zero;

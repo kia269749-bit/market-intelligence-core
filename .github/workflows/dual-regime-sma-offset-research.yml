@@ -35,6 +35,10 @@ on:
 env:
   AS_OF_UTC: ${{ github.event.inputs.as_of || '2026-10-29T00:00:00Z' }}
 
+concurrency:
+  group: dual-regime-sma-offset-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

@@ -360,6 +360,9 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
                 buyhold_result = simulate(sub_rows, [True] * len(sub_rows), cost_pct=cost_pct,
                                           use_risk=False, use_stops=False, use_trailing=False,
                                           use_time_exit=False, circuit_breaker=False)
+                buyhold_risk_matched = simulate(sub_rows, [True] * len(sub_rows), cost_pct=cost_pct,
+                                                use_risk=True, use_stops=True, use_trailing=True,
+                                                use_time_exit=True, circuit_breaker=True)
                 random_results = []
                 transition_count = min(2 * candidate["trade_count"], max(0, len(sub_rows) - 2))
                 for seed in range(1000):
@@ -376,7 +379,8 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
                     "dual_regime_sma_offset_simple": {k: v for k, v in simple_candidate.items() if k != "trades"},
                     "ema12_26_risk_matched": {k: v for k, v in ema_result.items() if k != "trades"},
                     "ema12_26_raw": {k: v for k, v in ema_raw_result.items() if k != "trades"},
-                    "buy_and_hold": {k: v for k, v in buyhold_result.items() if k != "trades"},
+                    "buy_and_hold_raw": {k: v for k, v in buyhold_result.items() if k != "trades"},
+                    "buy_and_hold_risk_matched": {k: v for k, v in buyhold_risk_matched.items() if k != "trades"},
                     "random_1000_return_pct_p05_median_p95": {
                         "p05": random_returns[49], "median": random_returns[499], "p95": random_returns[949]},
                     "random_empirical_p_value_one_sided": round(p_emp, 5),
@@ -398,7 +402,8 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
             candidate_returns = [float(w["candidate"]["net_return_pct"]) for w in entries]
             ema_returns = [float(w["ema12_26_risk_matched"]["net_return_pct"]) for w in entries]
             random_returns = [float(w["random_1000_return_pct_p05_median_p95"]["median"]) for w in entries]
-            buyhold_returns = [float(w["buy_and_hold"]["net_return_pct"]) for w in entries]
+            buyhold_returns = [float(w["buy_and_hold_raw"]["net_return_pct"]) for w in entries]
+            buyhold_risk_matched_returns = [float(w["buy_and_hold_risk_matched"]["net_return_pct"]) for w in entries]
             candidate_trade_counts = [int(w["candidate"]["trade_count"]) for w in entries]
             candidate_net_pnls = [float(w["candidate"]["net_pnl_usd"]) for w in entries]
             candidate_trade_count = sum(candidate_trade_counts)
@@ -413,12 +418,15 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
                 "ema_risk_matched_return_pct": mean(ema_returns),
                 "random_median_return_pct": mean(random_returns),
                 "buy_and_hold_raw_return_pct": mean(buyhold_returns),
+                "buy_and_hold_risk_matched_return_pct": mean(buyhold_risk_matched_returns),
                 "candidate_minus_ema_pct": mean(candidate_returns) - mean(ema_returns),
                 "candidate_minus_random_median_pct": mean(candidate_returns) - mean(random_returns),
+                "candidate_minus_buy_hold_risk_matched_pct": mean(candidate_returns) - mean(buyhold_risk_matched_returns),
             })
         candidate_values = [w["candidate_return_pct"] for w in rows_out]
         ema_diffs = [w["candidate_minus_ema_pct"] for w in rows_out]
         random_diffs = [w["candidate_minus_random_median_pct"] for w in rows_out]
+        buyhold_diffs = [w["candidate_minus_buy_hold_risk_matched_pct"] for w in rows_out]
         equity, peak, max_dd = 1.0, 1.0, 0.0
         for value in candidate_values:
             equity *= max(0.0, 1.0 + value / 100.0)
@@ -431,8 +439,9 @@ def run_walk_forward(bars_by_symbol, *, cost_pct=0.24, offsets=CANDIDATE_OFFSETS
             "candidate_return_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(candidate_values, seed=20261029 + int(offset * 100)),
             "candidate_minus_ema_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(ema_diffs, seed=20262029 + int(offset * 100)),
             "candidate_minus_random_median_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(random_diffs, seed=20263029 + int(offset * 100)),
+            "candidate_minus_buy_hold_risk_matched_ci_lower_pct_bonferroni_block_bootstrap": _block_bootstrap_lower_bound(buyhold_diffs, seed=20264029 + int(offset * 100)),
             "max_drawdown_pct_compounded_equal_weight_windows": round(max_dd * 100.0, 4),
-            "multiple_comparison_method": "one-sided circular block bootstrap; Bonferroni alpha=0.05/6 across 3 offsets x 2 baseline comparisons",
+            "multiple_comparison_method": "one-sided circular block bootstrap; Bonferroni alpha=0.05/9 across 3 offsets x 3 baseline comparisons",
             "block_length_windows": 2, "bootstrap_samples": 10000,
             "windows": rows_out,
         }
