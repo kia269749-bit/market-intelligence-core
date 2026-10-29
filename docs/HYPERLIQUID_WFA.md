@@ -13,7 +13,7 @@ The example dates are an example range only. Do not treat the command as proof t
 ## Primary itemized cost model
 
 - **Fees:** defaults to the public base-tier perpetual rate, 0.045% per taker side or 0.015% per maker side. Actual account fee tier, referral/staking discounts, maker rebates, and execution type may differ. Override these assumptions when verified account-specific rates are available.
-- **Funding:** uses historical fundingHistory events in the position's actual holding interval. Positive funding is a cost to a long and a credit to a short; negative funding reverses that direction.
+- **Funding:** uses historical fundingHistory events in the position's actual holding interval. Requests are chunked into 14-day windows to avoid a per-response event cap silently truncating long ranges. The report checks funding coverage separately from candle coverage. Positive funding is a cost to a long and a credit to a short; negative funding reverses that direction.
 - **Funding price limitation:** Hyperliquid funding uses oracle-price notional. The candle endpoint does not supply historical oracle price for each event, so this implementation uses the nearest prior candle close as a clearly labelled proxy. Results are not oracle-exact.
 - **Slippage limitation:** slippage_bps_per_side is an explicit model assumption, not observed historical execution slippage. Candle OHLC data alone cannot reconstruct historical bid/ask depth or actual fills. Do not describe this as measured slippage.
 - **No double counting:** itemized fees + slippage + funding are the primary net-return estimate. Fixed 0.15% base and 0.45% strict cost cases are reported separately as sensitivity diagnostics and are not added to the itemized costs.
