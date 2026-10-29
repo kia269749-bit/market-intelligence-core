@@ -98,6 +98,57 @@ class HyperliquidDataTests(unittest.TestCase):
         self.assertEqual(a["n_trades"], 5)
         self.assertEqual(a["status"], "OK")
 
+    def test_bootstrap_uses_calendar_days_across_gaps(self):
+        day = 86_400_000
+        observations = [
+            (1 * day, 1.0),
+            (1 * day + 1, 3.0),
+            (4 * day, -2.0),
+            (8 * day, 4.0),
+        ]
+        for block_days in (1, 3, 7):
+            with self.subTest(block_days=block_days):
+                result = daily_block_bootstrap_mean_ci(
+                    observations,
+                    n_resamples=500,
+                    seed=20261029,
+                    block_days=block_days,
+                )
+                self.assertEqual(result["status"], "OK")
+                self.assertEqual(result["n_days"], 3)
+                self.assertEqual(result["n_calendar_days"], 8)
+                self.assertEqual(result["block_days"], block_days)
+                self.assertEqual(
+                    result["effective_block_days"], min(block_days, 8)
+                )
+                self.assertEqual(result["resamples"], 500)
+
+    def test_bootstrap_calendar_gap_changes_multiday_timeline(self):
+        day = 86_400_000
+        contiguous = [
+            (1 * day, 1.0),
+            (2 * day, -1.0),
+            (3 * day, 2.0),
+        ]
+        with_gap = [
+            (1 * day, 1.0),
+            (4 * day, -1.0),
+            (8 * day, 2.0),
+        ]
+        contiguous_result = daily_block_bootstrap_mean_ci(
+            contiguous, n_resamples=500, seed=11, block_days=3
+        )
+        gap_result = daily_block_bootstrap_mean_ci(
+            with_gap, n_resamples=500, seed=11, block_days=3
+        )
+        self.assertEqual(contiguous_result["n_calendar_days"], 3)
+        self.assertEqual(gap_result["n_calendar_days"], 8)
+        self.assertEqual(contiguous_result["effective_block_days"], 3)
+        self.assertEqual(gap_result["effective_block_days"], 3)
+        self.assertNotEqual(
+            contiguous_result["ci_low_pct"], gap_result["ci_low_pct"]
+        )
+
     def test_bootstrap_marks_single_day_insufficient(self):
         result = daily_block_bootstrap_mean_ci(
             [(1_000, 0.5), (2_000, -0.2)], n_resamples=500
