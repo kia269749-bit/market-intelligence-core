@@ -1,6 +1,6 @@
 # Dual Regime SMA Offset: Preregistered Research Protocol
 
-- Protocol ID: `dual-regime-sma-offset-v3`
+- Protocol ID: `dual-regime-sma-offset-v4`
 - Frozen on: 2026-10-29 UTC
 - Status: `PREREGISTERED_FOR_EXPLORATORY_WALK_FORWARD`
 - Research branch: `audit/cost-provenance-20261028`
@@ -8,11 +8,11 @@
 
 ## Protocol version change rationale
 
-Version v3 supersedes v2 for methodological and reproducibility reasons, not because a prior strategy result was favorable: (1) bind all cost scenarios to the machine-readable lock and verify the simulator formula against its round-trip entry-notional definition; (2) make the acceptance gate executable and fail-closed; (3) add portfolio-level paired comparisons, risk-matched Buy & Hold, corrected block-bootstrap bounds/p-values, and an exploratory CSCV/PBO diagnostic; (4) freeze the as-of cutoff and hash every input file, the lock, and simulator. Prior runs on earlier SHAs (including `a902d409` and `99429b76`) are superseded implementation checks and must not be pooled with or cited as results for v3. The first v3 run on its final SHA is the only run eligible for this version's gate. This is still retrospective proxy research, not a virgin holdout or target-market validation.
+Version v3 (the preceding protocol) remains immutable and its running evaluation is not modified by v4. Version v4 changes the cost policy and corresponding acceptance wiring prospectively, as requested. No v3 output may be re-labelled as v4 evidence. The v3 methodology history is retained here for audit: (1) bind all cost scenarios to the machine-readable lock and verify the simulator formula against its round-trip entry-notional definition; (2) make the acceptance gate executable and fail-closed; (3) add portfolio-level paired comparisons, risk-matched Buy & Hold, corrected block-bootstrap bounds/p-values, and an exploratory CSCV/PBO diagnostic; (4) freeze the as-of cutoff and hash every input file, the lock, and simulator. Prior runs on earlier SHAs (including `a902d409` and `99429b76`) are superseded implementation checks and must not be pooled with or cited as results for v3. The first v3 run on its final SHA is the only run eligible for this version's gate. This is still retrospective proxy research, not a virgin holdout or target-market validation.
 
 ## 1. Research question and hypothesis
 
-Primary hypothesis: a long-only Dual Regime SMA Offset strategy has positive net expectancy after the locked 0.24% round-trip cost and improves risk-adjusted performance versus Buy & Hold, simple EMA12/26, and a seeded random comparator with matched position-change count.
+Primary hypothesis: a long-only Dual Regime SMA Offset strategy has positive net expectancy after the locked 0.15% base round-trip cost and the 0.45% strict-stress round-trip cost and improves risk-adjusted performance versus Buy & Hold, simple EMA12/26, and a seeded random comparator with matched position-change count.
 
 Null: after realistic costs and next-bar execution, the candidate does not outperform these baselines reliably. External rankings and published results are motivation only, not evidence for this repo.
 
@@ -70,7 +70,7 @@ On identical data, timestamps, execution timing and cost policy, report:
 5. Dual Regime SMA Offset + causal ATR sizing + initial/trailing stop + time exit + circuit breaker (full candidate).
 6. Offset 3% and 7% variants only for the preregistered small-family robustness/PBO analysis.
 
-All use 0.24% aggregate round-trip cost as the primary case. The rate is applied once to entry notional per completed trade, including stop exits and window-end exits. It is not split between entry and exit notionals. 0.12% and 0.04% are annex-only sensitivity scenarios; never promote either to the headline case or call them verified account costs.
+The 0.15% base case and 0.45% strict-stress case are both mandatory acceptance gates, run separately with the same frozen data snapshot, signals, and simulator. The rate is applied once to entry notional per completed trade, including stop exits and window-end exits; it is not split between entry and exit notionals. 0.24%, 0.12%, and 0.04% are diagnostic-only comparisons and can never satisfy either acceptance gate or be presented as the headline result. None of these assumed rates is a verified account-specific realized cost.
 
 ## 5. Metrics
 
@@ -125,3 +125,14 @@ Passing these gates means only “eligible for a separate target-market validati
 6. Review results before deciding whether a separately frozen Hyperliquid Perpetuals test is justified.
 
 The CI workflow runs focused tests on pull requests and the full exploratory WFA on pushes to `audit/**` when relevant paths change. The workflow also exposes a manual dispatch input, but it is not available in GitHub's UI until the workflow is present on the default branch. No main merge, live orders, protected-service changes, or Termux deployment are authorized by this protocol.
+
+
+## v4 cost-policy freeze and evidence separation
+
+- Protocol version: `2026-10-29-v4`; this version supersedes v3 for new evaluation only.
+- Base acceptance gate: `0.15%` full round-trip cost applied once to entry notional.
+- Mandatory strict-stress acceptance gate: `0.45%` full round-trip cost applied once to entry notional. Both gates must pass independently; a pass at the base rate cannot substitute for a stress failure.
+- Diagnostic-only rates: `0.24%`, `0.12%`, and `0.04%`. They are not acceptance rates.
+- The central setting `mi_core.costs.ROUND_TRIP_COST_PCT`, the machine-readable lock, simulator, validator, evaluator, workflow, and tests must agree. CI fails closed on mismatch.
+- The already-running v3 WFA SHA `ae33772aa9b5f111dfcb8e9a4c60c6b3cef09e97` is not changed and cannot be cited as v4 evidence. V4 requires its own run and hashes on the new branch.
+- This remains retrospective Binance Spot proxy research. Even two passing gates only qualify the hypothesis for separate target-market validation; they do not establish Hyperliquid Perpetuals profitability or authorize live orders.
