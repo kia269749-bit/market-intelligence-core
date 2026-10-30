@@ -41,7 +41,9 @@ def compare_oos_baselines(result, *, cost_policy="strict", capital_usd=500.0, ho
     rows.sort(key=lambda x: x[0])
     if horizon_bars is None: horizon_bars = int(result.get("horizon_bars", 1))
     if isinstance(horizon_bars, bool) or int(horizon_bars) < 1: raise ValueError("horizon_bars must be positive")
-    interval_ms = int(result.get("bar_interval_ms", 60_000))
+    inferred_deltas = [b[0] - a[0] for a, b in zip(rows, rows[1:]) if b[0] > a[0]]
+    inferred_interval = sorted(inferred_deltas)[len(inferred_deltas)//2] if inferred_deltas else 60_000
+    interval_ms = int(result.get("bar_interval_ms", inferred_interval))
     if interval_ms <= 0: raise ValueError("bar_interval_ms must be positive")
     selected, next_allowed = [], None
     for row in rows:
