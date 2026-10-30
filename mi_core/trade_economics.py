@@ -24,9 +24,14 @@ class CapitalTarget:
 def evaluate_capital_target(
     expected_move_pct, capital_usd=500.0, min_profit_usd=4.0,
     preferred_profit_usd=10.0, *, cost_policy="base",
-    round_trip_cost_pct=None,
+    round_trip_cost_pct=None, exchange=None, order_type=None,
 ):
-    """Evaluate a forecast move; research policy and explicit override are exclusive."""
+    """Evaluate a forecast move; research policy and explicit override are exclusive.
+
+    exchange/order_type are accepted only for legacy call compatibility and do
+    not select venue fee schedules. Use explicit round_trip_cost_pct overrides
+    or the central base/strict research policy instead.
+    """
     values = (expected_move_pct, capital_usd, min_profit_usd, preferred_profit_usd)
     try:
         nums = [float(x) if not isinstance(x, bool) else math.nan for x in values]
