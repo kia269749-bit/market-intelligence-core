@@ -1,0 +1,29 @@
+name: Platform Core Tests
+
+on:
+  push:
+    branches:
+      - feat/platform-core-foundation-20261030
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  platform-core:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - name: Checkout isolated platform branch
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run platform core unit tests
+        run: python -m unittest tests.test_platform_core -v
