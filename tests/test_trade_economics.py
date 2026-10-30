@@ -29,9 +29,15 @@ class CapitalEconomicsTests(unittest.TestCase):
             evaluate_capital_target(1.2, cost_policy="hyperliquid_perps")
 
     def test_invalid_inputs_rejected(self):
-        for value in (True, float("nan"), float("inf"), -1):
+        for value in (True, float("nan"), float("inf")):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 evaluate_capital_target(value)
+        with self.assertRaises(ValueError):
+            evaluate_capital_target(1.0, capital_usd=-1)
+        with self.assertRaises(ValueError):
+            evaluate_capital_target(1.0, min_profit_usd=-1)
+        with self.assertRaises(ValueError):
+            evaluate_capital_target(1.0, min_profit_usd=10, preferred_profit_usd=4)
 
 
 if __name__ == "__main__":
