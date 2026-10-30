@@ -261,6 +261,7 @@ def main(argv=None):
     ap.add_argument("--horizon", type=int, default=60)
     ap.add_argument("--horizons", default="", help="comma-separated horizons; <60 bars are diagnostic-only")
     ap.add_argument("--min-samples", type=int, default=100)
+    ap.add_argument("--cost-policy", choices=("base", "strict"), default="base")
     ap.add_argument("--out", default="")
     args = ap.parse_args(argv)
 
@@ -271,6 +272,7 @@ def main(argv=None):
         horizon=args.horizon,
         min_samples=args.min_samples,
         horizons=[int(x) for x in args.horizons.split(",") if x.strip()] or None,
+        cost_policy=args.cost_policy,
     )
     payload = json.dumps(result, indent=2, ensure_ascii=False)
     if args.out:
