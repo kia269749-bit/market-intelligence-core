@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
+from .costs import get_round_trip_cost_pct
 from .economic_edge import diagnose_economic_edge
 SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
 
@@ -29,7 +30,9 @@ def _num(v, default=0.0):
         return default
 
 
-def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
+def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=None, *, cost_policy="base"):
+    if round_trip_cost_pct is None:
+        round_trip_cost_pct = get_round_trip_cost_pct(cost_policy)
     rows = [
         r for r in result.get("predictions", [])
         if r.get("actual_return_pct") is not None and r.get("pred") in (-1, 1)
@@ -210,8 +213,20 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
 def validate_project60(
     path, top_n=10, max_rows=800, horizon=60, min_samples=100,
     capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
-    round_trip_cost_pct=0.35, horizons=None,
+    round_trip_cost_pct=None, horizons=None, *, cost_policy="base",
 ):
+    if round_trip_cost_pct is None:
+        round_trip_cost_pct = get_round_trip_cost_pct(cost_policy)
+    else:
+        if isinstance(round_trip_cost_pct, bool):
+            raise ValueError("round_trip_cost_pct must be finite and non-negative")
+        import math
+        try:
+            round_trip_cost_pct = float(round_trip_cost_pct)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("round_trip_cost_pct must be finite and non-negative") from None
+        if not math.isfinite(round_trip_cost_pct) or round_trip_cost_pct < 0:
+            raise ValueError("round_trip_cost_pct must be finite and non-negative")
     series = load_project60_assets(path, max_rows=max_rows)
     ranked = [x for x in rank_assets(series, min_samples=max(60, min_samples))
               if x["symbol"] in series]
@@ -234,7 +249,7 @@ def validate_project60(
         "signal_horizon_policy": {"minimum_signal_horizon_bars": SHORT_HORIZON_SIGNAL_CUTOFF, "shorter_horizons": "diagnostic_only"},
         "policy": {"capital_usd": capital_usd, "min_profit_usd": min_profit_usd,
                    "preferred_profit_usd": preferred_profit_usd,
-                   "round_trip_cost_pct": round_trip_cost_pct},
+                   "round_trip_cost_pct": round_trip_cost_pct, "cost_policy": cost_policy if round_trip_cost_pct == get_round_trip_cost_pct(cost_policy) else "explicit_override"},
         "research_only": True, "live_orders": False,
     }
 
