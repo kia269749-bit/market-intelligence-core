@@ -333,8 +333,29 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
     }
 
 
-def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
-    """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
+def score_capital_targets(
+    result, capital_usd=500.0, min_profit_usd=4.0,
+    preferred_profit_usd=10.0, round_trip_cost_pct=None, *, cost_policy="base",
+):
+    """Score OOS directional predictions using one explicit cost convention.
+
+    By default, use the central research policy (base/strict). The legacy
+    round_trip_cost_pct argument remains an explicit compatibility override.
+    """
+    from .costs import get_round_trip_cost_pct
+
+    if round_trip_cost_pct is None:
+        round_trip_cost_pct = get_round_trip_cost_pct(cost_policy)
+    else:
+        if isinstance(round_trip_cost_pct, bool):
+            raise ValueError("round_trip_cost_pct must be a finite non-negative number")
+        try:
+            round_trip_cost_pct = float(round_trip_cost_pct)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("round_trip_cost_pct must be a finite non-negative number") from None
+        import math
+        if not math.isfinite(round_trip_cost_pct) or round_trip_cost_pct < 0:
+            raise ValueError("round_trip_cost_pct must be a finite non-negative number")
     rows = [
         x for x in result.get("predictions", [])
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
