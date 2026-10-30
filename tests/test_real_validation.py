@@ -110,6 +110,19 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(result["policy"]["preferred_profit_usd"], 10.0)
 
 
+    def test_validation_uses_selected_central_cost_policy(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "market.jsonl"
+            path.write_text("", encoding="utf-8")
+            with patch("mi_core.real_validation.load_project60_assets", return_value={}):
+                with patch("mi_core.real_validation.rank_assets", return_value=[]):
+                    base = validate_project60(str(path), cost_policy="base")
+                    strict = validate_project60(str(path), cost_policy="strict")
+        self.assertEqual(base["policy"]["round_trip_cost_pct"], 0.15)
+        self.assertEqual(strict["policy"]["round_trip_cost_pct"], 0.45)
+        self.assertEqual(base["policy"]["cost_policy"], "base")
+        self.assertEqual(strict["policy"]["cost_policy"], "strict")
+
     def test_short_horizon_is_diagnostic_only(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "market.jsonl"
