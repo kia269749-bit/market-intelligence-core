@@ -69,7 +69,7 @@ def write_jsonl(rows, symbol, interval, output):
                 "coins": {asset: {"price": close, "open": o, "high": h,
                                   "low": low, "close": close, "volume": volume}},
             }
-            handle.write(json.dumps(item, separators=(",", ":")) + "\\n")
+            handle.write(json.dumps(item, separators=(",", ":")) + "\n")
     return path
 
 
