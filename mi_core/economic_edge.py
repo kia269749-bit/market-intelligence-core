@@ -7,6 +7,7 @@ it never creates, approves, or blocks live orders.
 from __future__ import annotations
 
 from collections import defaultdict
+from .costs import get_round_trip_cost_pct
 
 
 def _num(v, default=0.0):
@@ -38,12 +39,24 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.35,
+    round_trip_cost_pct=None,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
 ):
-    """Explain where OOS economics succeed or fail."""
+    """Explain OOS economics under the central research cost policy."""
+    if round_trip_cost_pct is None:
+        round_trip_cost_pct = get_round_trip_cost_pct("base")
+    else:
+        if isinstance(round_trip_cost_pct, bool):
+            raise ValueError("round_trip_cost_pct must be finite and non-negative")
+        import math
+        try:
+            round_trip_cost_pct = float(round_trip_cost_pct)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("round_trip_cost_pct must be finite and non-negative") from None
+        if not math.isfinite(round_trip_cost_pct) or round_trip_cost_pct < 0:
+            raise ValueError("round_trip_cost_pct must be finite and non-negative")
     rows = _directional_rows(result)
     min_required = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
     preferred_required = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
