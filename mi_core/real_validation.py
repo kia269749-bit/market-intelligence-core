@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
 from .costs import get_round_trip_cost_pct
+from .oos_benchmark import compare_oos_baselines
 from .economic_edge import diagnose_economic_edge
 SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
 
@@ -174,6 +175,8 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         economic_metrics = _directional_metrics(result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
         path_metrics = _path_excursion_metrics(result)
+        baseline_base = compare_oos_baselines(result, cost_policy="base", capital_usd=capital_usd, horizon_bars=horizon)
+        baseline_strict = compare_oos_baselines(result, cost_policy="strict", capital_usd=capital_usd, horizon_bars=horizon)
         edge_diagnostic = diagnose_economic_edge(
             result,
             capital_usd=capital_usd,
@@ -199,6 +202,7 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "path_metrics": path_metrics,
+            "oos_benchmarks": {"base": baseline_base, "strict": baseline_strict},
             "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
         })
