@@ -32,13 +32,15 @@ class TestValidatedForecast(unittest.TestCase):
         result = {
             "horizon_bars": 60,
             "predictions": [
-                {"pred": 1, "actual_return_pct": 1.0, "funding_rate_sum_pct": 0.9},
-                {"pred": 1, "actual_return_pct": 1.0},
+                {"pred": 1, "actual_return_pct": 1.0, "funding_rate_sum_pct": 0.9,
+                 "funding_cost_verified": True},
+                {"pred": 1, "actual_return_pct": 1.0, "funding_cost_verified": False},
             ],
         }
         scored = score_capital_targets(result, cost_mode="base")
         self.assertAlmostEqual(scored["round_trip_cost_pct"], 0.15)
-        self.assertAlmostEqual(scored["mean_funding_cost_pct_for_model_side"], 0.45)
+        self.assertAlmostEqual(scored["mean_funding_cost_pct_for_model_side"], 0.9)
+        self.assertEqual(scored["directional_predictions"], 1)
         self.assertEqual(scored["min_profit_rate"], 0.0)
 
     def test_walk_forward_is_oos_only(self):
