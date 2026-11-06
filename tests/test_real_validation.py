@@ -55,8 +55,8 @@ class RealValidationTests(unittest.TestCase):
             {"pred": 1, "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
             {"pred": -1, "favorable_mfe_pct": 1.2, "adverse_mae_pct": 1.4},
         ]})
-        self.assertEqual(result["target_hit_rates"]["1.15"], 1.0)
-        self.assertEqual(result["target_hit_rates"]["2.35"], 0.5)
+        self.assertEqual(result["target_hit_rates"]["0.95"], 1.0)
+        self.assertEqual(result["target_hit_rates"]["2.15"], 0.5)
         self.assertEqual(result["adverse_excursion_rates"]["1.0"], 0.5)
 
     def test_positive_but_not_gate_pass_is_watch(self):
