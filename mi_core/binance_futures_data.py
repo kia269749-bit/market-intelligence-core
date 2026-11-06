@@ -35,6 +35,7 @@ OI_PERIOD_MS = {
     "6h": 21_600_000, "12h": 43_200_000, "1d": 86_400_000,
 }
 OI_PERIOD_FALLBACK = {"1m": "5m", "3m": "5m", "8h": "4h", "3d": "1d", "1w": "1d"}
+OI_HISTORY_MAX_DAYS = 30
 
 
 @dataclass(frozen=True)
@@ -336,8 +337,9 @@ def download_project60(
     start_ms = candles[0].open_time_ms
     end_ms = candles[-1].close_time_ms
     oi_period = interval if interval in OI_PERIOD_MS else OI_PERIOD_FALLBACK[interval]
+    oi_start_ms = max(start_ms, end_ms - OI_HISTORY_MAX_DAYS * 24 * 60 * 60 * 1000)
     oi = fetch_open_interest_history(
-        symbol, oi_period, start_ms, end_ms, get_json=get_json, timeout=timeout
+        symbol, oi_period, oi_start_ms, end_ms, get_json=get_json, timeout=timeout
     )
     funding = fetch_funding_rate_history(
         symbol, start_ms, end_ms, get_json=get_json, timeout=timeout
@@ -346,6 +348,7 @@ def download_project60(
         candles, oi, funding, oi_max_age_ms=2 * OI_PERIOD_MS[oi_period]
     )
     coverage["oi_period"] = oi_period
+    coverage["oi_history_max_days"] = OI_HISTORY_MAX_DAYS
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         "".join(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\n" for row in rows),
