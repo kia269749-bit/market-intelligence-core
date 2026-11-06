@@ -137,7 +137,7 @@ class RealValidationTests(unittest.TestCase):
 
     def test_random_baseline_p_values_receive_holm_adjustment(self):
         assets = []
-        for p_value in (0.001, 0.02, 0.04):
+        for p_value in (0.001, 0.02, 0.08):
             assets.append({
                 "baseline_metrics": {
                     "model": {"net_profit_usd": 20.0},
@@ -152,10 +152,11 @@ class RealValidationTests(unittest.TestCase):
             })
         _apply_baseline_holm(assets, alpha=0.05)
         adjusted = [x["baseline_gate"]["random_holm_adjusted_p_value"] for x in assets]
-        self.assertEqual(adjusted, [0.003, 0.04, 0.04])
+        self.assertEqual(adjusted, [0.003, 0.04, 0.08])
         self.assertTrue(assets[0]["acceptance_gate"]["accepted"])
         self.assertTrue(assets[1]["acceptance_gate"]["accepted"])
-        self.assertTrue(assets[2]["acceptance_gate"]["accepted"])
+        self.assertFalse(assets[2]["acceptance_gate"]["accepted"])
+        self.assertEqual(assets[2]["opportunity_tier"], "NO_TRADE")
 
     def test_skipped_assets_do_not_break_aggregate(self):
         aggregate = _aggregate([{"asset": "BTC", "validation_status": "SKIPPED"}])
