@@ -302,6 +302,26 @@ class LiveBrainTests(unittest.TestCase):
         self.assertFalse(result["blocked"])
         self.assertNotIn("weak_historical_edge", result["reasons"])
 
+    def test_no_trade_guard_abstains_in_range_or_mixed_regime(self):
+        for name in ("RANGE","MIXED","UNKNOWN"):
+            result=_no_trade_guard(
+                {"status":"HEALTHY"},{"name":name},
+                {"divergence":"ALIGNED","squeeze_risk":False},
+                {"status":"STRONG","leaders":3,"events":2},{},
+            )
+            self.assertTrue(result["blocked"])
+            self.assertIn("unsupported_or_uncertain_regime",result["reasons"])
+
+    def test_no_trade_guard_blocks_negative_verified_regime_expectancy(self):
+        result=_no_trade_guard(
+            {"status":"HEALTHY"},{"name":"TREND"},
+            {"divergence":"ALIGNED","squeeze_risk":False},
+            {"status":"STRONG","leaders":3,"events":2},
+            {"by_regime":{"TREND":{"resolved":10,"net_profit_usd":-20.0}}},
+        )
+        self.assertTrue(result["blocked"])
+        self.assertIn("negative_funding_verified_regime_expectancy",result["reasons"])
+
     def test_no_trade_guard_blocks_unsafe_conditions(self):
         result=_no_trade_guard(
             {"status":"SAFE"}, {"name":"TREND"},
