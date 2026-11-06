@@ -229,6 +229,9 @@ def project60_rows(
     candles: list[FuturesCandle],
     open_interest: list[OpenInterestSnapshot],
     funding: list[FundingEvent],
+    *,
+    oi_max_age_ms: int = 2 * 60 * 60 * 1000,
+    funding_max_age_ms: int = 9 * 60 * 60 * 1000,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Build Project60-compatible JSONL rows with strict backward as-of joins."""
     ordered_oi = sorted(open_interest, key=lambda x: x.timestamp_ms)
@@ -246,6 +249,8 @@ def project60_rows(
             "funding_timestamp_ms": int(fund.timestamp_ms) if fund else None,
             "oi_age_ms": close_ts - int(oi.timestamp_ms) if oi else None,
             "funding_age_ms": close_ts - int(fund.timestamp_ms) if fund else None,
+            "oi_max_age_ms": int(oi_max_age_ms),
+            "funding_max_age_ms": int(funding_max_age_ms),
         }
         output.append({
             "timestamp": close_ts,
@@ -306,7 +311,9 @@ def download_project60(
     funding = fetch_funding_rate_history(
         symbol, start_ms, end_ms, get_json=get_json, timeout=timeout
     )
-    rows, coverage = project60_rows(candles, oi, funding)
+    rows, coverage = project60_rows(
+        candles, oi, funding, oi_max_age_ms=2 * PERIOD_MS[interval]
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         "".join(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\n" for row in rows),
