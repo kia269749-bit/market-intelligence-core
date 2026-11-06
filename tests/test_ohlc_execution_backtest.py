@@ -7,7 +7,11 @@ def bar(i, price, op=None, high=None, low=None):
     return MarketBar(ts=i * 300_000, symbol="BTCUSDT", price=price,
                      open=op if op is not None else price,
                      high=high if high is not None else price,
-                     low=low if low is not None else price)
+                     low=low if low is not None else price,
+                     funding=0.00001,
+                     derivatives={"funding_timestamp_ms": i * 300_000 - 1,
+                                  "funding_age_ms": 1,
+                                  "funding_max_age_ms": 7_200_000})
 
 
 class OhlcExecutionTests(unittest.TestCase):
@@ -32,6 +36,17 @@ class OhlcExecutionTests(unittest.TestCase):
         result = backtest(bars, min_history=300, horizon_bars=96)
         self.assertEqual(result["status"], "ohlc_unavailable")
         self.assertFalse(result["trade_ready"])
+
+    def test_backtest_refuses_economic_scoring_without_fresh_funding(self):
+        bars = [
+            MarketBar(ts=i * 300_000, symbol="BTCUSDT", price=100 + i * 0.01,
+                      open=100 + i * 0.01, high=101 + i * 0.01, low=99 + i * 0.01)
+            for i in range(500)
+        ]
+        result = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4)
+        self.assertFalse(result["funding_data_verified"])
+        self.assertEqual(result["status"], "funding_unverified")
+        self.assertTrue(all(x["full_walk_forward"]["trades"] == 0 for x in result["results"]))
 
     def test_backtest_uses_central_base_and_strict_costs(self):
         bars = [bar(i, 100 + i * .01) for i in range(500)]
