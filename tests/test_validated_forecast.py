@@ -41,6 +41,8 @@ class TestValidatedForecast(unittest.TestCase):
         self.assertAlmostEqual(scored["round_trip_cost_pct"], 0.15)
         self.assertAlmostEqual(scored["mean_funding_cost_pct_for_model_side"], 0.9)
         self.assertEqual(scored["directional_predictions"], 1)
+        self.assertEqual(scored["funding_data_status"], "partial_unverified_excluded")
+        self.assertEqual(scored["funding_cost_unverified_samples"], 1)
         self.assertEqual(scored["min_profit_rate"], 0.0)
 
     def test_walk_forward_is_oos_only(self):
