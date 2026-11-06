@@ -108,7 +108,7 @@ class ShadowJournalTests(unittest.TestCase):
                 "funding_status":"UNVERIFIED","funding_coverage":0.0,
                 "learning_eligible":False,
             }
-            Path(path).write_text(json.dumps(row)+"\\n",encoding="utf-8")
+            Path(path).write_text(json.dumps(row)+"\n",encoding="utf-8")
             self.assertEqual(apply_funding_settlements(path,{
                 "BTC:BULLISH:100.0":{"coverage":0.99,"events":3,"cashflow_usd":-0.75}
             }),1)
@@ -126,7 +126,7 @@ class ShadowJournalTests(unittest.TestCase):
                 {"status":"STOP","net_profit_usd":-20.0,"funding_status":"VERIFIED",
                  "funding_coverage":0.80,"funding_cashflow_usd":-1.0,"learning_eligible":True},
             ]
-            Path(path).write_text("".join(json.dumps(r)+"\\n" for r in rows),encoding="utf-8")
+            Path(path).write_text("".join(json.dumps(r)+"\n" for r in rows),encoding="utf-8")
             summary=summarize(path)
             self.assertEqual(summary["resolved_total"],2)
             self.assertEqual(summary["resolved"],0)
