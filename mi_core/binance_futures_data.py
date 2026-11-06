@@ -290,6 +290,9 @@ def download_project60(
 ) -> tuple[Path, dict[str, Any]]:
     if not 1 <= int(bars) <= 1000:
         raise ValueError("bars must be between 1 and 1000")
+    target = Path(out)
+    if target.exists() and target.stat().st_size > 0 and not overwrite:
+        raise FileExistsError(f"refusing to overwrite existing data file: {target}")
     candles = fetch_futures_klines(
         symbol, interval, limit=bars, get_json=get_json, timeout=timeout
     )
@@ -304,9 +307,6 @@ def download_project60(
         symbol, start_ms, end_ms, get_json=get_json, timeout=timeout
     )
     rows, coverage = project60_rows(candles, oi, funding)
-    target = Path(out)
-    if target.exists() and target.stat().st_size > 0 and not overwrite:
-        raise FileExistsError(f"refusing to overwrite existing data file: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         "".join(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\n" for row in rows),
