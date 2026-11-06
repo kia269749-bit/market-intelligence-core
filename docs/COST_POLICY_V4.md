@@ -21,12 +21,16 @@ The active v3 live coordinator explicitly retains its pre-v4 component model. Th
 
 ## Derivatives data policy
 
-Funding and open interest are not model inputs until their source, timestamps, freshness, and coverage are validated. Missing values are not zero and are not neutral evidence.
+Funding and open interest are not predictive model inputs. Missing values are not zero and are not neutral evidence.
 
-The v4 forecast feature set therefore excludes Funding/OI until a real collection window has passed coverage and freshness checks. Binance's historical open-interest endpoint is limited to the latest 30 days, so long 1h WFA windows will have partial OI coverage even though futures candles and funding history span farther back. The report exposes that shortfall explicitly; it must not be presented as full-history OI coverage. `mi_core/binance_futures_data.py` now provides a public Binance USD-M Futures collector for perpetual candles, historical open-interest snapshots, and settled funding events. It joins both derivatives strictly before candle close, preserves source timestamps/ages, emits coverage metadata, and refuses to overwrite an existing output unless explicitly requested. The Project60 loader retains these values and reports presence plus freshness coverage, but ranking and forecast features remain disabled until the collected file is inspected and validated. Example collection command (writes a new file and refuses to overwrite a non-empty file):
+The primary WFA data source is Hyperliquid perpetual candles plus discrete historical funding events. `mi_core/hyperliquid_data.py` writes Project60 JSONL, preserves event timestamps and freshness, and aligns funding strictly before candle close. Funding is used only as a holding-period cashflow in economic scoring, not as a forecast feature. A WFA run cannot pass its economic acceptance gate unless fresh funding coverage is at least 95%.
+
+Hyperliquid's public historical feed does not provide the historical OI series required for this WFA. OI therefore remains explicitly absent, excluded from model features, and excluded from the adaptive strategy universe. The optional Binance USD-M Futures adapter is retained for environments where its public endpoint is reachable, but GitHub Actions received HTTP 451 from the Binance Futures endpoint during the integration run; its data is not used for official WFA claims. Binance's historical OI endpoint is also limited to the latest 30 days, so it cannot supply full-history OI for a long 1h test.
+
+Example Hyperliquid collection command (writes a new file and refuses to overwrite a non-empty file):
 
 ```bash
-python -m mi_core.binance_futures_data --symbol BTCUSDT --interval 1h --bars 1000 --out data/real/btcusdt_usdm_project60.jsonl
+python -m mi_core.hyperliquid_data --coin BTC --asset-key BTCUSDT --interval 1h --bars 8000 --out data/real/btcusdt_hyperliquid_project60.jsonl
 ```
 
 ## Walk-forward reporting
