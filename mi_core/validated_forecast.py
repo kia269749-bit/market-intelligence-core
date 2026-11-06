@@ -381,10 +381,21 @@ def score_capital_targets(
     resolved_cost_pct = resolve_round_trip_cost_pct(
         cost_mode, cost_policy, override=round_trip_cost_pct
     )
-    rows = [
+    all_rows = [
         x for x in non_overlapping_predictions(result)
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
     ]
+    verified_funding_samples = sum(x.get("funding_cost_verified") is True for x in all_rows)
+    unverified_funding_samples = sum(x.get("funding_cost_verified") is False for x in all_rows)
+    rows = [x for x in all_rows if x.get("funding_cost_verified") is not False]
+    if unverified_funding_samples and not verified_funding_samples:
+        funding_data_status = "unverified_excluded"
+    elif unverified_funding_samples:
+        funding_data_status = "partial_unverified_excluded"
+    elif verified_funding_samples:
+        funding_data_status = "verified"
+    else:
+        funding_data_status = "not_supplied_price_only_diagnostic"
     min_move = min_profit_usd / capital_usd * 100.0 + resolved_cost_pct
     preferred_move = preferred_profit_usd / capital_usd * 100.0 + resolved_cost_pct
     min_hits = preferred_hits = directional = 0
@@ -400,6 +411,9 @@ def score_capital_targets(
         preferred_hits += favorable >= preferred_move
     return {
         "resolved_directional": directional,
+        "funding_data_status": funding_data_status,
+        "funding_cost_verified_samples": verified_funding_samples,
+        "funding_cost_unverified_samples": unverified_funding_samples,
         "min_profit_usd": min_profit_usd,
         "preferred_profit_usd": preferred_profit_usd,
         "round_trip_cost_pct": resolved_cost_pct,
