@@ -254,6 +254,7 @@ def project60_rows(
         close_ts = int(candle.close_time_ms)
         derivatives = {
             "oi_timestamp_ms": int(oi.timestamp_ms) if oi else None,
+            "oi_value_usd": float(oi.open_interest_value) if oi and oi.open_interest_value is not None else None,
             "funding_timestamp_ms": int(fund.timestamp_ms) if fund else None,
             "oi_age_ms": close_ts - int(oi.timestamp_ms) if oi else None,
             "funding_age_ms": close_ts - int(fund.timestamp_ms) if fund else None,
