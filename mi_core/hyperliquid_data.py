@@ -83,9 +83,10 @@ def fetch_candles(
     if int(start_ms) < 0 or int(end_ms) <= int(start_ms):
         raise ValueError("end_ms must be greater than non-negative start_ms")
     candles: list[PerpCandle] = []
+    window_ms = min(CHUNK_MS, KLINE_INTERVAL_MS[interval] * 4000)
     cursor = int(start_ms)
     while cursor <= int(end_ms):
-        chunk_end = min(cursor + CHUNK_MS, int(end_ms))
+        chunk_end = min(cursor + window_ms, int(end_ms))
         raw = post_json({
             "type": "candleSnapshot",
             "req": {"coin": coin, "interval": interval, "startTime": cursor, "endTime": chunk_end},
@@ -237,7 +238,8 @@ def download_project60(
     candles = fetch_candles(coin, interval, start_bound, end_bound, post_json=post_json)
     if not candles:
         raise RuntimeError("Hyperliquid returned no perpetual candles")
-    events = fetch_funding_history(coin, start_bound, end_bound, post_json=post_json)
+    funding_start = max(0, start_bound - 9 * 60 * 60 * 1000)
+    events = fetch_funding_history(coin, funding_start, end_bound, post_json=post_json)
     rows, coverage = project60_rows(coin, asset_key or coin, candles, events)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
