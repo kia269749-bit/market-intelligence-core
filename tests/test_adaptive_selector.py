@@ -35,7 +35,8 @@ class AdaptiveSelectorTests(unittest.TestCase):
         self.assertNotIn("oi_funding_5", strategies)
         self.assertNotIn("funding_crowding", strategies)
         self.assertAlmostEqual(result["cost_pct"], 0.35)
-        self.assertIn(result["status"], ("OOS_EDGE_PASSED", "EDGE_UNPROVEN"))
+        self.assertEqual(result["status"], "DIAGNOSTIC_ONLY")
+        self.assertFalse(result["signal_eligible"])
         self.assertIn("walk_forward_oos", result)
         self.assertGreaterEqual(result["walk_forward_oos"]["trades"], 0)
         self.assertTrue(result["research_only"])
@@ -65,7 +66,7 @@ class AdaptiveSelectorTests(unittest.TestCase):
             train_window=120, min_train_trades=4, min_oos_trades=3,
         )
         self.assertFalse(result["accepted"])
-        self.assertEqual(result["status"], "EDGE_UNPROVEN")
+        self.assertEqual(result["status"], "DIAGNOSTIC_ONLY")
 
     def test_insufficient_history_is_explicitly_unavailable(self):
         result = evaluate_adaptive_selection(self._bars(n=50), horizon=20)
