@@ -97,8 +97,10 @@ def rank_assets(series, min_samples=60):
         b = bars[-1]
         den = b.buy_volume + b.sell_volume
         flow = (b.buy_volume - b.sell_volume) / den if den else 0.0
-        book_den = b.bid + b.ask
-        book = (b.bid - b.ask) / book_den if book_den else 0.0
+        bid = _num(b.bid)
+        ask = _num(b.ask)
+        book_den = bid + ask
+        book = (bid - ask) / book_den if book_den else 0.0
         oi_change = None
         if (b.oi is not None and bars[-2].oi is not None
                 and math.isfinite(float(b.oi)) and math.isfinite(float(bars[-2].oi))
