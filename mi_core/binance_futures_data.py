@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
@@ -97,45 +98,65 @@ def fetch_futures_klines(
 ) -> list[FuturesCandle]:
     if not symbol or interval not in KLINE_INTERVAL_MS:
         raise ValueError("symbol and a supported futures kline interval are required")
-    if not 1 <= int(limit) <= 1000:
-        raise ValueError("limit must be between 1 and 1000")
+    requested = int(limit)
+    if not 1 <= requested <= 10_000:
+        raise ValueError("limit must be between 1 and 10000")
     if start_ms is not None and int(start_ms) < 0:
         raise ValueError("start_ms must be non-negative")
-    if end_ms is not None and (start_ms is not None and int(end_ms) <= int(start_ms)):
+    if end_ms is not None and start_ms is not None and int(end_ms) <= int(start_ms):
         raise ValueError("end_ms must be later than start_ms")
-    params: dict[str, Any] = {"symbol": symbol.upper(), "interval": interval, "limit": int(limit)}
-    if start_ms is not None:
-        params["startTime"] = int(start_ms)
-    if end_ms is not None:
-        params["endTime"] = int(end_ms)
-    raw = get_json(KLINES_URL, params, timeout=timeout)
-    if not isinstance(raw, list):
-        raise ValueError("unexpected futures kline response")
-    candles = []
-    for row in raw:
-        if not isinstance(row, (list, tuple)) or len(row) < 11:
-            continue
-        candle = FuturesCandle(
-            symbol.upper(), int(row[0]), int(row[6]),
-            _finite(row[1], "open", minimum=0.0),
-            _finite(row[2], "high", minimum=0.0),
-            _finite(row[3], "low", minimum=0.0),
-            _finite(row[4], "close", minimum=0.0),
-            _finite(row[5], "volume", minimum=0.0),
-            _finite(row[7], "quote_volume", minimum=0.0),
-            _finite(row[10], "taker_buy_quote_volume", minimum=0.0),
-            int(row[8]),
-        )
-        if min(candle.open, candle.high, candle.low, candle.close) <= 0:
-            raise ValueError("futures candle prices must be positive")
-        if candle.high < max(candle.open, candle.close, candle.low):
-            raise ValueError("inconsistent futures candle OHLC values")
-        if candle.low > min(candle.open, candle.close, candle.high):
-            raise ValueError("inconsistent futures candle OHLC values")
-        candles.append(candle)
-    candles.sort(key=lambda item: item.open_time_ms)
+
+    interval_ms = KLINE_INTERVAL_MS[interval]
+    end_bound = int(end_ms) if end_ms is not None else int(time.time() * 1000)
+    start_bound = int(start_ms) if start_ms is not None else max(0, end_bound - interval_ms * requested)
+    cursor = start_bound
+    candles: list[FuturesCandle] = []
+
+    while cursor <= end_bound and len(candles) < requested:
+        page_limit = min(1000, requested - len(candles))
+        raw = get_json(KLINES_URL, {
+            "symbol": symbol.upper(), "interval": interval,
+            "startTime": cursor, "endTime": end_bound, "limit": page_limit,
+        }, timeout=timeout)
+        if not isinstance(raw, list):
+            raise ValueError("unexpected futures kline response")
+        parsed = []
+        for row in raw:
+            if not isinstance(row, (list, tuple)) or len(row) < 11:
+                continue
+            candle = FuturesCandle(
+                symbol.upper(), int(row[0]), int(row[6]),
+                _finite(row[1], "open", minimum=0.0),
+                _finite(row[2], "high", minimum=0.0),
+                _finite(row[3], "low", minimum=0.0),
+                _finite(row[4], "close", minimum=0.0),
+                _finite(row[5], "volume", minimum=0.0),
+                _finite(row[7], "quote_volume", minimum=0.0),
+                _finite(row[10], "taker_buy_quote_volume", minimum=0.0),
+                int(row[8]),
+            )
+            if min(candle.open, candle.high, candle.low, candle.close) <= 0:
+                raise ValueError("futures candle prices must be positive")
+            if candle.high < max(candle.open, candle.close, candle.low):
+                raise ValueError("inconsistent futures candle OHLC values")
+            if candle.low > min(candle.open, candle.close, candle.high):
+                raise ValueError("inconsistent futures candle OHLC values")
+            if start_bound <= candle.open_time_ms <= end_bound:
+                parsed.append(candle)
+        if not parsed:
+            break
+        parsed.sort(key=lambda item: item.open_time_ms)
+        candles.extend(parsed)
+        last_open = max(item.open_time_ms for item in parsed)
+        next_cursor = last_open + interval_ms
+        if next_cursor <= cursor:
+            raise RuntimeError("futures kline pagination did not advance")
+        if len(raw) < page_limit:
+            break
+        cursor = next_cursor
+
     by_time = {item.open_time_ms: item for item in candles}
-    return list(by_time.values())
+    return [by_time[k] for k in sorted(by_time)[:requested]]
 
 
 def fetch_open_interest_history(
@@ -302,8 +323,8 @@ def download_project60(
     get_json: Callable[..., Any] = _get_json, timeout: float = 20.0,
     overwrite: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
-    if not 1 <= int(bars) <= 1000:
-        raise ValueError("bars must be between 1 and 1000")
+    if not 1 <= int(bars) <= 10_000:
+        raise ValueError("bars must be between 1 and 10000")
     target = Path(out)
     if target.exists() and target.stat().st_size > 0 and not overwrite:
         raise FileExistsError(f"refusing to overwrite existing data file: {target}")
