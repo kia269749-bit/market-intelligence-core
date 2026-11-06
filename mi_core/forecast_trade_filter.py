@@ -35,7 +35,22 @@ def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
                 "direction": direction, "confidence": confidence,
                 "policy": policy["policy"], "policy_status": policy["status"], "research_only": True, "live_orders": False}
 
-    signed_move = expected if direction == "UP" else -expected
+    # Prefer the conservative directional interval bound when available.
+    # Forecast generation remains separate from economic acceptance.
+    lower = forecast.get("lower_return_pct")
+    upper = forecast.get("upper_return_pct")
+    if lower is not None and upper is not None:
+        lower = float(lower)
+        upper = float(upper)
+        if lower > upper:
+            return {"approved": False, "status": "NO_TRADE",
+                    "reason": "invalid_forecast_interval", "direction": direction,
+                    "research_only": True, "live_orders": False}
+        signed_move = lower if direction == "UP" else -upper
+        gate_basis = "conservative_forecast_interval_bound"
+    else:
+        signed_move = expected if direction == "UP" else -expected
+        gate_basis = "point_estimate_legacy_fallback"
     economics = evaluate_capital_target(
         signed_move, capital_usd=capital_usd, min_profit_usd=min_profit_usd,
         preferred_profit_usd=preferred_profit_usd, exchange=exchange,
@@ -49,6 +64,10 @@ def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
         "direction": direction,
         "confidence": confidence,
         "expected_move_pct": round(signed_move, 4),
+        "forecast_point_estimate_pct": round(expected if direction == "UP" else -expected, 4),
+        "forecast_gate_basis": gate_basis,
+        "forecast_lower_return_pct": lower,
+        "forecast_upper_return_pct": upper,
         "tier": economics.tier,
         "modeled_profit_usd": economics.modeled_profit_usd,
         "net_move_pct": economics.net_move_pct,
