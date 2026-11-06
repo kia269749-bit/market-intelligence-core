@@ -18,6 +18,7 @@ STRATEGIES = (
 )
 
 DISABLED_DERIVATIVE_STRATEGIES = ("oi_funding_5", "funding_crowding")
+MIN_SIGNAL_HORIZON_BARS = 60
 
 
 def _ema(values, period):
@@ -279,8 +280,11 @@ def evaluate_adaptive_selection(
             x["training"]["profit_factor"], x["training"]["trades"]
         ))
 
-    accepted = bool(oos_accepted and chosen["training_gate"] and chosen["current_direction"])
+    signal_eligible = int(horizon) >= MIN_SIGNAL_HORIZON_BARS
+    accepted = bool(signal_eligible and oos_accepted and chosen["training_gate"] and chosen["current_direction"])
     reasons = []
+    if not signal_eligible:
+        reasons.append("diagnostic_horizon_below_minimum_60_bars")
     if not chosen["current_direction"]:
         reasons.append("no_active_strategy_signal")
     if not chosen["training_gate"]:
@@ -294,6 +298,7 @@ def evaluate_adaptive_selection(
         "available": True,
         "asset": bars[-1].symbol,
         "horizon_bars": horizon,
+        "signal_eligible": signal_eligible,
         "cost_pct": resolved_cost_pct,
         "cost_mode": cost_mode,
         "cost_policy_version": cost_policy.version,
@@ -306,7 +311,7 @@ def evaluate_adaptive_selection(
         "walk_forward_oos": oos,
         "oos_strategy_counts": {name: oos_choices.count(name) for name in STRATEGIES},
         "accepted": accepted,
-        "status": "OOS_EDGE_PASSED" if accepted else "EDGE_UNPROVEN",
+        "status": "DIAGNOSTIC_ONLY" if not signal_eligible else "OOS_EDGE_PASSED" if accepted else "EDGE_UNPROVEN",
         "reasons": reasons,
         "candidates": candidates,
         "selection_method": "rolling net-expectancy + lower-confidence-bound; nested walk-forward selection",
