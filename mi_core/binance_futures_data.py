@@ -286,6 +286,7 @@ def download_project60(
     symbol: str = "BTCUSDT", interval: str = "1h", bars: int = 1000,
     out: str = "data/real/futures_project60.jsonl", *,
     get_json: Callable[..., Any] = _get_json, timeout: float = 20.0,
+    overwrite: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
     if not 1 <= int(bars) <= 1000:
         raise ValueError("bars must be between 1 and 1000")
@@ -304,6 +305,8 @@ def download_project60(
     )
     rows, coverage = project60_rows(candles, oi, funding)
     target = Path(out)
+    if target.exists() and target.stat().st_size > 0 and not overwrite:
+        raise FileExistsError(f"refusing to overwrite existing data file: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         "".join(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\n" for row in rows),
@@ -319,8 +322,11 @@ def main(argv=None) -> int:
     parser.add_argument("--interval", choices=tuple(PERIOD_MS), default="1h")
     parser.add_argument("--bars", type=int, default=1000)
     parser.add_argument("--out", default="data/real/futures_project60.jsonl")
+    parser.add_argument("--overwrite", action="store_true", help="explicitly replace an existing output file")
     args = parser.parse_args(argv)
-    path, coverage = download_project60(args.symbol, args.interval, args.bars, args.out)
+    path, coverage = download_project60(
+        args.symbol, args.interval, args.bars, args.out, overwrite=args.overwrite
+    )
     print(json.dumps({"path": str(path), "coverage": coverage}, indent=2))
     return 0
 
