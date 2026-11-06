@@ -5,6 +5,7 @@ import argparse
 import json
 import math
 import sys
+from bisect import bisect_right
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,7 +14,7 @@ if str(ROOT) not in sys.path:
 
 from mi_core.path_forecast import forecast_path
 from mi_core.storage import load_bars
-from mi_core.multi_asset_forecast import load_project60_assets
+from mi_core.multi_asset_forecast import load_project60_assets, derivative_coverage
 from mi_core.cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 
@@ -96,7 +97,9 @@ def _forecast_candidates(bars, indices, target_pct, horizon_bars, min_history):
     return candidates
 
 
-def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96, confidence_min=0.0, probability_min=0.0):
+def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
+              confidence_min=0.0, probability_min=0.0, funding_events=(),
+              funding_event_times=(), funding_verified=True):
     trades = []
     next_allowed_index = 0
     for candidate in candidates:
@@ -112,15 +115,22 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
         entry_idx = idx + 1
         if entry_idx >= len(bars):
             continue
-        entry = _bar_value(bars[entry_idx], "open")
+        entry_bar = bars[entry_idx]
+        entry = _bar_value(entry_bar, "open")
         if entry is None:
             continue
+        interval_ms = int(entry_bar.ts) - int(bars[entry_idx - 1].ts)
+        if interval_ms <= 0:
+            continue
+        entry_time_ms = int(entry_bar.ts) - interval_ms + 1
         is_long = direction == "UP"
+        side = 1 if is_long else -1
         target = entry * (1.0 + target_pct / 100.0) if is_long else entry * (1.0 - target_pct / 100.0)
         stop = entry * (1.0 - stop_pct / 100.0) if is_long else entry * (1.0 + stop_pct / 100.0)
         end_idx = min(idx + int(horizon_bars), len(bars) - 1)
         exit_idx = end_idx
         exit_price = float(bars[end_idx].price)
+        exit_time_ms = int(bars[end_idx].ts)
         reason = "TIME_EXIT"
 
         for j in range(entry_idx, end_idx + 1):
@@ -137,11 +147,13 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
                 if gap_stop or hit_stop:
                     exit_idx = j
                     exit_price = min(op, stop) if gap_stop else stop
+                    exit_time_ms = int(bar.ts) - interval_ms + 1 if gap_stop else int(bar.ts)
                     reason = "STOP"
                     break
                 if hit_target:
                     exit_idx = j
                     exit_price = target
+                    exit_time_ms = int(bar.ts)
                     reason = "TARGET"
                     break
             else:
@@ -151,19 +163,33 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
                 if gap_stop or hit_stop:
                     exit_idx = j
                     exit_price = max(op, stop) if gap_stop else stop
+                    exit_time_ms = int(bar.ts) - interval_ms + 1 if gap_stop else int(bar.ts)
                     reason = "STOP"
                     break
                 if hit_target:
                     exit_idx = j
                     exit_price = target
+                    exit_time_ms = int(bar.ts)
                     reason = "TARGET"
                     break
 
         gross = ((exit_price / entry) - 1.0) * 100.0 if is_long else ((entry / exit_price) - 1.0) * 100.0
+        if funding_verified:
+            lo_event = bisect_right(funding_event_times, entry_time_ms)
+            hi_event = bisect_right(funding_event_times, exit_time_ms)
+            selected_events = funding_events[lo_event:hi_event]
+            funding_rate_sum_pct = sum(rate for _, rate in selected_events) * 100.0
+            funding_cost_pct = side * funding_rate_sum_pct
+            net_return_pct = gross - funding_cost_pct - float(cost_pct)
+            funding_count = len(selected_events)
+        else:
+            funding_cost_pct = None
+            net_return_pct = None
+            funding_count = 0
         trades.append({
             "signal_ts": candidate["ts"],
-            "entry_ts": int(bars[entry_idx].ts),
-            "exit_ts": int(bars[exit_idx].ts),
+            "entry_ts": entry_time_ms,
+            "exit_ts": exit_time_ms,
             "direction": direction,
             "confidence": round(candidate["confidence"], 4),
             "target_probability": round(candidate["target_probability"], 4),
@@ -173,12 +199,14 @@ def _simulate(bars, candidates, target_pct, stop_pct, cost_pct, horizon_bars=96,
             "stop_pct": stop_pct,
             "gross_return_pct": round(gross, 6),
             "cost_pct": cost_pct,
-            "net_return_pct": round(gross - cost_pct, 6),
+            "funding_cost_pct": round(funding_cost_pct, 8) if funding_cost_pct is not None else None,
+            "funding_events_count": funding_count,
+            "funding_cost_verified": bool(funding_verified),
+            "net_return_pct": round(net_return_pct, 6) if net_return_pct is not None else None,
             "exit_reason": reason,
         })
         next_allowed_index = exit_idx + 1
     return trades
-
 
 
 def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=300,
