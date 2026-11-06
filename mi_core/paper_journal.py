@@ -200,6 +200,19 @@ def _group_outcomes(rows, key_fn):
     return groups
 
 
+def _funding_learning_eligible(row: dict) -> bool:
+    try:
+        coverage=float(row.get("funding_coverage",0.0) or 0.0)
+    except (TypeError,ValueError):
+        return False
+    return (
+        row.get("funding_status")=="VERIFIED"
+        and row.get("learning_eligible") is True
+        and math.isfinite(coverage) and coverage>=0.95
+        and row.get("funding_cashflow_usd") is not None
+    )
+
+
 def summarize(path: str) -> dict:
     p=Path(path)
     empty={
@@ -220,13 +233,7 @@ def summarize(path: str) -> dict:
             continue
 
     resolved_all=[r for r in rows if r.get("status") in ("TARGET","STOP")]
-    eligible=[
-        r for r in resolved_all
-        if r.get("funding_status")=="VERIFIED"
-        and r.get("learning_eligible") is True
-        and float(r.get("funding_coverage",0.0) or 0.0)>=0.95
-        and r.get("funding_cashflow_usd") is not None
-    ]
+    eligible=[r for r in resolved_all if _funding_learning_eligible(r)]
     wins=sum(r.get("status")=="TARGET" for r in eligible)
     losses=sum(r.get("status")=="STOP" for r in eligible)
     net=sum(float(r.get("net_profit_usd",0.0) or 0.0) for r in eligible)
