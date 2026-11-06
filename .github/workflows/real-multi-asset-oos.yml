@@ -86,8 +86,6 @@ jobs:
           path: |
             data/real/${{ matrix.symbol }}_futures_project60.jsonl
             reports/${{ matrix.symbol }}_futures_coverage.json
-            reports/${{ matrix.symbol }}_v4_base.json
-            reports/${{ matrix.symbol }}_v4_strict.json
             reports/${{ matrix.symbol }}_adaptive_selector_base.json
             reports/${{ matrix.symbol }}_adaptive_selector_strict.json
 
