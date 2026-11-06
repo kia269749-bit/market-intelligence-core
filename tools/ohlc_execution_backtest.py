@@ -314,11 +314,20 @@ def main():
     parser.add_argument("--cost-pct", type=float, default=None, help="explicit legacy/scenario override; replaces the named policy")
     parser.add_argument("--capital", type=float, default=500.0)
     args = parser.parse_args()
-    bars = load_bars(Path(args.input))
+    series = load_project60_assets(args.input, max_rows=args.max_rows)
+    bars = series.get(args.symbol)
+    if not bars:
+        try:
+            bars = load_bars(Path(args.input))
+        except (TypeError, ValueError) as exc:
+            raise SystemExit(f"no Project60 OHLC bars found for {args.symbol}: {exc}") from exc
+    if not bars:
+        raise SystemExit(f"no OHLC bars found for {args.symbol}")
     report = backtest(bars, horizon_bars=args.horizon_bars, step_bars=args.step_bars,
                       max_evals=args.max_evals, min_history=args.min_history,
                       cost_pct=args.cost_pct, cost_mode=args.cost_mode,
                       starting_capital=args.capital)
+    report["symbol"] = args.symbol
     output = Path(args.out)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
