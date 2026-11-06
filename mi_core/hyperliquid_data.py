@@ -77,16 +77,22 @@ def fetch_candles(
     coin: str, interval: str, start_ms: int, end_ms: int, *,
     post_json: Callable[[dict[str, Any]], Any] = _post_info,
 ) -> list[PerpCandle]:
-    """Fetch candles in 14-day chunks to avoid silently truncating long ranges."""
+    """Fetch complete candles in bounded, interval-aligned chunks."""
     if not coin or interval not in KLINE_INTERVAL_MS:
         raise ValueError("coin and supported Hyperliquid candle interval are required")
     if int(start_ms) < 0 or int(end_ms) <= int(start_ms):
         raise ValueError("end_ms must be greater than non-negative start_ms")
+    interval_ms = KLINE_INTERVAL_MS[interval]
+    start_bound = ((int(start_ms) + interval_ms - 1) // interval_ms) * interval_ms
+    end_bound = (int(end_ms) // interval_ms) * interval_ms - 1
+    if end_bound < start_bound:
+        return []
+    window_ms = min((CHUNK_MS // interval_ms) * interval_ms, interval_ms * 4000)
+    window_ms = max(interval_ms, window_ms)
     candles: list[PerpCandle] = []
-    window_ms = min(CHUNK_MS, KLINE_INTERVAL_MS[interval] * 4000)
-    cursor = int(start_ms)
-    while cursor <= int(end_ms):
-        chunk_end = min(cursor + window_ms, int(end_ms))
+    cursor = start_bound
+    while cursor <= end_bound:
+        chunk_end = min(cursor + window_ms - 1, end_bound)
         raw = post_json({
             "type": "candleSnapshot",
             "req": {"coin": coin, "interval": interval, "startTime": cursor, "endTime": chunk_end},
@@ -111,9 +117,9 @@ def fetch_candles(
                 raise ValueError("candle prices must be positive")
             if candle.high < max(candle.open, candle.close, candle.low) or candle.low > min(candle.open, candle.close, candle.high):
                 raise ValueError("inconsistent candle OHLC values")
-            if int(start_ms) <= candle.timestamp_ms <= int(end_ms):
+            if start_bound <= candle.timestamp_ms <= chunk_end and candle.close_time_ms <= chunk_end:
                 candles.append(candle)
-        if chunk_end >= int(end_ms):
+        if chunk_end >= end_bound:
             break
         cursor = chunk_end + 1
     by_time = {item.timestamp_ms: item for item in candles}
