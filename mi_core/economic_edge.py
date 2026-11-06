@@ -61,6 +61,7 @@ def diagnose_economic_edge(
     cost_limited = magnitude_limited = target4 = target10 = adverse05 = 0
     funding_costs = []
     correct_direction = 0
+    economic_move_positive = 0
     late_proxy = 0
     net_values = []
     buckets = defaultdict(lambda: {"n": 0, "positive_net": 0, "target4": 0,
@@ -73,7 +74,8 @@ def diagnose_economic_edge(
         actual = _num(x.get("actual_return_pct"))
         funding_rate_sum_pct = _num(x.get("funding_rate_sum_pct"))
         funding_cost_pct = pred * funding_rate_sum_pct
-        favorable = pred * actual - funding_cost_pct
+        price_favorable = pred * actual
+        favorable = price_favorable - funding_cost_pct
         mfe = _num(x.get("favorable_mfe_pct")) - funding_cost_pct
         funding_costs.append(funding_cost_pct)
         mae = _num(x.get("adverse_mae_pct"))
@@ -81,7 +83,8 @@ def diagnose_economic_edge(
         net_usd = capital_usd * net_pct / 100.0
         net_values.append(net_usd)
 
-        correct_direction += favorable > 0
+        correct_direction += price_favorable > 0
+        economic_move_positive += favorable > 0
         target4 += favorable >= min_required
         target10 += favorable >= preferred_required
         adverse05 += mae >= 0.50
@@ -132,6 +135,7 @@ def diagnose_economic_edge(
         "available": bool(rows),
         "samples": total,
         "direction_correct_rate": rate(correct_direction),
+        "economic_move_positive_rate_after_funding": rate(economic_move_positive),
         "usd4_hit_rate": rate(target4),
         "usd10_hit_rate": rate(target10),
         "positive_net_rate": rate(sum(v > 0 for v in net_values)),
