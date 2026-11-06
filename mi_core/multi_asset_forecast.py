@@ -142,7 +142,7 @@ def _candidate_regime(item):
     return "MIXED"
 
 
-def scan_project60(path, top_n=5, max_rows=800, horizon=60):
+def scan_project60(path, top_n=5, max_rows=800, horizon=60, cost_mode="base"):
     series = load_project60_assets(path, max_rows=max_rows)
     ranked = rank_assets(series)
     selected = ranked[:max(1, int(top_n))]
@@ -157,7 +157,8 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
         quality_score = 1.0 if len(bars) >= 150 else 0.90
         trade_filter = evaluate_forecast(
             result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
-            regime=regime, quality_score=quality_score, agreement=agreement)
+            regime=regime, quality_score=quality_score, agreement=agreement,
+            cost_mode=cost_mode)
         # Keep the asset symbol at the top level for compact reports/CLI output.
         # If a valid directional setup passes the adaptive policy but misses the
         # $4 economic floor, expose it as WATCHLIST only. This preserves
@@ -211,6 +212,7 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
         "early_watch_count": len(early_watchlist),
         "early_watchlist": early_watchlist,
         "horizon_bars": horizon,
+        "cost_mode": cost_mode,
         "derivatives_coverage": derivative_coverage(series),
         "derivatives_features_enabled": False,
         "ranked": ranked,
