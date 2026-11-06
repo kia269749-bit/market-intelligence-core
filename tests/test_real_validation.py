@@ -52,8 +52,10 @@ class RealValidationTests(unittest.TestCase):
 
     def test_path_excursion_metrics_measure_targets_and_adverse_move(self):
         result = _path_excursion_metrics({"predictions": [
-            {"pred": 1, "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
-            {"pred": -1, "favorable_mfe_pct": 1.2, "adverse_mae_pct": 1.4},
+            {"pred": 1, "actual": 1, "actual_return_pct": 1.0,
+             "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
+            {"pred": -1, "actual": -1, "actual_return_pct": -0.5,
+             "favorable_mfe_pct": 1.2, "adverse_mae_pct": 1.4},
         ]})
         self.assertEqual(result["target_hit_rates"]["0.95"], 1.0)
         self.assertEqual(result["target_hit_rates"]["2.15"], 0.5)
