@@ -55,6 +55,30 @@ def load_project60_assets(path, max_rows=800):
     return series
 
 
+
+
+def derivative_coverage(series):
+    """Report derivative-field coverage without converting missing values to zero."""
+    report = {}
+    for symbol, bars in series.items():
+        n = len(bars)
+        oi_n = sum(
+            b.oi is not None and math.isfinite(float(b.oi)) for b in bars
+        )
+        funding_n = sum(
+            b.funding is not None and math.isfinite(float(b.funding)) for b in bars
+        )
+        report[symbol] = {
+            "bars": n,
+            "oi_present": oi_n,
+            "oi_coverage_pct": round(100.0 * oi_n / n, 4) if n else 0.0,
+            "funding_present": funding_n,
+            "funding_coverage_pct": round(100.0 * funding_n / n, 4) if n else 0.0,
+            "derivatives_features_enabled": False,
+        }
+    return report
+
+
 def rank_assets(series, min_samples=60):
     ranked = []
     for symbol, bars in series.items():
@@ -75,21 +99,30 @@ def rank_assets(series, min_samples=60):
         flow = (b.buy_volume - b.sell_volume) / den if den else 0.0
         book_den = b.bid + b.ask
         book = (b.bid - b.ask) / book_den if book_den else 0.0
-        oi_change = 0.0
-        if b.oi is not None and bars[-2].oi not in (None, 0):
-            oi_change = b.oi / bars[-2].oi - 1.0
-        # Rank strength, not profitability. Volatility is capped so wild noise
-        # does not automatically win the shortlist.
+        oi_change = None
+        if (b.oi is not None and bars[-2].oi is not None
+                and math.isfinite(float(b.oi)) and math.isfinite(float(bars[-2].oi))
+                and float(bars[-2].oi) > 0):
+            oi_change = float(b.oi) / float(bars[-2].oi) - 1.0
+        oi_coverage = sum(x.oi is not None and math.isfinite(float(x.oi)) for x in bars) / len(bars)
+        funding_coverage = sum(x.funding is not None and math.isfinite(float(x.funding)) for x in bars) / len(bars)
+        # Derivatives are excluded until their source and coverage are validated.
+        # Normalize the remaining price/flow/order-book weights to sum to one.
         momentum = max(-1.0, min(1.0, (recent / max(vol * 3, 1e-8))))
         medium_score = max(-1.0, min(1.0, (medium / max(vol * 6, 1e-8))))
-        score = 0.35 * abs(momentum) + 0.25 * abs(medium_score) + 0.20 * abs(flow) + 0.15 * abs(book) + 0.05 * min(1.0, abs(oi_change) * 20)
+        score = (0.35 * abs(momentum) + 0.25 * abs(medium_score)
+                 + 0.20 * abs(flow) + 0.15 * abs(book)) / 0.95
         direction = "BULLISH" if (momentum + flow + book) > 0.15 else "BEARISH" if (momentum + flow + book) < -0.15 else "NEUTRAL"
         ranked.append({
             "symbol": symbol, "samples": len(bars), "score": round(score, 4),
             "direction": direction, "momentum": round(momentum, 4),
             "medium_score": round(medium_score, 4),
             "flow": round(flow, 4), "orderbook": round(book, 4),
-            "oi_change": round(oi_change, 6), "volatility": round(vol, 6),
+            "oi_change": round(oi_change, 6) if oi_change is not None else None,
+            "oi_coverage_pct": round(oi_coverage * 100.0, 4),
+            "funding_coverage_pct": round(funding_coverage * 100.0, 4),
+            "derivatives_features_enabled": False,
+            "volatility": round(vol, 6),
         })
     ranked.sort(key=lambda x: x["score"], reverse=True)
     return ranked
@@ -178,6 +211,8 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
         "early_watch_count": len(early_watchlist),
         "early_watchlist": early_watchlist,
         "horizon_bars": horizon,
+        "derivatives_coverage": derivative_coverage(series),
+        "derivatives_features_enabled": False,
         "ranked": ranked,
         "forecasts": forecasts,
         "research_only": True,
