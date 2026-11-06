@@ -136,6 +136,8 @@ def _net_return(bars, signal_index, direction, horizon, cost_pct, funding_events
     if entry <= 0 or exit_price <= 0 or not math.isfinite(entry) or not math.isfinite(exit_price):
         return None
     interval_ms = int(entry_bar.ts) - int(bars[entry_index - 1].ts)
+    if interval_ms <= 0:
+        return None
     entry_ts = int(entry_bar.ts) - interval_ms + 1
     exit_ts = int(bars[exit_index].ts)
     lo = bisect_right(funding_event_times, entry_ts)
