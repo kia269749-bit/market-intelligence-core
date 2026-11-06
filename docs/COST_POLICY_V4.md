@@ -35,6 +35,10 @@ python -m mi_core.hyperliquid_data --coin BTC --asset-key BTCUSDT --interval 1h 
 
 ## Walk-forward reporting
 
+The official CI WFA uses the same five Hyperliquid perpetual markets at 1h for signal evaluation and 5m for OHLC execution checks. Each 1h cross-asset report applies Holm correction across the evaluated assets; each 5m execution report is a separate execution-path diagnostic. Neither report authorizes live trading.
+
+
+
 Economic scoring uses non-overlapping, fully resolved OOS horizons. Per-asset results include a paired long-only Buy & Hold comparator and a deterministic random-direction comparator on the same OOS rows. Acceptance additionally requires the model to beat both baseline net profits and the random baseline to pass a 5% Holm-adjusted one-sided test across evaluated assets for that horizon.
 
 Summed per-asset fixed-capital diagnostics are not portfolio equity or a portfolio return. A true portfolio result requires synchronized positions, shared capital allocation, exposure limits, and portfolio-level execution/cost accounting.
