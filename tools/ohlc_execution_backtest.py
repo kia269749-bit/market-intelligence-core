@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 
 from mi_core.path_forecast import forecast_path
 from mi_core.storage import load_bars
+from mi_core.multi_asset_forecast import load_project60_assets
 from mi_core.cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 
@@ -250,6 +251,8 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True)
+    parser.add_argument("--symbol", default="BTCUSDT")
+    parser.add_argument("--max-rows", type=int, default=10000)
     parser.add_argument("--out", required=True)
     parser.add_argument("--horizon-bars", type=int, default=96)
     parser.add_argument("--step-bars", type=int, default=48)
