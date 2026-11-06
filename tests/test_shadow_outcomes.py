@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from mi_core.shadow_risk import build_risk_levels
-from mi_core.paper_journal import append_signal, resolve_open_signals, summarize
+from mi_core.paper_journal import append_signal, resolve_open_signals, summarize, apply_funding_settlements
 
 
 class ShadowOutcomeTests(unittest.TestCase):
@@ -24,43 +24,45 @@ class ShadowOutcomeTests(unittest.TestCase):
             p=str(Path(td)/"shadow.jsonl")
             append_signal(p,{"signal_id":"x","direction":"BULLISH","entry_price":100.0,
                              "stop":99.0,"target":102.0,"capital_usd":500.0,
-                             "round_trip_cost_pct":0.35,"research_only":True})
+                             "round_trip_cost_pct":0.15,"research_only":True})
             self.assertEqual(resolve_open_signals(p,102.0,now=200),1)
+            self.assertEqual(apply_funding_settlements(p,{"x":{"coverage":1.0,"events":1,"cashflow_usd":0.0}}),1)
             s=summarize(p)
             self.assertEqual(s["resolved"],1)
             self.assertEqual(s["wins"],1)
-            self.assertAlmostEqual(s["net_profit_usd"],8.25,places=4)
+            self.assertAlmostEqual(s["net_profit_usd"],9.25,places=4)
 
     def test_target_overshoot_is_capped_at_target_price(self):
         with tempfile.TemporaryDirectory() as td:
             p=str(Path(td)/"shadow.jsonl")
             append_signal(p,{"signal_id":"x","direction":"BULLISH","entry_price":100.0,
                              "stop":99.0,"target":102.0,"capital_usd":500.0,
-                             "round_trip_cost_pct":0.35,"research_only":True})
+                             "round_trip_cost_pct":0.15,"research_only":True})
             self.assertEqual(resolve_open_signals(p,105.0,now=200),1)
             row=json.loads(Path(p).read_text(encoding="utf-8").splitlines()[0])
             self.assertEqual(row["exit_price"],102.0)
             self.assertEqual(row["observed_price"],105.0)
-            self.assertAlmostEqual(row["net_profit_usd"],8.25,places=4)
+            self.assertAlmostEqual(row["net_profit_usd"],9.25,places=4)
 
     def test_stop_gap_uses_worse_observed_price(self):
         with tempfile.TemporaryDirectory() as td:
             p=str(Path(td)/"shadow.jsonl")
             append_signal(p,{"signal_id":"x","direction":"BULLISH","entry_price":100.0,
                              "stop":99.0,"target":102.0,"capital_usd":500.0,
-                             "round_trip_cost_pct":0.35,"research_only":True})
+                             "round_trip_cost_pct":0.15,"research_only":True})
             self.assertEqual(resolve_open_signals(p,95.0,now=200),1)
             row=json.loads(Path(p).read_text(encoding="utf-8").splitlines()[0])
             self.assertEqual(row["exit_price"],95.0)
-            self.assertAlmostEqual(row["net_profit_usd"],-26.75,places=4)
+            self.assertAlmostEqual(row["net_profit_usd"],-25.75,places=4)
 
     def test_stop_resolution_records_loss(self):
         with tempfile.TemporaryDirectory() as td:
             p=str(Path(td)/"shadow.jsonl")
             append_signal(p,{"signal_id":"x","direction":"BEARISH","entry_price":100.0,
                              "stop":101.0,"target":98.0,"capital_usd":500.0,
-                             "round_trip_cost_pct":0.35,"research_only":True})
+                             "round_trip_cost_pct":0.15,"research_only":True})
             self.assertEqual(resolve_open_signals(p,101.0,now=200),1)
+            self.assertEqual(apply_funding_settlements(p,{"x":{"coverage":1.0,"events":1,"cashflow_usd":0.0}}),1)
             s=summarize(p)
             self.assertEqual(s["losses"],1)
             self.assertLess(s["net_profit_usd"],0)
@@ -70,10 +72,10 @@ class ShadowOutcomeTests(unittest.TestCase):
             p=str(Path(td)/"shadow.jsonl")
             append_signal(p,{"signal_id":"btc","asset":"BTC","direction":"BULLISH","entry_price":100.0,
                              "stop":99.0,"target":102.0,"capital_usd":500.0,
-                             "round_trip_cost_pct":0.35,"research_only":True})
+                             "round_trip_cost_pct":0.15,"research_only":True})
             append_signal(p,{"signal_id":"eth","asset":"ETH","direction":"BULLISH","entry_price":2000.0,
                              "stop":1980.0,"target":2040.0,"capital_usd":500.0,
-                             "round_trip_cost_pct":0.35,"research_only":True})
+                             "round_trip_cost_pct":0.15,"research_only":True})
             self.assertEqual(resolve_open_signals(p,{"BTC":102.0,"ETH":2000.0},now=200),1)
             rows=[json.loads(line) for line in Path(p).read_text(encoding="utf-8").splitlines()]
             states={r["asset"]:r["status"] for r in rows}

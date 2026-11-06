@@ -4,6 +4,8 @@ import json
 import math
 import time
 from pathlib import Path
+from urllib.request import Request, urlopen
+from .cost_policy import DEFAULT_COST_POLICY
 
 def append_signal(path: str, signal: dict) -> bool:
     p=Path(path); p.parent.mkdir(parents=True, exist_ok=True)
@@ -75,26 +77,88 @@ def resolve_open_signals(path: str, current_price: float | dict, now: int | None
             exit_price=max(price,stop)
         gross_pct=((exit_price-entry)/entry*100) if direction=="BULLISH" else ((entry-exit_price)/entry*100)
         try:
-            cost_pct=float(row.get("round_trip_cost_pct",0.35))
+            cost_pct=float(row.get("round_trip_cost_pct",DEFAULT_COST_POLICY.base_round_trip_pct))
             capital=float(row.get("capital_usd",500.0) or 500.0)
         except (TypeError,ValueError):
-            cost_pct=0.35
+            cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct
             capital=500.0
         if cost_pct < 0 or not math.isfinite(cost_pct):
-            cost_pct=0.35
+            cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct
         if capital <= 0 or not math.isfinite(capital):
             capital=500.0
+        # Funding is not inferred from a single snapshot rate. Until a
+        # complete, timestamp-aligned settlement is attached, this outcome is
+        # explicitly incomplete and cannot train Outcome Memory.
         row.update({"status":status,"resolved_ts":now,"exit_price":exit_price,
                     "observed_price":price,
                     "gross_move_pct":round(gross_pct,6),
                     "round_trip_cost_pct":cost_pct,
-                    "net_profit_usd":round(capital*(gross_pct-cost_pct)/100,4)})
+                    "funding_status":row.get("funding_status","UNVERIFIED"),
+                    "funding_coverage":float(row.get("funding_coverage",0.0) or 0.0),
+                    "funding_cashflow_usd":row.get("funding_cashflow_usd"),
+                    "net_profit_usd":round(capital*(gross_pct-cost_pct)/100,4),
+                    "learning_eligible":False})
         changed+=1
     if changed:
         tmp=p.with_suffix(p.suffix+".tmp")
         tmp.write_text("".join(json.dumps(r,ensure_ascii=False)+"\n" for r in rows),encoding="utf-8")
         tmp.replace(p)
     return changed
+
+def apply_funding_settlements(path: str, settlements: dict) -> int:
+    """Attach verified, holding-period funding cashflows to resolved shadow rows.
+
+    settlements maps signal_id to {coverage, events, cashflow_usd}. Cashflow is
+    signed from the strategy's perspective: receipts are positive, payments
+    are negative. Coverage below 95%, missing events, or invalid values are
+    rejected and never make a sample eligible for learning.
+    """
+    p=Path(path)
+    if not p.exists() or not isinstance(settlements,dict):
+        return 0
+    try:
+        rows=[json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError,json.JSONDecodeError):
+        return 0
+    changed=0
+    for row in rows:
+        if row.get("status") not in ("TARGET","STOP"):
+            continue
+        settlement=settlements.get(row.get("signal_id"))
+        if not isinstance(settlement,dict):
+            continue
+        try:
+            coverage=float(settlement.get("coverage"))
+            events=int(settlement.get("events"))
+            expected_events=int(settlement.get("expected_events",events))
+            cashflow=float(settlement.get("cashflow_usd"))
+            capital=float(row.get("capital_usd",500.0) or 500.0)
+            gross=float(row.get("gross_move_pct"))
+            cost=float(row.get("round_trip_cost_pct",DEFAULT_COST_POLICY.base_round_trip_pct))
+        except (TypeError,ValueError):
+            continue
+        if (not all(math.isfinite(v) for v in (coverage,cashflow,capital,gross,cost))
+                or coverage < 0.95 or coverage > 1.0 or events < 0
+                or expected_events < 0 or events > expected_events
+                or (expected_events > 0 and events < 1)
+                or capital <= 0 or cost < 0):
+            continue
+        row.update({
+            "funding_status":"VERIFIED",
+            "funding_coverage":round(coverage,6),
+            "funding_events":events,
+            "funding_cashflow_usd":round(cashflow,6),
+            "funding_verified_ts":int(time.time()),
+            "net_profit_usd":round(capital*(gross-cost)/100.0+cashflow,4),
+            "learning_eligible":True,
+        })
+        changed+=1
+    if changed:
+        tmp=p.with_suffix(p.suffix+".tmp")
+        tmp.write_text("".join(json.dumps(r,ensure_ascii=False)+"\n" for r in rows),encoding="utf-8")
+        tmp.replace(p)
+    return changed
+
 
 def _bucket_confidence(value):
     try:
@@ -140,15 +204,109 @@ def _group_outcomes(rows, key_fn):
     return groups
 
 
-def summarize(path: str) -> dict:
+def _fetch_hyperliquid_funding_history(coin: str, start_ms: int, end_ms: int) -> list:
+    payload={"type":"fundingHistory","coin":str(coin).upper(),
+             "startTime":int(start_ms),"endTime":int(end_ms)}
+    request=Request(
+        "https://api.hyperliquid.xyz/info",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type":"application/json","User-Agent":"MarketIntelligenceCore/4"},
+        method="POST",
+    )
+    with urlopen(request,timeout=12) as response:
+        data=json.loads(response.read().decode("utf-8"))
+    return data if isinstance(data,list) else []
+
+
+def settle_hyperliquid_funding(path: str, fetcher=None) -> int:
+    """Fetch actual Hyperliquid funding events for resolved shadow positions.
+
+    Funding cashflow is signed from the position's perspective. A positive
+    rate is paid by longs and received by shorts. Expected event count follows
+    hourly UTC settlement boundaries crossed during the holding interval;
+    samples below 95% event coverage remain ineligible.
+    """
     p=Path(path)
     if not p.exists():
-        return {
-            "count":0,"open":0,"resolved":0,"wins":0,"losses":0,
-            "win_rate":0.0,"net_profit_usd":0.0,
-            "by_regime":{},"by_direction":{},
-            "by_confidence":{},"by_economic_tier":{}
+        return 0
+    fetch=fetcher or _fetch_hyperliquid_funding_history
+    try:
+        rows=[json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError,json.JSONDecodeError):
+        return 0
+    settlements={}
+    hour_ms=3_600_000
+    for row in rows:
+        if (row.get("status") not in ("TARGET","STOP")
+                or row.get("funding_status")=="VERIFIED"
+                or not row.get("signal_id")):
+            continue
+        try:
+            start_ms=int(row.get("ts"))*1000
+            end_ms=int(row.get("resolved_ts"))*1000
+            capital=float(row.get("capital_usd",500.0) or 500.0)
+            direction=str(row.get("direction","")).upper()
+            coin=str(row.get("asset","")).upper()
+        except (TypeError,ValueError):
+            continue
+        if (not coin or direction not in ("BULLISH","BEARISH")
+                or end_ms <= start_ms or capital <= 0):
+            continue
+        expected=max(0,end_ms//hour_ms-start_ms//hour_ms)
+        try:
+            events=fetch(coin,start_ms,end_ms)
+        except Exception:
+            continue
+        unique={}
+        for event in events if isinstance(events,list) else []:
+            if not isinstance(event,dict):
+                continue
+            try:
+                timestamp=int(event.get("time"))
+                rate=float(event.get("fundingRate"))
+            except (TypeError,ValueError):
+                continue
+            if start_ms < timestamp <= end_ms and math.isfinite(rate):
+                unique[timestamp]=rate
+        observed=len(unique)
+        coverage=1.0 if expected==0 else min(1.0,observed/expected)
+        if coverage < 0.95 or (expected>0 and observed==0):
+            continue
+        direction_sign=1.0 if direction=="BULLISH" else -1.0
+        cashflow=sum(-direction_sign*rate*capital for rate in unique.values())
+        settlements[row["signal_id"]]={
+            "coverage":coverage,"events":observed,
+            "expected_events":expected,"cashflow_usd":cashflow,
         }
+    return apply_funding_settlements(path,settlements)
+
+
+def _funding_learning_eligible(row: dict) -> bool:
+    try:
+        coverage=float(row.get("funding_coverage",0.0) or 0.0)
+        cashflow=float(row.get("funding_cashflow_usd"))
+        net_profit=float(row.get("net_profit_usd"))
+    except (TypeError,ValueError):
+        return False
+    return (
+        row.get("funding_status")=="VERIFIED"
+        and row.get("learning_eligible") is True
+        and math.isfinite(coverage) and coverage>=0.95
+        and math.isfinite(cashflow) and math.isfinite(net_profit)
+    )
+
+
+def summarize(path: str) -> dict:
+    p=Path(path)
+    empty={
+        "count":0,"open":0,"resolved":0,"resolved_total":0,
+        "funding_verified_resolved":0,"funding_incomplete_resolved":0,
+        "wins":0,"losses":0,"win_rate":0.0,"net_profit_usd":0.0,
+        "by_regime":{},"by_direction":{},
+        "by_confidence":{},"by_economic_tier":{},
+    }
+    if not p.exists():
+        return empty
 
     rows=[]
     for line in p.read_text(encoding="utf-8").splitlines():
@@ -157,31 +315,33 @@ def summarize(path: str) -> dict:
         except json.JSONDecodeError:
             continue
 
-    resolved=[r for r in rows if r.get("status") in ("TARGET","STOP")]
-    wins=sum(r.get("status")=="TARGET" for r in resolved)
-    losses=sum(r.get("status")=="STOP" for r in resolved)
-    net=sum(float(r.get("net_profit_usd",0.0) or 0.0) for r in resolved)
+    resolved_all=[r for r in rows if r.get("status") in ("TARGET","STOP")]
+    eligible=[r for r in resolved_all if _funding_learning_eligible(r)]
+    wins=sum(r.get("status")=="TARGET" for r in eligible)
+    losses=sum(r.get("status")=="STOP" for r in eligible)
+    net=sum(float(r.get("net_profit_usd",0.0) or 0.0) for r in eligible)
 
     return {
         "count":len(rows),
         "open":sum(r.get("status")=="OPEN" for r in rows),
-        "resolved":len(resolved),
+        "resolved":len(eligible),
+        "resolved_total":len(resolved_all),
+        "funding_verified_resolved":len(eligible),
+        "funding_incomplete_resolved":len(resolved_all)-len(eligible),
         "wins":wins,
         "losses":losses,
-        "win_rate":round(wins/len(resolved),4) if resolved else 0.0,
+        "win_rate":round(wins/len(eligible),4) if eligible else 0.0,
         "net_profit_usd":round(net,4),
         "by_regime":_group_outcomes(
-            resolved, lambda r: str(r.get("regime","UNKNOWN")).upper() or "UNKNOWN"
+            eligible, lambda r: str(r.get("regime","UNKNOWN")).upper() or "UNKNOWN"
         ),
         "by_direction":_group_outcomes(
-            resolved, lambda r: str(r.get("direction","UNKNOWN")).upper() or "UNKNOWN"
+            eligible, lambda r: str(r.get("direction","UNKNOWN")).upper() or "UNKNOWN"
         ),
         "by_confidence":_group_outcomes(
-            resolved, lambda r: _bucket_confidence(r.get("confidence"))
+            eligible, lambda r: _bucket_confidence(r.get("confidence"))
         ),
         "by_economic_tier":_group_outcomes(
-            resolved, lambda r: _bucket_economic(
-                r.get("modeled_profit_usd")
-            )
+            eligible, lambda r: _bucket_economic(r.get("modeled_profit_usd"))
         ),
     }

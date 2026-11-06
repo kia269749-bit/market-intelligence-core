@@ -56,7 +56,7 @@ def evaluate_usd10_setup(
     else:
         modeled_profit = position * gate.net_target_pct / 100.0
         modeled_loss = position * gate.net_risk_pct / 100.0
-        if modeled_profit < min_net_profit_usd:
+        if round(modeled_profit, 8) < min_net_profit_usd:
             reason = "net_profit_below_usd10"
         elif modeled_loss > max_risk_usd:
             reason = "risk_budget_exceeded"

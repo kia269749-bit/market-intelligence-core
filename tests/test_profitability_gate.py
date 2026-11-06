@@ -28,6 +28,6 @@ class ProfitabilityGateTests(unittest.TestCase):
     def test_usd10_rejects_large_required_position(self):
         r=evaluate_usd10_setup(100,99.8,100.9,"BULLISH",0.80,max_position_usd=500)
         self.assertFalse(r.approved)
-        self.assertEqual(r.reason,"base_profitability_gate_failed")
+        self.assertEqual(r.reason,"usd10_requires_too_large_position")
 
 if __name__=="__main__": unittest.main()

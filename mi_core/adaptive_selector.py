@@ -7,15 +7,20 @@ from __future__ import annotations
 
 import math
 import statistics
+from bisect import bisect_right
 from typing import Sequence
 
 from .models import MarketBar
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
+from .multi_asset_forecast import derivative_coverage
 
 STRATEGIES = (
     "momentum_5", "ema_trend", "ema_trend_slow", "breakout_20", "breakout_50",
-    "mean_reversion_14", "flow_5", "oi_funding_5", "funding_crowding",
-    "consensus_3", "consensus_4",
+    "mean_reversion_14", "flow_5", "consensus_3", "consensus_4",
 )
+
+DISABLED_DERIVATIVE_STRATEGIES = ("oi_funding_5", "funding_crowding")
+MIN_SIGNAL_HORIZON_BARS = 60
 
 
 def _ema(values, period):
@@ -91,27 +96,10 @@ def _signal(bars: Sequence[MarketBar], i: int, strategy: str) -> int:
     flow = statistics.fmean(flow_values) if flow_values else 0.0
     flow_side = 1 if flow >= 0.15 else -1 if flow <= -0.15 else 0
 
-    oi_now = bars[i].oi
-    oi_prev = bars[max(0, i - 5)].oi
-    oi_change = 0.0
-    if oi_now is not None and oi_prev not in (None, 0):
-        oi_change = float(oi_now) / float(oi_prev) - 1.0
-    funding = float(bars[i].funding or 0.0)
-    oi_funding_side = 0
-    if oi_change >= 0.002 and momentum > threshold:
-        oi_funding_side = 1 if funding < 0.0003 else 0
-    elif oi_change >= 0.002 and momentum < -threshold:
-        oi_funding_side = -1 if funding > -0.0003 else 0
-    elif oi_change <= -0.002 and momentum > threshold and flow > 0.10:
-        oi_funding_side = 1
-    elif oi_change <= -0.002 and momentum < -threshold and flow < -0.10:
-        oi_funding_side = -1
-
-    funding_crowding_side = 0
-    if oi_change > 0.002 and funding >= 0.0003 and rsi >= 65.0:
-        funding_crowding_side = -1
-    elif oi_change > 0.002 and funding <= -0.0003 and rsi <= 35.0:
-        funding_crowding_side = 1
+    # Funding/OI strategy families stay disabled until the futures feed passes
+    # real timestamp, freshness, and coverage validation.
+    if strategy in DISABLED_DERIVATIVE_STRATEGIES:
+        return 0
 
     if strategy == "momentum_5":
         return momentum_side
@@ -127,32 +115,36 @@ def _signal(bars: Sequence[MarketBar], i: int, strategy: str) -> int:
         return mean_reversion_side
     if strategy == "flow_5":
         return flow_side
-    if strategy == "oi_funding_5":
-        return oi_funding_side
-    if strategy == "funding_crowding":
-        return funding_crowding_side
     if strategy == "consensus_3":
         score = momentum_side + trend_side + breakout_side
         return 1 if score >= 2 else -1 if score <= -2 else 0
     if strategy == "consensus_4":
-        score = momentum_side + trend_side + breakout_side + flow_side + oi_funding_side
+        score = momentum_side + trend_side + breakout_side + flow_side
         return 1 if score >= 3 else -1 if score <= -3 else 0
     return 0
 
 
-def _net_return(bars, signal_index, direction, horizon, cost_pct):
-    """Realized net percent return, entering next bar and exiting after horizon bars."""
+def _net_return(bars, signal_index, direction, horizon, cost_pct, funding_events, funding_event_times, funding_verified):
+    """Net return after one round-trip policy cost and discrete holding funding."""
     entry_index = signal_index + 1
     exit_index = signal_index + horizon + 1
-    if entry_index >= len(bars) or exit_index >= len(bars):
+    if entry_index >= len(bars) or exit_index >= len(bars) or not funding_verified:
         return None
     entry_bar = bars[entry_index]
     entry = float(entry_bar.open if entry_bar.open is not None and entry_bar.open > 0 else entry_bar.price)
     exit_price = float(bars[exit_index].price)
     if entry <= 0 or exit_price <= 0 or not math.isfinite(entry) or not math.isfinite(exit_price):
         return None
+    interval_ms = int(entry_bar.ts) - int(bars[entry_index - 1].ts)
+    if interval_ms <= 0:
+        return None
+    entry_ts = int(entry_bar.ts) - interval_ms + 1
+    exit_ts = int(bars[exit_index].ts)
+    lo = bisect_right(funding_event_times, entry_ts)
+    hi = bisect_right(funding_event_times, exit_ts)
+    funding_rate_sum_pct = sum(item[1] for item in funding_events[lo:hi]) * 100.0
     gross = int(direction) * (exit_price / entry - 1.0) * 100.0
-    return gross - float(cost_pct)
+    return gross - int(direction) * funding_rate_sum_pct - float(cost_pct)
 
 
 def _metrics(returns):
@@ -197,8 +189,10 @@ def _training_gate(metrics, min_trades):
 def evaluate_adaptive_selection(
     bars: Sequence[MarketBar],
     horizon: int = 60,
-    cost_pct: float = 0.35,
+    cost_pct: float | None = None,
     train_window: int = 300,
+    cost_mode: str = "base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
     min_train_trades: int = 20,
     min_oos_trades: int = 12,
 ):
@@ -208,9 +202,23 @@ def evaluate_adaptive_selection(
     its training window. Acceptance requires a separate rolling selector test
     on later, previously unseen outcomes after costs.
     """
-    if horizon < 1 or cost_pct < 0 or train_window < 60:
-        raise ValueError("invalid horizon, cost, or train_window")
+    resolved_cost_pct = resolve_round_trip_cost_pct(cost_mode, cost_policy, override=cost_pct)
+    if horizon < 1 or train_window < 60:
+        raise ValueError("invalid horizon or train_window")
     n = len(bars)
+    coverage = derivative_coverage({bars[-1].symbol: bars}).get(bars[-1].symbol, {}) if bars else {}
+    funding_verified = bool(
+        coverage.get("funding_timestamped_present", 0) > 0
+        and coverage.get("funding_fresh_coverage_pct", 0.0) >= 95.0
+    )
+    funding_event_map = {}
+    for bar in bars:
+        derivatives = bar.derivatives or {}
+        event_ts = derivatives.get("funding_timestamp_ms")
+        if event_ts is not None and bar.funding is not None:
+            funding_event_map[int(event_ts)] = float(bar.funding)
+    funding_events = sorted(funding_event_map.items())
+    funding_event_times = [item[0] for item in funding_events]
     if n < max(80, horizon + 40):
         return {
             "available": False, "reason": "insufficient_history", "samples": n,
@@ -228,7 +236,9 @@ def evaluate_adaptive_selection(
                 continue
             scheduled[name][i] = True
             next_allowed = i + horizon + 1
-            outcomes[name][i] = _net_return(bars, i, direction, horizon, cost_pct)
+            outcomes[name][i] = _net_return(
+                bars, i, direction, horizon, resolved_cost_pct, funding_events, funding_event_times, funding_verified
+            )
 
     def resolved_returns(name, decision_index, start_index):
         # Include only trades whose full outcome was known by decision_index.
@@ -295,8 +305,13 @@ def evaluate_adaptive_selection(
             x["training"]["profit_factor"], x["training"]["trades"]
         ))
 
-    accepted = bool(oos_accepted and chosen["training_gate"] and chosen["current_direction"])
+    signal_eligible = int(horizon) >= MIN_SIGNAL_HORIZON_BARS
+    accepted = bool(signal_eligible and funding_verified and oos_accepted and chosen["training_gate"] and chosen["current_direction"])
     reasons = []
+    if not signal_eligible:
+        reasons.append("diagnostic_horizon_below_minimum_60_bars")
+    if not funding_verified:
+        reasons.append("funding_history_coverage_below_95pct")
     if not chosen["current_direction"]:
         reasons.append("no_active_strategy_signal")
     if not chosen["training_gate"]:
@@ -310,7 +325,12 @@ def evaluate_adaptive_selection(
         "available": True,
         "asset": bars[-1].symbol,
         "horizon_bars": horizon,
-        "cost_pct": float(cost_pct),
+        "signal_eligible": signal_eligible,
+        "funding_data_verified": funding_verified,
+        "funding_coverage": coverage,
+        "cost_pct": resolved_cost_pct,
+        "cost_mode": cost_mode,
+        "cost_policy_version": cost_policy.version,
         "samples": n,
         "selected_strategy": chosen["strategy"],
         "direction": "BULLISH" if chosen["current_direction"] > 0 else "BEARISH" if chosen["current_direction"] < 0 else "NONE",
@@ -320,7 +340,7 @@ def evaluate_adaptive_selection(
         "walk_forward_oos": oos,
         "oos_strategy_counts": {name: oos_choices.count(name) for name in STRATEGIES},
         "accepted": accepted,
-        "status": "OOS_EDGE_PASSED" if accepted else "EDGE_UNPROVEN",
+        "status": "DIAGNOSTIC_ONLY" if not signal_eligible else "FUNDING_UNVERIFIED" if not funding_verified else "OOS_EDGE_PASSED" if accepted else "EDGE_UNPROVEN",
         "reasons": reasons,
         "candidates": candidates,
         "selection_method": "rolling net-expectancy + lower-confidence-bound; nested walk-forward selection",

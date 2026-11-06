@@ -5,6 +5,7 @@ setups that do not clear a minimum net edge and risk/reward threshold.
 """
 from __future__ import annotations
 from dataclasses import dataclass
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 @dataclass(frozen=True)
 class GateResult:
@@ -18,10 +19,12 @@ class GateResult:
     net_rr: float
 
 def evaluate_setup(price: float, stop: float, target: float, direction: str,
-                   confidence: float, fee_bps: float = 10.0,
-                   spread_bps: float = 5.0, slippage_bps: float = 8.0,
+                   confidence: float, fee_bps: float | None = None,
+                   spread_bps: float | None = None, slippage_bps: float | None = None,
                    min_confidence: float = 0.70, min_rr: float = 1.50,
-                   min_net_edge_pct: float = 0.50) -> GateResult:
+                   min_net_edge_pct: float = 0.50,
+                   cost_policy: CostPolicy = DEFAULT_COST_POLICY,
+                   cost_mode: str = "base", cost_model: str = "policy") -> GateResult:
     d=str(direction).upper()
     valid = price > 0 and stop > 0 and target > 0 and (
         (d == "BULLISH" and stop < price < target) or
@@ -31,7 +34,18 @@ def evaluate_setup(price: float, stop: float, target: float, direction: str,
         return GateResult(False, "invalid_price_levels", 0, 0, 0, 0, 0, 0)
     gross_target=((target/price)-1)*100 if d=="BULLISH" else ((price/target)-1)*100
     gross_stop=((price/stop)-1)*100 if d=="BULLISH" else ((stop/price)-1)*100
-    cost=2*(fee_bps+spread_bps+slippage_bps)/100
+    if cost_model == "policy":
+        cost = resolve_round_trip_cost_pct(cost_mode, cost_policy)
+    elif cost_model == "components":
+        # Explicit legacy/diagnostic decomposition, not additive to policy rates.
+        fee = 10.0 if fee_bps is None else float(fee_bps)
+        spread = 5.0 if spread_bps is None else float(spread_bps)
+        slippage = 8.0 if slippage_bps is None else float(slippage_bps)
+        if min(fee, spread, slippage) < 0:
+            raise ValueError("cost components must be non-negative")
+        cost = 2 * (fee + spread + slippage) / 100
+    else:
+        raise ValueError("cost_model must be 'policy' or 'components'")
     net_target=gross_target-cost
     net_risk=gross_stop+cost
     rr=net_target/net_risk if net_risk>0 else 0

@@ -31,12 +31,17 @@ def load_project60_assets(path, max_rows=800):
     for line in lines:
         try:
             row = json.loads(line)
-            coins = row.get("coins", {})
+            coins = row.get("coins")
             if isinstance(coins, list):
                 coins = {str(v.get("coin")): v for v in coins if isinstance(v, dict)}
             if not isinstance(coins, dict):
-                continue
-            ts = int(_num(row.get("timestamp")))
+                # Also accept the flat MarketBar JSONL emitted by mi_core.cli real.
+                flat_symbol = str(row.get("symbol") or "").strip()
+                if flat_symbol and row.get("price") is not None:
+                    coins = {flat_symbol: row}
+                else:
+                    continue
+            ts = int(_num(row.get("timestamp", row.get("ts"))))
             for symbol, a in coins.items():
                 if not isinstance(a, dict) or _num(a.get("price")) <= 0:
                     continue
@@ -44,15 +49,74 @@ def load_project60_assets(path, max_rows=800):
                 ob = a.get("orderbook") or {}
                 series.setdefault(symbol, []).append(MarketBar(
                     ts=ts, symbol=symbol, price=_num(a.get("price")),
-                    oi=_num(a.get("open_interest")) if a.get("open_interest") is not None else None,
+                    oi=_num(a.get("open_interest", a.get("oi"))) if a.get("open_interest", a.get("oi")) is not None else None,
                     funding=_num(a.get("funding")) if a.get("funding") is not None else None,
-                    bid=_num(ob.get("bid_usd")), ask=_num(ob.get("ask_usd")),
-                    buy_volume=_num(tr.get("buy_usd")),
-                    sell_volume=_num(tr.get("sell_usd")),
+                    bid=_num(ob.get("bid_usd", a.get("bid"))), ask=_num(ob.get("ask_usd", a.get("ask"))),
+                    volume=_num(a.get("volume")),
+                    buy_volume=_num(tr.get("buy_usd", a.get("buy_volume"))),
+                    sell_volume=_num(tr.get("sell_usd", a.get("sell_volume"))),
+                    open=_num(a.get("open")) if a.get("open") is not None else None,
+                    high=_num(a.get("high")) if a.get("high") is not None else None,
+                    low=_num(a.get("low")) if a.get("low") is not None else None,
+                    derivatives=a.get("derivatives") if isinstance(a.get("derivatives"), dict) else None,
                 ))
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
     return series
+
+
+
+
+def derivative_coverage(series):
+    """Report derivative-field coverage without converting missing values to zero."""
+    report = {}
+    for symbol, bars in series.items():
+        n = len(bars)
+        oi_n = sum(b.oi is not None and math.isfinite(float(b.oi)) for b in bars)
+        funding_n = sum(b.funding is not None and math.isfinite(float(b.funding)) for b in bars)
+        oi_timestamped = sum(
+            isinstance((b.derivatives or {}).get("oi_timestamp_ms"), (int, float))
+            for b in bars
+        )
+        funding_timestamped = sum(
+            isinstance((b.derivatives or {}).get("funding_timestamp_ms"), (int, float))
+            for b in bars
+        )
+        oi_fresh_ages = [
+            int((b.derivatives or {}).get("oi_age_ms"))
+            for b in bars
+            if b.oi is not None
+            and isinstance((b.derivatives or {}).get("oi_age_ms"), (int, float))
+            and isinstance((b.derivatives or {}).get("oi_max_age_ms"), (int, float))
+            and 0 <= int((b.derivatives or {}).get("oi_age_ms")) <= int((b.derivatives or {}).get("oi_max_age_ms"))
+        ]
+        funding_fresh_ages = [
+            int((b.derivatives or {}).get("funding_age_ms"))
+            for b in bars
+            if b.funding is not None
+            and isinstance((b.derivatives or {}).get("funding_age_ms"), (int, float))
+            and isinstance((b.derivatives or {}).get("funding_max_age_ms"), (int, float))
+            and 0 <= int((b.derivatives or {}).get("funding_age_ms")) <= int((b.derivatives or {}).get("funding_max_age_ms"))
+        ]
+        oi_fresh = len(oi_fresh_ages)
+        funding_fresh = len(funding_fresh_ages)
+        report[symbol] = {
+            "bars": n,
+            "oi_present": oi_n,
+            "oi_coverage_pct": round(100.0 * oi_n / n, 4) if n else 0.0,
+            "oi_timestamped_present": oi_timestamped,
+            "oi_fresh_present": oi_fresh,
+            "oi_fresh_coverage_pct": round(100.0 * oi_fresh / n, 4) if n else 0.0,
+            "oi_max_age_ms": max(oi_fresh_ages) if oi_fresh_ages else None,
+            "funding_present": funding_n,
+            "funding_coverage_pct": round(100.0 * funding_n / n, 4) if n else 0.0,
+            "funding_timestamped_present": funding_timestamped,
+            "funding_fresh_present": funding_fresh,
+            "funding_fresh_coverage_pct": round(100.0 * funding_fresh / n, 4) if n else 0.0,
+            "funding_max_age_ms": max(funding_fresh_ages) if funding_fresh_ages else None,
+            "derivatives_features_enabled": False,
+        }
+    return report
 
 
 def rank_assets(series, min_samples=60):
@@ -73,23 +137,34 @@ def rank_assets(series, min_samples=60):
         b = bars[-1]
         den = b.buy_volume + b.sell_volume
         flow = (b.buy_volume - b.sell_volume) / den if den else 0.0
-        book_den = b.bid + b.ask
-        book = (b.bid - b.ask) / book_den if book_den else 0.0
-        oi_change = 0.0
-        if b.oi is not None and bars[-2].oi not in (None, 0):
-            oi_change = b.oi / bars[-2].oi - 1.0
-        # Rank strength, not profitability. Volatility is capped so wild noise
-        # does not automatically win the shortlist.
+        bid = _num(b.bid)
+        ask = _num(b.ask)
+        book_den = bid + ask
+        book = (bid - ask) / book_den if book_den else 0.0
+        oi_change = None
+        if (b.oi is not None and bars[-2].oi is not None
+                and math.isfinite(float(b.oi)) and math.isfinite(float(bars[-2].oi))
+                and float(bars[-2].oi) > 0):
+            oi_change = float(b.oi) / float(bars[-2].oi) - 1.0
+        oi_coverage = sum(x.oi is not None and math.isfinite(float(x.oi)) for x in bars) / len(bars)
+        funding_coverage = sum(x.funding is not None and math.isfinite(float(x.funding)) for x in bars) / len(bars)
+        # Derivatives are excluded until their source and coverage are validated.
+        # Normalize the remaining price/flow/order-book weights to sum to one.
         momentum = max(-1.0, min(1.0, (recent / max(vol * 3, 1e-8))))
         medium_score = max(-1.0, min(1.0, (medium / max(vol * 6, 1e-8))))
-        score = 0.35 * abs(momentum) + 0.25 * abs(medium_score) + 0.20 * abs(flow) + 0.15 * abs(book) + 0.05 * min(1.0, abs(oi_change) * 20)
+        score = (0.35 * abs(momentum) + 0.25 * abs(medium_score)
+                 + 0.20 * abs(flow) + 0.15 * abs(book)) / 0.95
         direction = "BULLISH" if (momentum + flow + book) > 0.15 else "BEARISH" if (momentum + flow + book) < -0.15 else "NEUTRAL"
         ranked.append({
             "symbol": symbol, "samples": len(bars), "score": round(score, 4),
             "direction": direction, "momentum": round(momentum, 4),
             "medium_score": round(medium_score, 4),
             "flow": round(flow, 4), "orderbook": round(book, 4),
-            "oi_change": round(oi_change, 6), "volatility": round(vol, 6),
+            "oi_change": round(oi_change, 6) if oi_change is not None else None,
+            "oi_coverage_pct": round(oi_coverage * 100.0, 4),
+            "funding_coverage_pct": round(funding_coverage * 100.0, 4),
+            "derivatives_features_enabled": False,
+            "volatility": round(vol, 6),
         })
     ranked.sort(key=lambda x: x["score"], reverse=True)
     return ranked
@@ -109,7 +184,7 @@ def _candidate_regime(item):
     return "MIXED"
 
 
-def scan_project60(path, top_n=5, max_rows=800, horizon=60):
+def scan_project60(path, top_n=5, max_rows=800, horizon=60, cost_mode="base"):
     series = load_project60_assets(path, max_rows=max_rows)
     ranked = rank_assets(series)
     selected = ranked[:max(1, int(top_n))]
@@ -124,7 +199,8 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
         quality_score = 1.0 if len(bars) >= 150 else 0.90
         trade_filter = evaluate_forecast(
             result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
-            regime=regime, quality_score=quality_score, agreement=agreement)
+            regime=regime, quality_score=quality_score, agreement=agreement,
+            cost_mode=cost_mode)
         # Keep the asset symbol at the top level for compact reports/CLI output.
         # If a valid directional setup passes the adaptive policy but misses the
         # $4 economic floor, expose it as WATCHLIST only. This preserves
@@ -178,6 +254,9 @@ def scan_project60(path, top_n=5, max_rows=800, horizon=60):
         "early_watch_count": len(early_watchlist),
         "early_watchlist": early_watchlist,
         "horizon_bars": horizon,
+        "cost_mode": cost_mode,
+        "derivatives_coverage": derivative_coverage(series),
+        "derivatives_features_enabled": False,
         "ranked": ranked,
         "forecasts": forecasts,
         "research_only": True,

@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from .validated_forecast import non_overlapping_predictions
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 
 def _num(v, default=0.0):
@@ -23,6 +24,7 @@ def _directional_rows(result):
         x for x in non_overlapping_predictions(result)
         if x.get("pred") in (-1, 1)
         and x.get("actual_return_pct") is not None
+        and x.get("funding_cost_verified") is not False
     ]
 
 
@@ -40,19 +42,26 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.35,
+    round_trip_cost_pct=None,
+    cost_mode="base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
 ):
     """Explain where OOS economics succeed or fail."""
     rows = _directional_rows(result)
-    min_required = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
-    preferred_required = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
+    resolved_cost_pct = resolve_round_trip_cost_pct(
+        cost_mode, cost_policy, override=round_trip_cost_pct
+    )
+    min_required = min_profit_usd / capital_usd * 100.0 + resolved_cost_pct
+    preferred_required = preferred_profit_usd / capital_usd * 100.0 + resolved_cost_pct
 
     total = len(rows)
     cost_limited = magnitude_limited = target4 = target10 = adverse05 = 0
+    funding_costs = []
     correct_direction = 0
+    economic_move_positive = 0
     late_proxy = 0
     net_values = []
     buckets = defaultdict(lambda: {"n": 0, "positive_net": 0, "target4": 0,
@@ -63,19 +72,24 @@ def diagnose_economic_edge(
     for x in rows:
         pred = int(x["pred"])
         actual = _num(x.get("actual_return_pct"))
-        favorable = actual if pred == 1 else -actual
-        mfe = _num(x.get("favorable_mfe_pct"))
+        funding_rate_sum_pct = _num(x.get("funding_rate_sum_pct"))
+        funding_cost_pct = pred * funding_rate_sum_pct
+        price_favorable = pred * actual
+        favorable = price_favorable - funding_cost_pct
+        mfe = _num(x.get("favorable_mfe_pct")) - funding_cost_pct
+        funding_costs.append(funding_cost_pct)
         mae = _num(x.get("adverse_mae_pct"))
-        net_pct = favorable - round_trip_cost_pct
+        net_pct = favorable - resolved_cost_pct
         net_usd = capital_usd * net_pct / 100.0
         net_values.append(net_usd)
 
-        correct_direction += favorable > 0
+        correct_direction += price_favorable > 0
+        economic_move_positive += favorable > 0
         target4 += favorable >= min_required
         target10 += favorable >= preferred_required
         adverse05 += mae >= 0.50
         magnitude_limited += favorable > 0 and favorable < min_required
-        cost_limited += favorable > 0 and favorable <= round_trip_cost_pct
+        cost_limited += favorable > 0 and favorable <= resolved_cost_pct
 
         prior = _num(x.get("prior_move_pct"))
         if prior * pred >= late_move_threshold_pct:
@@ -110,8 +124,8 @@ def diagnose_economic_edge(
     positive_mfe_but_missed4 = sum(
         _num(x.get("favorable_mfe_pct")) >= min_required
         and (
-            (_num(x.get("actual_return_pct")) if x["pred"] == 1
-             else -_num(x.get("actual_return_pct")))
+            (int(x["pred"]) * _num(x.get("actual_return_pct"))
+             - int(x["pred"]) * _num(x.get("funding_rate_sum_pct")))
             < min_required
         )
         for x in rows
@@ -121,10 +135,13 @@ def diagnose_economic_edge(
         "available": bool(rows),
         "samples": total,
         "direction_correct_rate": rate(correct_direction),
+        "economic_move_positive_rate_after_funding": rate(economic_move_positive),
         "usd4_hit_rate": rate(target4),
         "usd10_hit_rate": rate(target10),
         "positive_net_rate": rate(sum(v > 0 for v in net_values)),
         "net_profit_usd": round(sum(net_values), 4),
+        "funding_cost_total_usd": round(sum(capital_usd * value / 100.0 for value in funding_costs), 4),
+        "mean_funding_cost_pct_for_model_side": round(sum(funding_costs) / total, 6) if total else 0.0,
         "expectancy_usd": round(sum(net_values) / total, 4) if total else 0.0,
         "avg_favorable_mfe_pct": round(sum(_num(x.get("favorable_mfe_pct")) for x in rows) / total, 6) if total else 0.0,
         "avg_adverse_mae_pct": round(sum(_num(x.get("adverse_mae_pct")) for x in rows) / total, 6) if total else 0.0,
@@ -136,7 +153,9 @@ def diagnose_economic_edge(
         "confidence_buckets": bucket_out,
         "thresholds": {
             "capital_usd": capital_usd,
-            "round_trip_cost_pct": round_trip_cost_pct,
+            "round_trip_cost_pct": resolved_cost_pct,
+            "cost_mode": cost_mode,
+            "cost_policy_version": cost_policy.version,
             "usd4_required_move_pct": round(min_required, 4),
             "usd10_required_move_pct": round(preferred_required, 4),
             "late_move_threshold_pct": late_move_threshold_pct,

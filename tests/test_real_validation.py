@@ -3,8 +3,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from mi_core.models import MarketBar
 from mi_core.real_validation import (
+    _attach_funding_holding_costs,
+    _performance_metrics,
     _directional_metrics,
+    _baseline_metrics,
+    _aggregate,
+    _apply_baseline_holm,
     _oos_integrity_metrics,
     _path_excursion_metrics,
     _opportunity_tier,
@@ -28,13 +34,79 @@ class RealValidationTests(unittest.TestCase):
         self.assertLess(result["expectancy_usd"], 0.0)
         self.assertEqual(result["positive_net_outcomes"], 1)
 
+    def test_funding_carry_is_directional_and_reduces_net_profit(self):
+        row = {"actual_return_pct": 1.0, "funding_rate_sum_pct": 0.5}
+        long_metrics = _performance_metrics([row], [1], 500.0, 0.15)
+        short_metrics = _performance_metrics([row], [-1], 500.0, 0.15)
+        self.assertAlmostEqual(long_metrics["net_profit_usd"], 1.75)
+        self.assertAlmostEqual(short_metrics["net_profit_usd"], -3.25)
+        self.assertAlmostEqual(long_metrics["funding_cost_total_usd"], 2.5)
+        self.assertAlmostEqual(short_metrics["funding_cost_total_usd"], -2.5)
+
+    def test_funding_events_are_summed_only_inside_holding_interval(self):
+        bars = [
+            MarketBar(ts=0, symbol="BTC", price=100.0, funding=0.00005,
+                      derivatives={"funding_timestamp_ms": -1000, "funding_age_ms": 1000,
+                                   "funding_max_age_ms": 120000}),
+            MarketBar(ts=60000, symbol="BTC", price=101.0, funding=0.0001,
+                      derivatives={"funding_timestamp_ms": 60000, "funding_age_ms": 0,
+                                   "funding_max_age_ms": 120000}),
+            MarketBar(ts=120000, symbol="BTC", price=102.0, funding=0.0002,
+                      derivatives={"funding_timestamp_ms": 120000, "funding_age_ms": 0,
+                                   "funding_max_age_ms": 120000}),
+            MarketBar(ts=180000, symbol="BTC", price=103.0, funding=0.0002,
+                      derivatives={"funding_timestamp_ms": 120000, "funding_age_ms": 60000,
+                                   "funding_max_age_ms": 120000}),
+        ]
+        result = {"predictions": [{"ts": 0, "pred": 1}]}
+        _attach_funding_holding_costs(result, bars, horizon=2)
+        prediction = result["predictions"][0]
+        self.assertAlmostEqual(prediction["funding_rate_sum_pct"], 0.03)
+        self.assertEqual(prediction["funding_events_count"], 2)
+        self.assertTrue(result["funding_cost_model"]["verified"])
+
+    def test_missing_funding_is_unverified_not_zero_cost(self):
+        bars = [
+            MarketBar(ts=i * 60000, symbol="BTC", price=100.0 + i)
+            for i in range(4)
+        ]
+        result = {"predictions": [{"ts": 0, "pred": 1, "actual_return_pct": 1.0}]}
+        _attach_funding_holding_costs(result, bars, horizon=2)
+        self.assertFalse(result["funding_cost_model"]["verified"])
+        self.assertFalse(result["predictions"][0]["funding_cost_verified"])
+        metrics = _performance_metrics(result["predictions"], [1], 500.0, 0.15)
+        self.assertEqual(metrics["directional_predictions"], 0)
+        self.assertEqual(metrics["net_profit_usd"], 0.0)
+
+    def test_wfa_uses_non_overlapping_rows_and_reports_baselines(self):
+        result = {
+            "horizon_bars": 2,
+            "predictions": [
+                {"ts": i * 60_000, "pred": (1 if i == 0 else -1),
+                 "actual": 1, "actual_return_pct": (1.0 if i in (0, 2) else -1.0)}
+                for i in range(4)
+            ],
+        }
+        metrics = _directional_metrics(result)
+        self.assertEqual(metrics["directional_predictions"], 2)
+        self.assertAlmostEqual(metrics["net_profit_usd"], -1.5)
+        baselines = _baseline_metrics(result, 500.0, 0.15, "BTC", 2, simulations=100)
+        self.assertEqual(baselines["sample_policy"], "same_non_overlapping_oos_rows")
+        self.assertEqual(baselines["model"]["directional_predictions"], 2)
+        self.assertEqual(baselines["buy_and_hold_long"]["directional_predictions"], 2)
+        self.assertEqual(baselines["random_direction"]["simulations"], 100)
+        self.assertGreaterEqual(baselines["random_direction"]["one_sided_p_value"], 0.0)
+        self.assertLessEqual(baselines["random_direction"]["one_sided_p_value"], 1.0)
+
     def test_path_excursion_metrics_measure_targets_and_adverse_move(self):
         result = _path_excursion_metrics({"predictions": [
-            {"pred": 1, "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
-            {"pred": -1, "favorable_mfe_pct": 1.2, "adverse_mae_pct": 1.4},
+            {"pred": 1, "actual": 1, "actual_return_pct": 1.0,
+             "favorable_mfe_pct": 2.5, "adverse_mae_pct": 0.6},
+            {"pred": -1, "actual": -1, "actual_return_pct": -0.5,
+             "favorable_mfe_pct": 1.2, "adverse_mae_pct": 1.4},
         ]})
-        self.assertEqual(result["target_hit_rates"]["1.15"], 1.0)
-        self.assertEqual(result["target_hit_rates"]["2.35"], 0.5)
+        self.assertEqual(result["target_hit_rates"]["0.95"], 1.0)
+        self.assertEqual(result["target_hit_rates"]["2.15"], 0.5)
         self.assertEqual(result["adverse_excursion_rates"]["1.0"], 0.5)
 
     def test_positive_but_not_gate_pass_is_watch(self):
@@ -109,6 +181,48 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(result["policy"]["min_profit_usd"], 4.0)
         self.assertEqual(result["policy"]["preferred_profit_usd"], 10.0)
 
+
+    def test_random_baseline_p_values_receive_holm_adjustment(self):
+        assets = []
+        for p_value in (0.001, 0.02, 0.08):
+            assets.append({
+                "baseline_metrics": {
+                    "model": {"net_profit_usd": 20.0},
+                    "buy_and_hold_long": {"net_profit_usd": 10.0},
+                    "random_direction": {
+                        "mean_net_profit_usd": 5.0,
+                        "one_sided_p_value": p_value,
+                    },
+                },
+                "acceptance_gate": {"accepted": True, "reasons": []},
+                "opportunity_tier": "TRADE",
+            })
+        _apply_baseline_holm(assets, alpha=0.05)
+        adjusted = [x["baseline_gate"]["random_holm_adjusted_p_value"] for x in assets]
+        self.assertEqual(adjusted, [0.003, 0.04, 0.08])
+        self.assertTrue(assets[0]["acceptance_gate"]["accepted"])
+        self.assertTrue(assets[1]["acceptance_gate"]["accepted"])
+        self.assertFalse(assets[2]["acceptance_gate"]["accepted"])
+        self.assertEqual(assets[2]["opportunity_tier"], "NO_TRADE")
+
+    def test_skipped_assets_do_not_break_aggregate(self):
+        aggregate = _aggregate([{"asset": "BTC", "validation_status": "SKIPPED"}])
+        self.assertEqual(aggregate["assets_validated"], 1)
+        self.assertEqual(aggregate["directional_predictions"], 0)
+        self.assertFalse(aggregate["portfolio_metrics_available"])
+
+    def test_validation_exposes_base_and_strict_cost_modes(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "market.jsonl"
+            path.write_text("", encoding="utf-8")
+            with patch("mi_core.real_validation.load_project60_assets", return_value={}):
+                with patch("mi_core.real_validation.rank_assets", return_value=[]):
+                    base = validate_project60(str(path))
+                    strict = validate_project60(str(path), cost_mode="strict")
+        self.assertEqual(base["policy"]["round_trip_cost_pct"], 0.15)
+        self.assertEqual(base["policy"]["cost_mode"], "base")
+        self.assertEqual(strict["policy"]["round_trip_cost_pct"], 0.45)
+        self.assertEqual(strict["policy"]["cost_mode"], "strict")
 
     def test_short_horizon_is_diagnostic_only(self):
         with tempfile.TemporaryDirectory() as td:

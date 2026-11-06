@@ -5,15 +5,23 @@ on:
     branches: [main, 'feat/**']
     paths:
       - "mi_core/models.py"
-      - "mi_core/real_data.py"
+      - "mi_core/cost_policy.py"
       - "tools/ohlc_execution_backtest.py"
+      - "mi_core/real_data.py"
+      - "mi_core/binance_futures_data.py"
+      - "mi_core/hyperliquid_data.py"
+      - "mi_core/multi_asset_forecast.py"
       - "tests/**"
       - ".github/workflows/ohlc-execution-validation.yml"
   pull_request:
     branches: [main]
     paths:
       - "mi_core/models.py"
+      - "mi_core/cost_policy.py"
       - "mi_core/real_data.py"
+      - "mi_core/binance_futures_data.py"
+      - "mi_core/hyperliquid_data.py"
+      - "mi_core/multi_asset_forecast.py"
       - "tools/ohlc_execution_backtest.py"
       - "tests/**"
       - ".github/workflows/ohlc-execution-validation.yml"
@@ -40,46 +48,57 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+        include:
+          - {symbol: BTCUSDT, coin: BTC}
+          - {symbol: ETHUSDT, coin: ETH}
+          - {symbol: SOLUSDT, coin: SOL}
+          - {symbol: DOGEUSDT, coin: DOGE}
+          - {symbol: XRPUSDT, coin: XRP}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Download real 5-minute OHLC bars
+      - name: Download Hyperliquid perpetual 5-minute OHLC and funding
         run: |
           mkdir -p data/real reports
-          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 5m --bars 5000 --out data/real/${{ matrix.symbol }}_5m.jsonl --report reports/${{ matrix.symbol }}_5m.json
-      - name: Run execution-aware walk-forward backtest
+          python -m mi_core.hyperliquid_data --coin ${{ matrix.coin }} --asset-key ${{ matrix.symbol }} --interval 5m --bars 10000 --out data/real/${{ matrix.symbol }}_5m_hyperliquid_project60.jsonl > reports/${{ matrix.symbol }}_5m_hyperliquid_coverage.json
+      - name: Run execution-aware walk-forward backtest at base and strict costs
         run: |
-          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m.jsonl --out reports/${{ matrix.symbol }}_execution_backtest.json --horizon-bars 96 --step-bars 48 --max-evals 60 --min-history 300 --cost-pct 0.35 --capital 500
+          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m_hyperliquid_project60.jsonl --symbol ${{ matrix.symbol }} --max-rows 10000 --out reports/${{ matrix.symbol }}_execution_base.json --horizon-bars 96 --step-bars 48 --max-evals 60 --min-history 300 --cost-mode base --capital 500
+          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m_hyperliquid_project60.jsonl --symbol ${{ matrix.symbol }} --max-rows 10000 --out reports/${{ matrix.symbol }}_execution_strict.json --horizon-bars 96 --step-bars 48 --max-evals 60 --min-history 300 --cost-mode strict --capital 500
       - name: Print compact metrics
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          p=Path("reports/${{ matrix.symbol }}_execution_backtest.json")
-          x=json.loads(p.read_text())
-          print(json.dumps({
-            "symbol": x.get("symbol"),
-            "bars": x.get("bars"),
-            "evaluation_points": x.get("evaluation_points"),
-            "trade_ready": x.get("trade_ready"),
-            "research_only": x.get("research_only"),
-            "results": [{
-              "target_pct": r["target_pct"],
-              "stop_pct": r["stop_pct"],
-              "cohort": r["cohort"],
-              "development": r["development"],
-              "holdout_oos": r["holdout_oos"],
-              "full_walk_forward": r["full_walk_forward"]
-            } for r in x.get("results", [])]
-          }, sort_keys=True))
+          for mode in ("base", "strict"):
+            p=Path(f"reports/${{ matrix.symbol }}_execution_{mode}.json")
+            x=json.loads(p.read_text())
+            print(json.dumps({
+              "symbol": x.get("symbol"),
+              "cost_mode": x.get("cost_mode"),
+              "round_trip_cost_pct": x.get("cost_round_trip_pct"),
+              "bars": x.get("bars"),
+              "evaluation_points": x.get("evaluation_points"),
+              "trade_ready": x.get("trade_ready"),
+              "research_only": x.get("research_only"),
+              "results": [{
+                "target_pct": r["target_pct"],
+                "stop_pct": r["stop_pct"],
+                "cohort": r["cohort"],
+                "development": r["development"],
+                "holdout_oos": r["holdout_oos"],
+                "full_walk_forward": r["full_walk_forward"]
+              } for r in x.get("results", [])]
+            }, sort_keys=True))
           PY
       - name: Publish report
         uses: actions/upload-artifact@v4
         with:
           name: ohlc-execution-${{ matrix.symbol }}
           path: |
-            data/real/${{ matrix.symbol }}_5m.jsonl
-            reports/${{ matrix.symbol }}_execution_backtest.json
+            data/real/${{ matrix.symbol }}_5m_hyperliquid_project60.jsonl
+            reports/${{ matrix.symbol }}_5m_hyperliquid_coverage.json
+            reports/${{ matrix.symbol }}_execution_base.json
+            reports/${{ matrix.symbol }}_execution_strict.json

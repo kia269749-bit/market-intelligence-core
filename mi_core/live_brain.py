@@ -4,6 +4,7 @@ import math, time, statistics
 from .fomo_live import scan_boosted
 from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
 from .trade_economics import evaluate_capital_target
+from .cost_policy import DEFAULT_COST_POLICY
 from .timing_engine import evaluate_entry_timing
 
 def _num(v, d=0.0):
@@ -343,123 +344,154 @@ def _smart_money_score(fomo_leader_evidence):
 def _no_trade_guard(quality, regime, micro, smart_money, outcome_memory):
     reasons=[]
     if quality.get("status")=="UNSAFE": reasons.append("unsafe_data")
-    if regime.get("name")=="HIGH_VOLATILITY": reasons.append("high_volatility")
+    regime_name=str(regime.get("name","UNKNOWN")).upper()
+    if regime_name=="HIGH_VOLATILITY": reasons.append("high_volatility")
+    elif regime_name in ("RANGE","MIXED","UNKNOWN"):
+        reasons.append("unsupported_or_uncertain_regime")
     if micro.get("divergence")=="CONFLICT": reasons.append("source_conflict")
     if micro.get("squeeze_risk"): reasons.append("crowding_risk")
+    if smart_money.get("status")=="WEAK" and (smart_money.get("leaders",0) or smart_money.get("events",0)):
+        reasons.append("weak_leader_follower_confirmation")
+
+    # The summary is already funding-filtered by paper_journal.summarize.
+    # A regime with enough verified outcomes and negative net expectancy is
+    # a hard abstain, not merely a small confidence haircut.
+    by_regime=outcome_memory.get("by_regime",{}) if isinstance(outcome_memory,dict) else {}
+    bucket=by_regime.get(regime_name,{}) if isinstance(by_regime,dict) else {}
+    try:
+        n=int(bucket.get("resolved",0) or 0)
+        net=float(bucket.get("net_profit_usd",0.0) or 0.0)
+        expectancy=net/n if n else 0.0
+    except (TypeError,ValueError):
+        n=0
+        expectancy=0.0
+    if n>=8 and math.isfinite(expectancy) and expectancy<0.0:
+        reasons.append("negative_funding_verified_regime_expectancy")
     return {"blocked":bool(reasons),"reasons":reasons}
 
 def _outcome_adjustment(outcome_memory, regime=None, direction=None):
-    """Apply bounded, context-aware historical adjustment.
+    """Apply bounded historical adjustment, prioritizing realized net expectancy.
 
-    Global history is only a weak prior. Context-specific history is used
-    only after a minimum sample size, and the final factor is always bounded.
-    Historical performance never becomes a standalone trade blocker.
+    Net PnL already includes the journal's execution-cost model. Win rate is
+    retained only as a compatibility fallback for older summary payloads.
+    This is a bounded confidence modifier, never a standalone trade blocker.
     """
     if not outcome_memory:
-        return {
-            "factor": 1.0,
-            "status": "INSUFFICIENT",
-            "reason": "not_enough_resolved_signals",
-        }
+        return {"factor": 1.0, "status": "INSUFFICIENT",
+                "reason": "not_enough_resolved_signals"}
 
     try:
-        resolved=int(outcome_memory.get("resolved", 0) or 0)
+        resolved = int(outcome_memory.get("resolved", 0) or 0)
     except (TypeError, ValueError):
-        resolved=0
-
-    if resolved < 10:
-        return {
-            "factor": 1.0,
-            "status": "INSUFFICIENT",
-            "reason": "not_enough_resolved_signals",
-        }
-
+        resolved = 0
     try:
-        win_rate=float(outcome_memory.get("win_rate", 0.0) or 0.0)
+        funding_verified = int(outcome_memory.get("funding_verified_resolved", 0) or 0)
     except (TypeError, ValueError):
-        win_rate=0.0
+        funding_verified = 0
+    if resolved < 10 or funding_verified < 10 or funding_verified < resolved:
+        return {"factor": 1.0, "status": "INSUFFICIENT",
+                "reason": "not_enough_funding_verified_outcomes",
+                "funding_verified_resolved": funding_verified,
+                "resolved_reported": resolved}
 
-    # Conservative global prior.
-    if win_rate < 0.40:
-        factor=0.90
-        status="WEAK"
-        reason="low_historical_win_rate"
-    elif win_rate < 0.50:
-        factor=0.95
-        status="CAUTION"
-        reason="below_50pct_win_rate"
-    elif win_rate >= 0.65:
-        factor=1.05
-        status="STRONG"
-        reason="strong_historical_win_rate"
+    def economics(bucket, n):
+        if not isinstance(bucket, dict) or n <= 0:
+            return None
+        if bucket.get("net_profit_usd") is not None:
+            try:
+                value = float(bucket["net_profit_usd"]) / n
+                return value if math.isfinite(value) else None
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    global_expectancy = economics(outcome_memory, resolved)
+    if global_expectancy is not None:
+        if global_expectancy <= -4.0:
+            factor, status, reason = 0.90, "WEAK", "negative_net_expectancy"
+        elif global_expectancy < 0.0:
+            factor, status, reason = 0.95, "CAUTION", "below_zero_net_expectancy"
+        elif global_expectancy >= 4.0:
+            factor, status, reason = 1.02, "POSITIVE", "positive_net_expectancy"
+        else:
+            factor, status, reason = 1.0, "NEUTRAL", "near_zero_net_expectancy"
     else:
-        factor=1.0
-        status="NEUTRAL"
-        reason="historical_win_rate_ok"
+        try:
+            win_rate = float(outcome_memory.get("win_rate", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            win_rate = 0.0
+        if win_rate < 0.40:
+            factor, status, reason = 0.90, "WEAK", "low_historical_win_rate"
+        elif win_rate < 0.50:
+            factor, status, reason = 0.95, "CAUTION", "below_50pct_win_rate"
+        elif win_rate >= 0.65:
+            factor, status, reason = 1.05, "STRONG", "strong_historical_win_rate"
+        else:
+            factor, status, reason = 1.0, "NEUTRAL", "historical_win_rate_ok"
 
-    context_used=[]
+    context_used = []
 
     def context_adjustment(bucket, label):
         if not isinstance(bucket, dict):
             return None
         try:
-            n=int(bucket.get("resolved", 0) or 0)
-            wr=float(bucket.get("win_rate", 0.0) or 0.0)
+            n = int(bucket.get("resolved", 0) or 0)
         except (TypeError, ValueError):
             return None
-
-        # Do not react to tiny samples.
         if n < 8:
             return None
 
-        if wr >= 0.65:
-            delta=0.025
-        elif wr < 0.40:
-            delta=-0.05
-        elif wr < 0.50:
-            delta=-0.025
+        expectancy = economics(bucket, n)
+        if expectancy is not None:
+            if expectancy <= -4.0:
+                delta = -0.05
+            elif expectancy < 0.0:
+                delta = -0.025
+            elif expectancy >= 4.0:
+                delta = 0.025
+            else:
+                delta = 0.0
+            metric = {"net_expectancy_usd": round(expectancy, 4)}
         else:
-            delta=0.0
+            try:
+                wr = float(bucket.get("win_rate", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                return None
+            if wr >= 0.65:
+                delta = 0.025
+            elif wr < 0.40:
+                delta = -0.05
+            elif wr < 0.50:
+                delta = -0.025
+            else:
+                delta = 0.0
+            metric = {"win_rate": round(wr, 4)}
 
-        context_used.append({
-            "context": label,
-            "resolved": n,
-            "win_rate": round(wr, 4),
-            "delta": delta,
-        })
+        context_used.append({"context": label, "resolved": n,
+                             **metric, "delta": delta})
         return delta
 
-    by_regime=outcome_memory.get("by_regime") or {}
-    by_direction=outcome_memory.get("by_direction") or {}
-
+    by_regime = outcome_memory.get("by_regime") or {}
+    by_direction = outcome_memory.get("by_direction") or {}
     if regime:
-        delta=context_adjustment(
-            by_regime.get(str(regime).upper()),
-            f"regime:{str(regime).upper()}",
-        )
+        delta = context_adjustment(by_regime.get(str(regime).upper()),
+                                   f"regime:{str(regime).upper()}")
         if delta is not None:
             factor += delta
-
     if direction:
-        delta=context_adjustment(
-            by_direction.get(str(direction).upper()),
-            f"direction:{str(direction).upper()}",
-        )
+        delta = context_adjustment(by_direction.get(str(direction).upper()),
+                                   f"direction:{str(direction).upper()}")
         if delta is not None:
             factor += delta
 
-    # Hard safety bounds. Historical memory can never dominate live evidence.
-    factor=max(0.90, min(1.05, factor))
-
+    factor = max(0.90, min(1.05, factor))
     if context_used:
         reason += ";context_adjusted"
-
-    return {
-        "factor": round(factor, 4),
-        "status": status,
-        "reason": reason,
-        "context_used": context_used,
-    }
+    result = {"factor": round(factor, 4), "status": status,
+              "reason": reason, "context_used": context_used}
+    if global_expectancy is not None:
+        result["net_expectancy_usd"] = round(global_expectancy, 4)
+    return result
 
 def _candle_adjustment(candle_evidence, bias):
     """Bounded candle/microstructure confidence enhancement only."""
@@ -621,7 +653,9 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
         eco=evaluate_capital_target(_num(selected.get("expected_move_pct", abs(_num(selected.get("expected_return_pct"))))),
-                                    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
+                                    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
+                                    cost_policy=DEFAULT_COST_POLICY, cost_mode="base",
+                                    cost_model="policy")
         approved=bool(eco.approved and forecast_alignment.get("approved"))
         economic_reason=eco.reason if not eco.approved else forecast_alignment.get("reason","forecast_gate_blocked")
         capital_economics={"available":True,"approved":approved,

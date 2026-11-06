@@ -1,13 +1,31 @@
 import unittest
 from mi_core.trade_economics import evaluate_capital_target
+from mi_core.cost_policy import BASE_ROUND_TRIP_COST_PCT, STRICT_ROUND_TRIP_COST_PCT
 
 
 class CapitalEconomicsTests(unittest.TestCase):
-    def test_one_percent_move_is_below_floor_after_costs(self):
+    def test_v4_cost_policy_constants_are_locked(self):
+        self.assertEqual(BASE_ROUND_TRIP_COST_PCT, 0.15)
+        self.assertEqual(STRICT_ROUND_TRIP_COST_PCT, 0.45)
+
+    def test_one_percent_move_clears_base_policy_minimum(self):
         r = evaluate_capital_target(1.0)
+        self.assertTrue(r.approved)
+        self.assertEqual(r.tier, "WATCH")
+        self.assertAlmostEqual(r.round_trip_cost_pct, 0.15)
+        self.assertAlmostEqual(r.modeled_profit_usd, 4.25)
+
+    def test_strict_policy_is_not_stacked_on_base(self):
+        r = evaluate_capital_target(1.0, cost_mode="strict")
         self.assertFalse(r.approved)
         self.assertEqual(r.tier, "REJECT")
-        self.assertLess(r.modeled_profit_usd, 4.0)
+        self.assertAlmostEqual(r.round_trip_cost_pct, 0.45)
+        self.assertAlmostEqual(r.modeled_profit_usd, 2.75)
+
+    def test_component_costs_are_explicit_alternative(self):
+        r = evaluate_capital_target(1.0, cost_model="components")
+        self.assertAlmostEqual(r.round_trip_cost_pct, 0.35)
+        self.assertAlmostEqual(r.modeled_profit_usd, 3.25)
 
     def test_one_point_two_percent_move_is_acceptable_watch(self):
         r = evaluate_capital_target(1.2)
@@ -23,8 +41,8 @@ class CapitalEconomicsTests(unittest.TestCase):
         self.assertGreaterEqual(r.modeled_profit_usd, 10.0)
 
     def test_maker_fee_is_lower_than_taker_fee(self):
-        taker = evaluate_capital_target(11.0, order_type="taker")
-        maker = evaluate_capital_target(11.0, order_type="maker")
+        taker = evaluate_capital_target(11.0, order_type="taker", cost_model="components")
+        maker = evaluate_capital_target(11.0, order_type="maker", cost_model="components")
         self.assertLess(maker.round_trip_cost_pct, taker.round_trip_cost_pct)
 
 

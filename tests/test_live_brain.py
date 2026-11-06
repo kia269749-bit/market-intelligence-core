@@ -207,16 +207,40 @@ class LiveBrainTests(unittest.TestCase):
         self.assertLess(fused["confidence"],.9)
 
     def test_weak_outcome_memory_reduces_confidence(self):
-        outcome={"resolved":20,"win_rate":0.35}
+        outcome={"resolved":20,"funding_verified_resolved":20,"win_rate":0.35}
         adj=_outcome_adjustment(outcome)
         self.assertEqual(adj["status"],"WEAK")
         self.assertLess(adj["factor"],1.0)
         fused=_fuse([("BULLISH",.8)],1.0,{"name":"TREND"},outcome)
         self.assertLess(fused["confidence"],.8)
 
+    def test_negative_net_expectancy_overrides_high_win_rate(self):
+        outcome={"resolved":20,"funding_verified_resolved":20,"win_rate":0.80,"net_profit_usd":-100.0}
+        result=_outcome_adjustment(outcome)
+        self.assertEqual(result["status"],"WEAK")
+        self.assertEqual(result["factor"],0.90)
+        self.assertEqual(result["net_expectancy_usd"],-5.0)
+
+    def test_positive_net_expectancy_overrides_low_win_rate(self):
+        outcome={"resolved":20,"funding_verified_resolved":20,"win_rate":0.30,"net_profit_usd":100.0}
+        result=_outcome_adjustment(outcome)
+        self.assertEqual(result["status"],"POSITIVE")
+        self.assertEqual(result["factor"],1.02)
+        self.assertEqual(result["net_expectancy_usd"],5.0)
+
+    def test_regime_memory_uses_net_expectancy_before_win_rate(self):
+        outcome={
+            "resolved":20,"funding_verified_resolved":20,"win_rate":0.55,"net_profit_usd":0.0,
+            "by_regime":{"TREND":{"resolved":10,"win_rate":0.80,"net_profit_usd":-80.0}},
+        }
+        result=_outcome_adjustment(outcome,regime="TREND")
+        self.assertEqual(result["factor"],0.95)
+        self.assertEqual(result["context_used"][0]["net_expectancy_usd"],-8.0)
+
     def test_contextual_outcome_memory_is_bounded(self):
         outcome={
             "resolved":20,
+            "funding_verified_resolved":20,
             "win_rate":0.55,
             "by_regime":{
                 "TREND":{"resolved":10,"win_rate":0.70},
@@ -250,8 +274,14 @@ class LiveBrainTests(unittest.TestCase):
 
         self.assertEqual(result["factor"],1.0)
 
+    def test_unverified_funding_memory_is_rejected(self):
+        adj=_outcome_adjustment({"resolved":20,"win_rate":0.90,"net_profit_usd":200.0})
+        self.assertEqual(adj["status"],"INSUFFICIENT")
+        self.assertEqual(adj["factor"],1.0)
+        self.assertEqual(adj["reason"],"not_enough_funding_verified_outcomes")
+
     def test_insufficient_outcome_memory_is_neutral(self):
-        adj=_outcome_adjustment({"resolved":3,"win_rate":0.0})
+        adj=_outcome_adjustment({"resolved":3,"funding_verified_resolved":3,"win_rate":0.0})
         self.assertEqual(adj["status"],"INSUFFICIENT")
         self.assertEqual(adj["factor"],1.0)
 
@@ -272,6 +302,26 @@ class LiveBrainTests(unittest.TestCase):
         self.assertFalse(result["blocked"])
         self.assertNotIn("weak_historical_edge", result["reasons"])
 
+    def test_no_trade_guard_abstains_in_range_or_mixed_regime(self):
+        for name in ("RANGE","MIXED","UNKNOWN"):
+            result=_no_trade_guard(
+                {"status":"HEALTHY"},{"name":name},
+                {"divergence":"ALIGNED","squeeze_risk":False},
+                {"status":"STRONG","leaders":3,"events":2},{},
+            )
+            self.assertTrue(result["blocked"])
+            self.assertIn("unsupported_or_uncertain_regime",result["reasons"])
+
+    def test_no_trade_guard_blocks_negative_verified_regime_expectancy(self):
+        result=_no_trade_guard(
+            {"status":"HEALTHY"},{"name":"TREND"},
+            {"divergence":"ALIGNED","squeeze_risk":False},
+            {"status":"STRONG","leaders":3,"events":2},
+            {"by_regime":{"TREND":{"resolved":10,"net_profit_usd":-20.0}}},
+        )
+        self.assertTrue(result["blocked"])
+        self.assertIn("negative_funding_verified_regime_expectancy",result["reasons"])
+
     def test_no_trade_guard_blocks_unsafe_conditions(self):
         result=_no_trade_guard(
             {"status":"SAFE"}, {"name":"TREND"},
@@ -288,8 +338,8 @@ class LiveBrainTests(unittest.TestCase):
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}), patch("mi_core.live_brain.evaluate_capital_target", wraps=__import__("mi_core.trade_economics", fromlist=["evaluate_capital_target"]).evaluate_capital_target):
             snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5}, forecast=forecast)
         self.assertTrue(snap["capital_economics"]["available"])
-        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 1.15, places=2)
-        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.35, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 0.95, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.15, places=2)
 
     def test_timing_consumption_is_capped_for_display(self):
         timing=evaluate_entry_timing(expected_move_pct=0.14, current_move_pct=0.266, required_move_pct=1.15)

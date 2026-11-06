@@ -15,7 +15,7 @@ from .multi_timeframe import fetch_multi_timeframe
 from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
-from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals
+from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals, settle_hyperliquid_funding
 from .shadow_risk import build_risk_levels
 from .shadow_performance import summarize_performance, format_performance_line
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
@@ -23,6 +23,7 @@ from .multi_asset_forecast import scan_project60, load_project60_assets
 from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
+from .cost_policy import DEFAULT_COST_POLICY
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -94,7 +95,7 @@ def live(exchanges,symbols,interval,cycles):
         count+=1
         if cycles==0 or count<cycles: time.sleep(interval)
 
-def _append_shadow_if_actionable(journal_path, snapshot):
+def _append_shadow_if_actionable(journal_path, snapshot, project60=None):
     """Append only an approved, actionable research signal to the shadow journal."""
     if not journal_path:
         return False
@@ -134,13 +135,13 @@ def _append_shadow_if_actionable(journal_path, snapshot):
     try:
         expected_move=float(expected_move)
         capital_usd=float(economics.get("capital_usd") or 500.0)
-        round_trip_cost_pct=float(economics.get("round_trip_cost_pct") or 0.35)
+        round_trip_cost_pct=float(economics.get("round_trip_cost_pct") if economics.get("round_trip_cost_pct") is not None else DEFAULT_COST_POLICY.base_round_trip_pct)
         if not math.isfinite(expected_move) or expected_move <= 0:
             return False
         if not math.isfinite(capital_usd) or capital_usd <= 0:
             return False
         if not math.isfinite(round_trip_cost_pct) or round_trip_cost_pct <= 0:
-            round_trip_cost_pct=0.35
+            round_trip_cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct
         risk=build_risk_levels(entry_price,bias,expected_move)
     except (TypeError,ValueError):
         return False
@@ -167,8 +168,20 @@ def _append_shadow_if_actionable(journal_path, snapshot):
                     return False
     except OSError:
         pass
+    project_assets=(project60 or {}).get("assets") or {}
+    funding_asset=project_assets.get(asset.upper()) or {}
+    funding_rate=funding_asset.get("funding") if isinstance(funding_asset,dict) else None
+    funding_timestamp=(project60 or {}).get("timestamp")
     signal={
         "signal_id":signal_id,
+        # A snapshot funding rate is context only, not the holding-period
+        # settlement. Never mark it verified or use it for learning.
+        "funding_status":"UNVERIFIED",
+        "funding_coverage":0.0,
+        "funding_cashflow_usd":None,
+        "funding_entry_rate":funding_rate,
+        "funding_entry_timestamp":funding_timestamp,
+        "learning_eligible":False,
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
@@ -203,9 +216,9 @@ def main():
     l=sp.add_parser("live"); l.add_argument("--exchanges",default=",".join(EXCHANGES)); l.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); l.add_argument("--interval",type=int,default=20); l.add_argument("--cycles",type=int,default=0)
     q=sp.add_parser("intelligence"); q.add_argument("--input",required=True); q.add_argument("--out"); q.add_argument("--pretty",action="store_true",help="print the concise manual-review signal report")
     h=sp.add_parser("dashboard"); h.add_argument("--report",required=True); h.add_argument("--out",default="reports/dashboard.html")
-    v=sp.add_parser("forecast-validate"); v.add_argument("--input",required=True); v.add_argument("--horizon",type=int,default=60); v.add_argument("--train-window",type=int,default=300); v.add_argument("--out")
-    pv=sp.add_parser("forecast-project60"); pv.add_argument("--input",required=True); pv.add_argument("--asset",default="BTC"); pv.add_argument("--horizon",type=int,default=60); pv.add_argument("--max-rows",type=int,default=800); pv.add_argument("--out")
-    ms=sp.add_parser("forecast-scan"); ms.add_argument("--input",required=True); ms.add_argument("--top",type=int,default=5); ms.add_argument("--horizon",type=int,default=60); ms.add_argument("--max-rows",type=int,default=800); ms.add_argument("--out")
+    v=sp.add_parser("forecast-validate"); v.add_argument("--input",required=True); v.add_argument("--horizon",type=int,default=60); v.add_argument("--train-window",type=int,default=300); v.add_argument("--cost-mode",choices=("base","strict"),default="base"); v.add_argument("--out")
+    pv=sp.add_parser("forecast-project60"); pv.add_argument("--input",required=True); pv.add_argument("--asset",default="BTC"); pv.add_argument("--horizon",type=int,default=60); pv.add_argument("--max-rows",type=int,default=800); pv.add_argument("--cost-mode",choices=("base","strict"),default="base"); pv.add_argument("--out")
+    ms=sp.add_parser("forecast-scan"); ms.add_argument("--input",required=True); ms.add_argument("--top",type=int,default=5); ms.add_argument("--horizon",type=int,default=60); ms.add_argument("--max-rows",type=int,default=800); ms.add_argument("--cost-mode",choices=("base","strict"),default="base"); ms.add_argument("--out")
     sr=sp.add_parser("shadow-report"); sr.add_argument("--journal",required=True)
     z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default="")
     x=ap.parse_args()
@@ -216,25 +229,25 @@ def main():
     elif x.cmd=="live": live(x.exchanges,x.symbols,x.interval,x.cycles)
     elif x.cmd=="intelligence": intelligence(x.input,x.out,x.pretty)
     elif x.cmd=="forecast-scan":
-        result=scan_project60(x.input,top_n=x.top,max_rows=x.max_rows,horizon=x.horizon)
-        write_report(result,x.out or Path(x.input).with_suffix(".forecast_scan.json"),{"mode":"Project60 multi-asset shortlist + validated forecast","top_n":x.top,"horizon_bars":x.horizon,"research_only":True,"live_orders":False})
+        result=scan_project60(x.input,top_n=x.top,max_rows=x.max_rows,horizon=x.horizon,cost_mode=x.cost_mode)
+        write_report(result,x.out or Path(x.input).with_suffix(".forecast_scan.json"),{"mode":"Project60 multi-asset shortlist + validated forecast","top_n":x.top,"horizon_bars":x.horizon,"cost_mode":x.cost_mode,"research_only":True,"live_orders":False})
         print("EARLY_OPPORTUNITY_WATCH count=" + str(result.get("early_watch_count", 0)))
     elif x.cmd=="forecast-project60":
         bars=load_project60_bars(x.input,x.asset,x.max_rows)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=min(300,max(60,len(bars)-x.horizon-1)))
         result["metrics"]=score_predictions(result)
-        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
+        result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0,cost_mode=x.cost_mode)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
         result["forecast_now"] = _validated_forecast_from_project60(x.input,x.asset,x.max_rows)
-        write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
+        write_report(result,x.out or Path(x.input).with_suffix(".forecast_project60.json"),{"mode":"Project60 walk-forward OOS","asset":x.asset,"bars":len(bars),"capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"cost_mode":x.cost_mode,"research_only":True,"live_orders":False})
     elif x.cmd=="forecast-validate":
         bars=load_input(x.input)
         result=walk_forward_forecast(bars,horizon=x.horizon,train_window=x.train_window,fit_every=10)
         result["metrics"]=score_predictions(result)
-        result["economic_edge"]=diagnose_economic_edge(result)
+        result["economic_edge"]=diagnose_economic_edge(result,cost_mode=x.cost_mode)
         result["capital_metrics"]=score_capital_targets(result,capital_usd=500.0,min_profit_usd=4.0,preferred_profit_usd=10.0)
         result["acceptance_gate"]=forecast_acceptance_gate(result["metrics"],result["capital_metrics"])
-        write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"research_only":True,"live_orders":False})
+        write_report(result,x.out or Path(x.input).with_suffix(".forecast_validation.json"),{"mode":"walk-forward-OOS","capital_usd":500.0,"min_profit_usd":4.0,"preferred_profit_usd":10.0,"cost_mode":x.cost_mode,"research_only":True,"live_orders":False})
     elif x.cmd=="live-all":
         if x.interval<10: raise ValueError("interval must be at least 10 seconds")
         count=0
@@ -281,7 +294,11 @@ def main():
                     resolve_open_signals(x.outcome_journal, current_prices)
                 elif current_price is not None:
                     resolve_open_signals(x.outcome_journal, float(current_price))
-            shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
+                if x.project60_file:
+                    funding_settled=settle_hyperliquid_funding(x.outcome_journal)
+                    if funding_settled:
+                        print("SHADOW_FUNDING_VERIFIED="+str(funding_settled))
+            shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap,p60)
             shadow_metrics=summarize_performance(x.outcome_journal) if x.outcome_journal else None
             print_live_brain(snap)
             print(render_persian(snap,p60))
