@@ -79,14 +79,18 @@ def derivative_coverage(series):
         oi_fresh_ages = [
             int((b.derivatives or {}).get("oi_age_ms"))
             for b in bars
-            if b.oi is not None and isinstance((b.derivatives or {}).get("oi_age_ms"), (int, float))
-            and 0 <= int((b.derivatives or {}).get("oi_age_ms")) <= 2 * 60 * 60 * 1000
+            if b.oi is not None
+            and isinstance((b.derivatives or {}).get("oi_age_ms"), (int, float))
+            and isinstance((b.derivatives or {}).get("oi_max_age_ms"), (int, float))
+            and 0 <= int((b.derivatives or {}).get("oi_age_ms")) <= int((b.derivatives or {}).get("oi_max_age_ms"))
         ]
         funding_fresh_ages = [
             int((b.derivatives or {}).get("funding_age_ms"))
             for b in bars
-            if b.funding is not None and isinstance((b.derivatives or {}).get("funding_age_ms"), (int, float))
-            and 0 <= int((b.derivatives or {}).get("funding_age_ms")) <= 9 * 60 * 60 * 1000
+            if b.funding is not None
+            and isinstance((b.derivatives or {}).get("funding_age_ms"), (int, float))
+            and isinstance((b.derivatives or {}).get("funding_max_age_ms"), (int, float))
+            and 0 <= int((b.derivatives or {}).get("funding_age_ms")) <= int((b.derivatives or {}).get("funding_max_age_ms"))
         ]
         oi_fresh = len(oi_fresh_ages)
         funding_fresh = len(funding_fresh_ages)
