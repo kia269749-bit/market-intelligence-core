@@ -34,7 +34,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+        include:
+          - {symbol: BTCUSDT, coin: BTC}
+          - {symbol: ETHUSDT, coin: ETH}
+          - {symbol: SOLUSDT, coin: SOL}
+          - {symbol: BNBUSDT, coin: BNB}
+          - {symbol: XRPUSDT, coin: XRP}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -58,7 +63,7 @@ jobs:
           from mi_core.adaptive_selector import evaluate_adaptive_selection
           symbol = os.environ["SYMBOL"]
           mode = os.environ["COST_MODE"]
-          source = Path(f"data/real/{symbol}_futures_project60.jsonl")
+          source = Path(f"data/real/{symbol}_hyperliquid_project60.jsonl")
           series = load_project60_assets(source, max_rows=8000)
           bars = series[symbol]
           result = evaluate_adaptive_selection(
