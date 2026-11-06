@@ -6,6 +6,7 @@ from unittest.mock import patch
 from mi_core.real_validation import (
     _directional_metrics,
     _baseline_metrics,
+    _aggregate,
     _oos_integrity_metrics,
     _path_excursion_metrics,
     _opportunity_tier,
@@ -130,6 +131,25 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(result["policy"]["min_profit_usd"], 4.0)
         self.assertEqual(result["policy"]["preferred_profit_usd"], 10.0)
 
+
+    def test_skipped_assets_do_not_break_aggregate(self):
+        aggregate = _aggregate([{"asset": "BTC", "validation_status": "SKIPPED"}])
+        self.assertEqual(aggregate["assets_validated"], 1)
+        self.assertEqual(aggregate["directional_predictions"], 0)
+        self.assertFalse(aggregate["portfolio_metrics_available"])
+
+    def test_validation_exposes_base_and_strict_cost_modes(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "market.jsonl"
+            path.write_text("", encoding="utf-8")
+            with patch("mi_core.real_validation.load_project60_assets", return_value={}):
+                with patch("mi_core.real_validation.rank_assets", return_value=[]):
+                    base = validate_project60(str(path))
+                    strict = validate_project60(str(path), cost_mode="strict")
+        self.assertEqual(base["policy"]["round_trip_cost_pct"], 0.15)
+        self.assertEqual(base["policy"]["cost_mode"], "base")
+        self.assertEqual(strict["policy"]["round_trip_cost_pct"], 0.45)
+        self.assertEqual(strict["policy"]["cost_mode"], "strict")
 
     def test_short_horizon_is_diagnostic_only(self):
         with tempfile.TemporaryDirectory() as td:
