@@ -15,7 +15,7 @@ from .multi_timeframe import fetch_multi_timeframe
 from .project60_adapter import summarize as summarize_project60
 from .persian_report import render_persian
 from .fomo_leader_follower_live import summarize as summarize_fomo_leader_follower
-from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals
+from .paper_journal import summarize as summarize_paper_journal, append_signal as append_paper_signal, resolve_open_signals, settle_hyperliquid_funding
 from .shadow_risk import build_risk_levels
 from .shadow_performance import summarize_performance, format_performance_line
 from .validated_forecast import walk_forward_forecast, score_predictions, score_capital_targets, forecast_acceptance_gate
@@ -294,6 +294,10 @@ def main():
                     resolve_open_signals(x.outcome_journal, current_prices)
                 elif current_price is not None:
                     resolve_open_signals(x.outcome_journal, float(current_price))
+                if x.project60_file:
+                    funding_settled=settle_hyperliquid_funding(x.outcome_journal)
+                    if funding_settled:
+                        print("SHADOW_FUNDING_VERIFIED="+str(funding_settled))
             shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap,p60)
             shadow_metrics=summarize_performance(x.outcome_journal) if x.outcome_journal else None
             print_live_brain(snap)
