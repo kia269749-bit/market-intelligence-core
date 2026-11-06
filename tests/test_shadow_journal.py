@@ -90,7 +90,7 @@ class ShadowJournalTests(unittest.TestCase):
                 "status":"OPEN","asset":"BTC","direction":"BULLISH",
                 "entry_price":100.0,"stop":99.0,"target":102.5,
                 "capital_usd":500.0
-            })+"\\n",encoding="utf-8")
+            })+"\n",encoding="utf-8")
             self.assertEqual(resolve_open_signals(path,103.0,now=456),1)
             row=json.loads(Path(path).read_text(encoding="utf-8").splitlines()[0])
             self.assertEqual(row["round_trip_cost_pct"],0.15)
