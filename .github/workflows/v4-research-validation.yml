@@ -1,0 +1,24 @@
+name: v4 research validation
+
+on:
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  research-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile research modules
+        run: python -m compileall -q mi_core
+      - name: Run complete unit test suite
+        run: python -m unittest discover -s tests -v
