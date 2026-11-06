@@ -65,6 +65,19 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(prediction["funding_events_count"], 2)
         self.assertTrue(result["funding_cost_model"]["verified"])
 
+    def test_missing_funding_is_unverified_not_zero_cost(self):
+        bars = [
+            MarketBar(ts=i * 60000, symbol="BTC", price=100.0 + i)
+            for i in range(4)
+        ]
+        result = {"predictions": [{"ts": 0, "pred": 1, "actual_return_pct": 1.0}]}
+        _attach_funding_holding_costs(result, bars, horizon=2)
+        self.assertFalse(result["funding_cost_model"]["verified"])
+        self.assertFalse(result["predictions"][0]["funding_cost_verified"])
+        metrics = _performance_metrics(result["predictions"], [1], 500.0, 0.15)
+        self.assertEqual(metrics["directional_predictions"], 0)
+        self.assertEqual(metrics["net_profit_usd"], 0.0)
+
     def test_wfa_uses_non_overlapping_rows_and_reports_baselines(self):
         result = {
             "horizon_bars": 2,
