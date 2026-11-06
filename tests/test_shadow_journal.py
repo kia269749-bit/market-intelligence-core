@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from mi_core.cli import _append_shadow_if_actionable
-from mi_core.paper_journal import summarize, resolve_open_signals, apply_funding_settlements
+from mi_core.paper_journal import summarize, resolve_open_signals, apply_funding_settlements, settle_hyperliquid_funding
 
 
 class ShadowJournalTests(unittest.TestCase):
@@ -117,6 +117,30 @@ class ShadowJournalTests(unittest.TestCase):
             self.assertTrue(updated["learning_eligible"])
             self.assertAlmostEqual(updated["net_profit_usd"],11.0)
             self.assertEqual(summarize(path)["funding_verified_resolved"],1)
+
+    def test_hyperliquid_funding_history_is_applied_to_resolved_shadow(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=str(Path(td)/"shadow.jsonl")
+            row={
+                "signal_id":"BTC:BULLISH:100.0","asset":"BTC","direction":"BULLISH",
+                "status":"TARGET","ts":3600,"resolved_ts":7200,
+                "capital_usd":500.0,"gross_move_pct":2.5,
+                "round_trip_cost_pct":0.15,"net_profit_usd":11.75,
+                "funding_status":"UNVERIFIED","funding_coverage":0.0,
+                "learning_eligible":False,
+            }
+            Path(path).write_text(json.dumps(row)+"\\n",encoding="utf-8")
+            calls=[]
+            def fake_fetch(coin,start_ms,end_ms):
+                calls.append((coin,start_ms,end_ms))
+                return [{"time":7200000,"fundingRate":"0.001"}]
+            self.assertEqual(settle_hyperliquid_funding(path,fetcher=fake_fetch),1)
+            updated=json.loads(Path(path).read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(calls,[("BTC",3600000,7200000)])
+            self.assertEqual(updated["funding_events"],1)
+            self.assertAlmostEqual(updated["funding_cashflow_usd"],-0.5)
+            self.assertAlmostEqual(updated["net_profit_usd"],11.25)
+            self.assertTrue(updated["learning_eligible"])
 
     def test_incomplete_funding_sample_is_excluded_from_outcome_memory(self):
         with tempfile.TemporaryDirectory() as td:
