@@ -343,9 +343,29 @@ def _smart_money_score(fomo_leader_evidence):
 def _no_trade_guard(quality, regime, micro, smart_money, outcome_memory):
     reasons=[]
     if quality.get("status")=="UNSAFE": reasons.append("unsafe_data")
-    if regime.get("name")=="HIGH_VOLATILITY": reasons.append("high_volatility")
+    regime_name=str(regime.get("name","UNKNOWN")).upper()
+    if regime_name=="HIGH_VOLATILITY": reasons.append("high_volatility")
+    elif regime_name in ("RANGE","MIXED","UNKNOWN"):
+        reasons.append("unsupported_or_uncertain_regime")
     if micro.get("divergence")=="CONFLICT": reasons.append("source_conflict")
     if micro.get("squeeze_risk"): reasons.append("crowding_risk")
+    if smart_money.get("status")=="WEAK" and (smart_money.get("leaders",0) or smart_money.get("events",0)):
+        reasons.append("weak_leader_follower_confirmation")
+
+    # The summary is already funding-filtered by paper_journal.summarize.
+    # A regime with enough verified outcomes and negative net expectancy is
+    # a hard abstain, not merely a small confidence haircut.
+    by_regime=outcome_memory.get("by_regime",{}) if isinstance(outcome_memory,dict) else {}
+    bucket=by_regime.get(regime_name,{}) if isinstance(by_regime,dict) else {}
+    try:
+        n=int(bucket.get("resolved",0) or 0)
+        net=float(bucket.get("net_profit_usd",0.0) or 0.0)
+        expectancy=net/n if n else 0.0
+    except (TypeError,ValueError):
+        n=0
+        expectancy=0.0
+    if n>=8 and math.isfinite(expectancy) and expectancy<0.0:
+        reasons.append("negative_funding_verified_regime_expectancy")
     return {"blocked":bool(reasons),"reasons":reasons}
 
 def _outcome_adjustment(outcome_memory, regime=None, direction=None):
