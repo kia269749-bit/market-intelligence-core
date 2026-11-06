@@ -16,9 +16,11 @@ on:
     branches: [main]
     paths:
       - "mi_core/models.py"
+      - "mi_core/cost_policy.py"
       - "mi_core/real_data.py"
       - "mi_core/binance_futures_data.py"
       - "mi_core/multi_asset_forecast.py"
+      - "tools/ohlc_execution_backtest.py"
       - "tests/**"
       - ".github/workflows/ohlc-execution-validation.yml"
   workflow_dispatch:
@@ -90,5 +92,6 @@ jobs:
           name: ohlc-execution-${{ matrix.symbol }}
           path: |
             data/real/${{ matrix.symbol }}_5m_futures_project60.jsonl
+            reports/${{ matrix.symbol }}_5m_futures_coverage.json
             reports/${{ matrix.symbol }}_execution_base.json
             reports/${{ matrix.symbol }}_execution_strict.json
