@@ -36,8 +36,8 @@ class CapitalEconomicsTests(unittest.TestCase):
         self.assertGreaterEqual(r.modeled_profit_usd, 10.0)
 
     def test_maker_fee_is_lower_than_taker_fee(self):
-        taker = evaluate_capital_target(11.0, order_type="taker")
-        maker = evaluate_capital_target(11.0, order_type="maker")
+        taker = evaluate_capital_target(11.0, order_type="taker", cost_model="components")
+        maker = evaluate_capital_target(11.0, order_type="maker", cost_model="components")
         self.assertLess(maker.round_trip_cost_pct, taker.round_trip_cost_pct)
 
 
