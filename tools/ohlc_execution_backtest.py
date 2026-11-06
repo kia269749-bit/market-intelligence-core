@@ -229,6 +229,20 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
                 "reason": "Input bars must contain real open/high/low values; close-only data is not accepted.",
                 "research_only": True, "live_orders": False}
 
+    funding_coverage = derivative_coverage({bars[-1].symbol: bars}).get(bars[-1].symbol, {})
+    funding_verified = bool(
+        funding_coverage.get("funding_timestamped_present", 0) > 0
+        and funding_coverage.get("funding_fresh_coverage_pct", 0.0) >= 95.0
+    )
+    funding_event_map = {}
+    for bar in bars:
+        derivatives = bar.derivatives or {}
+        event_ts = derivatives.get("funding_timestamp_ms")
+        if event_ts is not None and bar.funding is not None:
+            funding_event_map[int(event_ts)] = float(bar.funding)
+    funding_events = sorted(funding_event_map.items())
+    funding_event_times = [item[0] for item in funding_events]
+
     raw_indices = list(range(min_history, len(bars) - horizon_bars - 1, max(1, step_bars)))
     indices = _evenly_spaced(raw_indices, max_evals)
     holdout_ts = int(bars[int(len(bars) * 0.60)].ts)
@@ -241,23 +255,33 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
                 ("confidence_ge_0_60", 0.60, 0.0),
                 ("confidence_ge_0_55_and_target_probability_ge_0_45", 0.55, 0.45),
             ):
-                trades = _simulate(bars, candidates, float(target_pct), float(stop_pct), float(resolved_cost_pct),
-                                   horizon_bars=horizon_bars, confidence_min=conf_min, probability_min=prob_min)
-                dev = [dict(t) for t in trades if t["signal_ts"] < holdout_ts]
-                holdout = [dict(t) for t in trades if t["signal_ts"] >= holdout_ts]
+                trades = _simulate(
+                    bars, candidates, float(target_pct), float(stop_pct), float(resolved_cost_pct),
+                    horizon_bars=horizon_bars, confidence_min=conf_min, probability_min=prob_min,
+                    funding_events=funding_events, funding_event_times=funding_event_times,
+                    funding_verified=funding_verified,
+                )
+                valid_trades = [t for t in trades if t.get("net_return_pct") is not None]
+                dev = [dict(t) for t in valid_trades if t["signal_ts"] < holdout_ts]
+                holdout = [dict(t) for t in valid_trades if t["signal_ts"] >= holdout_ts]
                 results.append({
                     "target_pct": float(target_pct),
                     "stop_pct": float(stop_pct),
                     "cost_round_trip_pct": resolved_cost_pct,
+                    "funding_data_verified": funding_verified,
+                    "funding_coverage": funding_coverage,
+                    "unverified_trade_count": len(trades) - len(valid_trades),
                     "cohort": cohort,
                     "development": _metrics(dev, starting_capital),
                     "holdout_oos": _metrics(holdout, starting_capital),
-                    "full_walk_forward": _metrics([dict(t) for t in trades], starting_capital),
+                    "full_walk_forward": _metrics([dict(t) for t in valid_trades], starting_capital),
                     "trades": trades,
                 })
     return {
-        "status": "ok",
+        "status": "ok" if funding_verified else "funding_unverified",
         "symbol": bars[-1].symbol,
+        "funding_data_verified": funding_verified,
+        "funding_coverage": funding_coverage,
         "bars": len(bars),
         "evaluation_points": len(indices),
         "holdout_start_ts": holdout_ts,
@@ -267,10 +291,10 @@ def backtest(bars, *, horizon_bars=96, step_bars=48, max_evals=80, min_history=3
         "cost_round_trip_pct": resolved_cost_pct,
         "cost_mode": cost_mode,
         "cost_policy_version": cost_policy.version,
-        "cost_model": "single central round-trip rate; real OHLC; stop-first when stop and target touch in same bar; stop gaps fill at worse open",
+        "cost_model": "single central round-trip rate plus separately recorded discrete funding cashflows; real OHLC; stop-first when stop and target touch in same bar; stop gaps fill at worse open",
         "results": results,
         "trade_ready": False,
-        "trade_readiness_reason": "Research backtest only; fee/slippage sensitivity, multi-window OOS, funding, and paper-shadow confirmation are still required.",
+        "trade_readiness_reason": "Research backtest only; funding must be fresh and at least 95% covered, and multi-window OOS plus paper-shadow confirmation are still required.",
         "research_only": True,
         "live_orders": False,
     }
