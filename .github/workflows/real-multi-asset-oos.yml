@@ -109,7 +109,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Download all futures Project60 artifacts
+      - name: Download all Hyperliquid Project60 artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: market-intelligence-*-oos
