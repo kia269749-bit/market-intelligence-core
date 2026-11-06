@@ -7,6 +7,7 @@ from mi_core.real_validation import (
     _directional_metrics,
     _baseline_metrics,
     _aggregate,
+    _apply_baseline_holm,
     _oos_integrity_metrics,
     _path_excursion_metrics,
     _opportunity_tier,
@@ -133,6 +134,28 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(result["policy"]["min_profit_usd"], 4.0)
         self.assertEqual(result["policy"]["preferred_profit_usd"], 10.0)
 
+
+    def test_random_baseline_p_values_receive_holm_adjustment(self):
+        assets = []
+        for p_value in (0.001, 0.02, 0.04):
+            assets.append({
+                "baseline_metrics": {
+                    "model": {"net_profit_usd": 20.0},
+                    "buy_and_hold_long": {"net_profit_usd": 10.0},
+                    "random_direction": {
+                        "mean_net_profit_usd": 5.0,
+                        "one_sided_p_value": p_value,
+                    },
+                },
+                "acceptance_gate": {"accepted": True, "reasons": []},
+                "opportunity_tier": "TRADE",
+            })
+        _apply_baseline_holm(assets, alpha=0.05)
+        adjusted = [x["baseline_gate"]["random_holm_adjusted_p_value"] for x in assets]
+        self.assertEqual(adjusted, [0.003, 0.04, 0.04])
+        self.assertTrue(assets[0]["acceptance_gate"]["accepted"])
+        self.assertTrue(assets[1]["acceptance_gate"]["accepted"])
+        self.assertTrue(assets[2]["acceptance_gate"]["accepted"])
 
     def test_skipped_assets_do_not_break_aggregate(self):
         aggregate = _aggregate([{"asset": "BTC", "validation_status": "SKIPPED"}])
