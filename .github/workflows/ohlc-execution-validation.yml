@@ -20,6 +20,7 @@ on:
       - "mi_core/cost_policy.py"
       - "mi_core/real_data.py"
       - "mi_core/binance_futures_data.py"
+      - "mi_core/hyperliquid_data.py"
       - "mi_core/multi_asset_forecast.py"
       - "tools/ohlc_execution_backtest.py"
       - "tests/**"
@@ -47,7 +48,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        symbol: [BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT, XRPUSDT]
+        include:
+          - {symbol: BTCUSDT, coin: BTC}
+          - {symbol: ETHUSDT, coin: ETH}
+          - {symbol: SOLUSDT, coin: SOL}
+          - {symbol: BNBUSDT, coin: BNB}
+          - {symbol: XRPUSDT, coin: XRP}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
