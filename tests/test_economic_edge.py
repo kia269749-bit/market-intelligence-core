@@ -23,6 +23,22 @@ class EconomicEdgeTests(unittest.TestCase):
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
 
+    def test_funding_carry_is_directional_and_unverified_rows_are_excluded(self):
+        result = diagnose_economic_edge({
+            "predictions": [
+                {"pred": 1, "actual_return_pct": 1.0, "funding_rate_sum_pct": 0.9,
+                 "funding_cost_verified": True, "favorable_mfe_pct": 1.0, "adverse_mae_pct": 0.1},
+                {"pred": -1, "actual_return_pct": -1.0, "funding_rate_sum_pct": 0.9,
+                 "funding_cost_verified": True, "favorable_mfe_pct": 1.0, "adverse_mae_pct": 0.1},
+                {"pred": 1, "actual_return_pct": 3.0, "funding_cost_verified": False,
+                 "favorable_mfe_pct": 3.0, "adverse_mae_pct": 0.1},
+            ]
+        })
+        self.assertEqual(result["samples"], 2)
+        self.assertEqual(result["usd4_hit_rate"], 0.5)
+        self.assertAlmostEqual(result["net_profit_usd"], 8.5)
+        self.assertAlmostEqual(result["funding_cost_total_usd"], 0.0)
+
     def test_confidence_buckets_expose_economic_quality(self):
         result = diagnose_economic_edge({
             "predictions": [
