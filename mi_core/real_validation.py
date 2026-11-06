@@ -69,7 +69,7 @@ def _directional_metrics(
     """Score model outcomes once per non-overlapping, fully resolved horizon."""
     cost_pct = resolve_round_trip_cost_pct(cost_mode, cost_policy, round_trip_cost_pct)
     rows = [
-        row for row in non_overlapping_predictions(result, require_actual=True)
+        row for row in non_overlapping_predictions(result)
         if row.get("actual_return_pct") is not None and row.get("pred") in (-1, 1)
     ]
     return _performance_metrics(rows, [int(row["pred"]) for row in rows], capital_usd, cost_pct)
