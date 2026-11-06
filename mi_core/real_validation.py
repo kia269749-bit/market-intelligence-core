@@ -10,6 +10,7 @@ import argparse
 import json
 import hashlib
 import random
+from bisect import bisect_right
 from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets, derivative_coverage
@@ -37,7 +38,8 @@ def _performance_metrics(rows, directions, capital_usd, round_trip_cost_pct):
     profits = []
     for row, direction in zip(rows, directions):
         actual = _num(row.get("actual_return_pct"))
-        favorable = actual if direction == 1 else -actual
+        funding_rate_sum_pct = _num(row.get("funding_rate_sum_pct"))
+        favorable = direction * actual - direction * funding_rate_sum_pct
         profits.append(capital_usd * (favorable - round_trip_cost_pct) / 100.0)
 
     n = len(profits)
@@ -49,8 +51,17 @@ def _performance_metrics(rows, directions, capital_usd, round_trip_cost_pct):
         equity += pnl
         peak = max(peak, equity)
         max_dd = max(max_dd, peak - equity)
+    funding_costs = [
+        capital_usd * int(direction) * _num(row.get("funding_rate_sum_pct")) / 100.0
+        for row, direction in zip(rows, directions)
+    ]
     return {
         "directional_predictions": n,
+        "funding_events_count": sum(int(row.get("funding_events_count", 0) or 0) for row in rows),
+        "funding_cost_total_usd": round(sum(funding_costs), 4),
+        "mean_funding_cost_pct_for_side": round(
+            sum(int(direction) * _num(row.get("funding_rate_sum_pct")) for row, direction in zip(rows, directions)) / n, 6
+        ) if n else 0.0,
         "positive_net_outcomes": wins,
         "positive_net_rate": round(wins / n, 6) if n else 0.0,
         "net_profit_usd": round(sum(profits), 4),
@@ -60,6 +71,40 @@ def _performance_metrics(rows, directions, capital_usd, round_trip_cost_pct):
         "research_only": True,
         "live_orders": False,
     }
+
+
+def _attach_funding_holding_costs(result, bars, horizon):
+    """Attach discrete funding events strictly inside each OOS holding interval."""
+    by_ts = {int(bar.ts): index for index, bar in enumerate(bars)}
+    event_rates = {}
+    for bar in bars:
+        derivatives = bar.derivatives or {}
+        event_ts = derivatives.get("funding_timestamp_ms")
+        if event_ts is not None and bar.funding is not None:
+            event_rates[int(event_ts)] = float(bar.funding)
+    event_times = sorted(event_rates)
+    for prediction in result.get("predictions", []):
+        entry_ts = int(prediction.get("ts", -1))
+        index = by_ts.get(entry_ts)
+        if index is None or index + int(horizon) >= len(bars):
+            prediction["funding_rate_sum_pct"] = 0.0
+            prediction["funding_events_count"] = 0
+            continue
+        exit_ts = int(bars[index + int(horizon)].ts)
+        lo = bisect_right(event_times, entry_ts)
+        hi = bisect_right(event_times, exit_ts)
+        selected = event_times[lo:hi]
+        prediction["funding_rate_sum_pct"] = round(
+            sum(event_rates[timestamp] for timestamp in selected) * 100.0, 8
+        )
+        prediction["funding_events_count"] = len(selected)
+    result["funding_cost_model"] = {
+        "source": "discrete_historical_funding_events",
+        "alignment": "strictly_after_entry_and_at_or_before_exit",
+        "model_feature": False,
+        "missing_funding_is_zero_cost_only_when_no_event_is_recorded": True,
+    }
+    return result
 
 
 def _directional_metrics(
@@ -285,6 +330,7 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                 "research_only": True, "live_orders": False,
             })
             continue
+        _attach_funding_holding_costs(result, bars, horizon)
         prediction_metrics = score_predictions(result)
         capital_metrics = score_capital_targets(result, capital_usd=capital_usd,
                                                  min_profit_usd=min_profit_usd,
