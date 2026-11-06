@@ -17,7 +17,6 @@ on:
       - "mi_core/adaptive_selector.py"
       - "mi_core/binance_futures_data.py"
       - "mi_core/path_forecast.py"
-      - "mi_core/adaptive_selector.py"
       - "mi_core/real_data.py"
       - "mi_core/cli.py"
       - "tools/economic_path_validation.py"
@@ -42,17 +41,10 @@ jobs:
           python-version: "3.11"
       - name: Unit tests
         run: python -m unittest discover -s tests -v
-      - name: Download real market data
+      - name: Download Binance USD-M Futures Project60 data
         run: |
           mkdir -p data/real reports
-          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1h --bars 8000 --out data/real/${{ matrix.symbol }}_1h.jsonl --report reports/${{ matrix.symbol }}_1h.json
-      - name: Run walk-forward OOS validation
-        run: |
-          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --cost-mode base --out reports/${{ matrix.symbol }}_1h_forecast_validation.json
-      - name: Run v4 Project60 WFA with base and strict costs plus baselines
-        run: |
-          python -m mi_core.real_validation --input data/real/${{ matrix.symbol }}_1h.jsonl --top 1 --max-rows 8000 --horizon 60 --min-samples 100 --cost-mode base --out reports/${{ matrix.symbol }}_v4_base.json
-          python -m mi_core.real_validation --input data/real/${{ matrix.symbol }}_1h.jsonl --top 1 --max-rows 8000 --horizon 60 --min-samples 100 --cost-mode strict --out reports/${{ matrix.symbol }}_v4_strict.json
+          python -m mi_core.binance_futures_data --symbol ${{ matrix.symbol }} --interval 1h --bars 8000 --out data/real/${{ matrix.symbol }}_futures_project60.jsonl > reports/${{ matrix.symbol }}_futures_coverage.json
       - name: Evaluate adaptive strategy tournament with central costs
         env:
           SYMBOL: ${{ matrix.symbol }}
@@ -61,12 +53,13 @@ jobs:
             COST_MODE="$mode" python - <<'PY'
           import json, os
           from pathlib import Path
-          from mi_core.models import MarketBar
+          from mi_core.multi_asset_forecast import load_project60_assets
           from mi_core.adaptive_selector import evaluate_adaptive_selection
           symbol = os.environ["SYMBOL"]
           mode = os.environ["COST_MODE"]
-          source = Path(f"data/real/{symbol}_1h.jsonl")
-          bars = [MarketBar(**json.loads(line)) for line in source.read_text().splitlines() if line.strip()]
+          source = Path(f"data/real/{symbol}_futures_project60.jsonl")
+          series = load_project60_assets(source, max_rows=8000)
+          bars = series[symbol]
           result = evaluate_adaptive_selection(
               bars, horizon=60, cost_mode=mode, train_window=1500,
               min_train_trades=20, min_oos_trades=12)
@@ -86,69 +79,13 @@ jobs:
           }, sort_keys=True))
           PY
           done
-      - name: Print v4 model versus Buy & Hold and Random
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          for mode in ("base", "strict"):
-              x=json.loads(Path(f"reports/${{ matrix.symbol }}_v4_{mode}.json").read_text())
-              asset=(x.get("assets") or [{}])[0]
-              baseline=asset.get("baseline_metrics") or {}
-              model=baseline.get("model") or {}
-              buy=baseline.get("buy_and_hold_long") or {}
-              random=baseline.get("random_direction") or {}
-              print(json.dumps({
-                  "symbol":"${{ matrix.symbol }}", "cost_mode":mode,
-                  "round_trip_cost_pct":(x.get("policy") or {}).get("round_trip_cost_pct"),
-                  "oos_resolved":(asset.get("prediction_metrics") or {}).get("resolved"),
-                  "independent_trades":model.get("directional_predictions"),
-                  "model_net_profit_usd":model.get("net_profit_usd"),
-                  "model_profit_factor":model.get("profit_factor"),
-                  "buy_hold_net_profit_usd":buy.get("net_profit_usd"),
-                  "random_mean_net_profit_usd":random.get("mean_net_profit_usd"),
-                  "random_one_sided_p_value":random.get("one_sided_p_value"),
-                  "random_holm_adjusted_p_value":random.get("holm_adjusted_p_value"),
-                  "beats_buy_and_hold":(asset.get("baseline_gate") or {}).get("beats_buy_and_hold"),
-                  "beats_random_mean":(asset.get("baseline_gate") or {}).get("beats_random_mean"),
-                  "accepted_assets":x.get("accepted_assets"),
-                  "research_only":x.get("research_only"), "live_orders":x.get("live_orders")
-              }, sort_keys=True))
-          PY
-      - name: Print comparable metrics
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          x=json.loads(Path("reports/${{ matrix.symbol }}_1h_forecast_validation.json").read_text())
-          edge=x.get("economic_edge",{})
-          metrics=x.get("metrics",{})
-          gate=x.get("acceptance_gate",{})
-          print(json.dumps({
-            "symbol":"${{ matrix.symbol }}",
-            "accuracy":metrics.get("accuracy"),
-            "high_conf_accuracy":metrics.get("high_conf_accuracy"),
-            "samples":edge.get("samples"),
-            "direction_correct_rate":edge.get("direction_correct_rate"),
-            "positive_net_rate":edge.get("positive_net_rate"),
-            "expectancy_usd":edge.get("expectancy_usd"),
-            "net_profit_usd":edge.get("net_profit_usd"),
-            "usd4_hit_rate":edge.get("usd4_hit_rate"),
-            "usd10_hit_rate":edge.get("usd10_hit_rate"),
-            "adverse_0_50_rate":edge.get("adverse_0_50_rate"),
-            "accepted":gate.get("accepted"),
-            "research_only":x.get("research_only"),
-            "live_orders":x.get("live_orders")
-          },sort_keys=True))
-          PY
       - name: Publish validation artifact
         uses: actions/upload-artifact@v4
         with:
           name: market-intelligence-${{ matrix.symbol }}-oos
           path: |
-            data/real/${{ matrix.symbol }}_1h.jsonl
-            reports/${{ matrix.symbol }}_1h.json
-            reports/${{ matrix.symbol }}_1h_forecast_validation.json
+            data/real/${{ matrix.symbol }}_futures_project60.jsonl
+            reports/${{ matrix.symbol }}_futures_coverage.json
             reports/${{ matrix.symbol }}_v4_base.json
             reports/${{ matrix.symbol }}_v4_strict.json
             reports/${{ matrix.symbol }}_adaptive_selector_base.json
@@ -156,3 +93,81 @@ jobs:
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
+
+
+  v4-cross-asset-wfa:
+    name: Cross-asset v4 WFA with Holm-adjusted baselines
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Download all futures Project60 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: market-intelligence-*-oos
+          path: artifacts
+          merge-multiple: true
+      - name: Merge assets by timestamp
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          merged = {}
+          files = sorted(Path("artifacts/data/real").glob("*_futures_project60.jsonl"))
+          if len(files) != 5:
+              raise SystemExit(f"expected 5 futures files, found {len(files)}")
+          for path in files:
+              for line in path.read_text().splitlines():
+                  if not line.strip():
+                      continue
+                  row = json.loads(line)
+                  ts = int(row["timestamp"])
+                  target = merged.setdefault(ts, {"timestamp": ts, "coins": {}})
+                  target["coins"].update(row.get("coins") or {})
+          out = Path("data/real/project60_multi_asset.jsonl")
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text("".join(json.dumps(merged[k], separators=(",", ":")) + "\n" for k in sorted(merged)))
+          print(json.dumps({"source_files": [str(x) for x in files], "timestamps": len(merged), "output": str(out)}))
+          PY
+      - name: Run cross-asset WFA at base and strict costs
+        run: |
+          mkdir -p reports
+          python -m mi_core.real_validation --input data/real/project60_multi_asset.jsonl --top 5 --max-rows 8000 --horizon 60 --min-samples 100 --cost-mode base --out reports/project60_v4_base.json
+          python -m mi_core.real_validation --input data/real/project60_multi_asset.jsonl --top 5 --max-rows 8000 --horizon 60 --min-samples 100 --cost-mode strict --out reports/project60_v4_strict.json
+      - name: Print model versus Buy & Hold and Random
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for mode in ("base", "strict"):
+              report = json.loads(Path(f"reports/project60_v4_{mode}.json").read_text())
+              print(json.dumps({
+                  "mode": mode,
+                  "policy": report.get("policy"),
+                  "aggregate": report.get("aggregate"),
+                  "assets": [{
+                      "symbol": asset.get("asset"),
+                      "independent_trades": ((asset.get("baseline_metrics") or {}).get("model") or {}).get("directional_predictions"),
+                      "model_net_usd": ((asset.get("baseline_metrics") or {}).get("model") or {}).get("net_profit_usd"),
+                      "model_pf": ((asset.get("baseline_metrics") or {}).get("model") or {}).get("profit_factor"),
+                      "buy_hold_net_usd": ((asset.get("baseline_metrics") or {}).get("buy_and_hold_long") or {}).get("net_profit_usd"),
+                      "random_mean_net_usd": ((asset.get("baseline_metrics") or {}).get("random_direction") or {}).get("mean_net_profit_usd"),
+                      "random_p_holm": ((asset.get("baseline_metrics") or {}).get("random_direction") or {}).get("holm_adjusted_p_value"),
+                      "baseline_gate": asset.get("baseline_gate"),
+                      "accepted": (asset.get("acceptance_gate") or {}).get("accepted"),
+                      "tier": asset.get("opportunity_tier")
+                  } for asset in report.get("assets", [])]
+              }, sort_keys=True))
+          PY
+      - name: Publish cross-asset v4 WFA artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: project60-v4-cross-asset-wfa
+          path: |
+            data/real/project60_multi_asset.jsonl
+            reports/project60_v4_base.json
+            reports/project60_v4_strict.json
