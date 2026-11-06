@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import hashlib
+import random
 from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
 from .economic_edge import diagnose_economic_edge
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 SHORT_HORIZON_SIGNAL_CUTOFF = 60  # Project60 bars ~= 1h; shorter horizons are diagnostics only.
 
 from .validated_forecast import (
@@ -19,6 +22,7 @@ from .validated_forecast import (
     score_capital_targets,
     score_predictions,
     walk_forward_forecast,
+    non_overlapping_predictions,
 )
 
 
@@ -29,15 +33,11 @@ def _num(v, default=0.0):
         return default
 
 
-def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
-    rows = [
-        r for r in result.get("predictions", [])
-        if r.get("actual_return_pct") is not None and r.get("pred") in (-1, 1)
-    ]
+def _performance_metrics(rows, directions, capital_usd, round_trip_cost_pct):
     profits = []
-    for row in rows:
+    for row, direction in zip(rows, directions):
         actual = _num(row.get("actual_return_pct"))
-        favorable = actual if row["pred"] == 1 else -actual
+        favorable = actual if direction == 1 else -actual
         profits.append(capital_usd * (favorable - round_trip_cost_pct) / 100.0)
 
     n = len(profits)
@@ -49,7 +49,6 @@ def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
         equity += pnl
         peak = max(peak, equity)
         max_dd = max(max_dd, peak - equity)
-
     return {
         "directional_predictions": n,
         "positive_net_outcomes": wins,
@@ -63,8 +62,62 @@ def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
     }
 
 
+def _directional_metrics(
+    result, capital_usd=500.0, round_trip_cost_pct=None,
+    cost_mode="base", cost_policy: CostPolicy = DEFAULT_COST_POLICY,
+):
+    """Score model outcomes once per non-overlapping, fully resolved horizon."""
+    cost_pct = resolve_round_trip_cost_pct(cost_mode, cost_policy, round_trip_cost_pct)
+    rows = [
+        row for row in non_overlapping_predictions(result, require_actual=True)
+        if row.get("actual_return_pct") is not None and row.get("pred") in (-1, 1)
+    ]
+    return _performance_metrics(rows, [int(row["pred"]) for row in rows], capital_usd, cost_pct)
+
+
+def _baseline_metrics(result, capital_usd, round_trip_cost_pct, symbol, horizon, simulations=1000):
+    """Paired Buy & Hold and reproducible random-direction baselines on identical OOS rows."""
+    rows = [
+        row for row in non_overlapping_predictions(result, require_actual=True)
+        if row.get("actual_return_pct") is not None and row.get("pred") in (-1, 1)
+    ]
+    model_dirs = [int(row["pred"]) for row in rows]
+    model = _performance_metrics(rows, model_dirs, capital_usd, round_trip_cost_pct)
+    buy_hold = _performance_metrics(rows, [1] * len(rows), capital_usd, round_trip_cost_pct)
+
+    seed_hex = hashlib.sha256(f"{symbol}:{horizon}:v4-random-baseline".encode("utf-8")).hexdigest()[:8]
+    rng = random.Random(int(seed_hex, 16))
+    random_profits = []
+    for _ in range(max(1, int(simulations))):
+        directions = [rng.choice((-1, 1)) for _ in rows]
+        metrics = _performance_metrics(rows, directions, capital_usd, round_trip_cost_pct)
+        random_profits.append(metrics["net_profit_usd"])
+    random_profits.sort()
+    n = len(random_profits)
+    percentile = lambda p: random_profits[min(n - 1, max(0, int(round((n - 1) * p))))]
+    model_net = model["net_profit_usd"]
+    random_summary = {
+        "simulations": n,
+        "mean_net_profit_usd": round(sum(random_profits) / n, 4),
+        "p05_net_profit_usd": percentile(0.05),
+        "median_net_profit_usd": percentile(0.50),
+        "p95_net_profit_usd": percentile(0.95),
+        "model_net_profit_percentile": round(sum(v <= model_net for v in random_profits) / n, 4),
+        "one_sided_p_value": round((1 + sum(v >= model_net for v in random_profits)) / (n + 1), 4),
+        "seed": int(seed_hex, 16),
+    }
+    return {
+        "sample_policy": "same_non_overlapping_oos_rows",
+        "model": model,
+        "buy_and_hold_long": buy_hold,
+        "random_direction": random_summary,
+        "research_only": True,
+        "live_orders": False,
+    }
+
+
 def _path_excursion_metrics(result, target_levels=(1.15, 2.35), stop_levels=(0.50, 0.75, 1.00, 1.25, 1.50)):
-    rows=[x for x in result.get("predictions",[]) if x.get("pred") in (-1,1)]
+    rows=[x for x in non_overlapping_predictions(result) if x.get("pred") in (-1,1)]
     out={"directional_predictions":len(rows),"target_hit_rates":{},"adverse_excursion_rates":{}}
     for level in target_levels:
         hits=sum(_num(x.get("favorable_mfe_pct")) >= level for x in rows)
@@ -143,6 +196,8 @@ def _aggregate(asset_results):
         "net_profit_usd": round(total_net, 4),
         "expectancy_usd": round(total_exp / directional, 4) if directional else 0.0,
         "research_only": True,
+        "aggregation_method": "sum_of_independent_asset_simulations_not_portfolio_equity",
+        "portfolio_metrics_available": False,
         "live_orders": False,
     }
 
@@ -170,6 +225,9 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                                                  round_trip_cost_pct=round_trip_cost_pct)
         economic_metrics = _directional_metrics(result, capital_usd=capital_usd,
                                                 round_trip_cost_pct=round_trip_cost_pct)
+        baseline_metrics = _baseline_metrics(
+            result, capital_usd, round_trip_cost_pct, item["symbol"], horizon
+        )
         path_metrics = _path_excursion_metrics(result)
         edge_diagnostic = diagnose_economic_edge(
             result,
@@ -195,7 +253,8 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
         asset_results.append({
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
-            "economic_metrics": economic_metrics, "path_metrics": path_metrics,
+            "economic_metrics": economic_metrics, "baseline_metrics": baseline_metrics,
+            "path_metrics": path_metrics,
             "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
         })
@@ -210,8 +269,12 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
 def validate_project60(
     path, top_n=10, max_rows=800, horizon=60, min_samples=100,
     capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
-    round_trip_cost_pct=0.35, horizons=None,
+    round_trip_cost_pct=None, cost_mode="base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY, horizons=None,
 ):
+    resolved_cost_pct = resolve_round_trip_cost_pct(
+        cost_mode, cost_policy, override=round_trip_cost_pct
+    )
     series = load_project60_assets(path, max_rows=max_rows)
     ranked = [x for x in rank_assets(series, min_samples=max(60, min_samples))
               if x["symbol"] in series]
@@ -220,7 +283,7 @@ def validate_project60(
     if not hs:
         hs = [int(horizon)]
     results = [_validate_horizon(series, selected, h, capital_usd, min_profit_usd,
-                                 preferred_profit_usd, round_trip_cost_pct) for h in hs]
+                                 preferred_profit_usd, resolved_cost_pct) for h in hs]
     primary = next((x for x in results if x["horizon_bars"] == int(horizon)), results[0])
     return {
         "available": bool(primary["assets"]),
@@ -234,7 +297,8 @@ def validate_project60(
         "signal_horizon_policy": {"minimum_signal_horizon_bars": SHORT_HORIZON_SIGNAL_CUTOFF, "shorter_horizons": "diagnostic_only"},
         "policy": {"capital_usd": capital_usd, "min_profit_usd": min_profit_usd,
                    "preferred_profit_usd": preferred_profit_usd,
-                   "round_trip_cost_pct": round_trip_cost_pct},
+                   "round_trip_cost_pct": resolved_cost_pct,
+                   "cost_mode": cost_mode, "cost_policy_version": cost_policy.version},
         "research_only": True, "live_orders": False,
     }
 
@@ -246,6 +310,7 @@ def main(argv=None):
     ap.add_argument("--horizon", type=int, default=60)
     ap.add_argument("--horizons", default="", help="comma-separated horizons; <60 bars are diagnostic-only")
     ap.add_argument("--min-samples", type=int, default=100)
+    ap.add_argument("--cost-mode", choices=("base", "strict"), default="base")
     ap.add_argument("--out", default="")
     args = ap.parse_args(argv)
 
@@ -255,6 +320,7 @@ def main(argv=None):
         max_rows=args.max_rows,
         horizon=args.horizon,
         min_samples=args.min_samples,
+        cost_mode=args.cost_mode,
         horizons=[int(x) for x in args.horizons.split(",") if x.strip()] or None,
     )
     payload = json.dumps(result, indent=2, ensure_ascii=False)
