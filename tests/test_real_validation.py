@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from mi_core.real_validation import (
     _directional_metrics,
+    _baseline_metrics,
     _oos_integrity_metrics,
     _path_excursion_metrics,
     _opportunity_tier,
@@ -27,6 +28,26 @@ class RealValidationTests(unittest.TestCase):
         self.assertAlmostEqual(result["net_profit_usd"], -7.75, places=4)
         self.assertLess(result["expectancy_usd"], 0.0)
         self.assertEqual(result["positive_net_outcomes"], 1)
+
+    def test_wfa_uses_non_overlapping_rows_and_reports_baselines(self):
+        result = {
+            "horizon_bars": 2,
+            "predictions": [
+                {"ts": i * 60_000, "pred": (1 if i in (0, 2) else -1),
+                 "actual": 1, "actual_return_pct": (1.0 if i in (0, 2) else -1.0)}
+                for i in range(4)
+            ],
+        }
+        metrics = _directional_metrics(result)
+        self.assertEqual(metrics["directional_predictions"], 2)
+        self.assertAlmostEqual(metrics["net_profit_usd"], -1.5)
+        baselines = _baseline_metrics(result, 500.0, 0.15, "BTC", 2, simulations=100)
+        self.assertEqual(baselines["sample_policy"], "same_non_overlapping_oos_rows")
+        self.assertEqual(baselines["model"]["directional_predictions"], 2)
+        self.assertEqual(baselines["buy_and_hold_long"]["directional_predictions"], 2)
+        self.assertEqual(baselines["random_direction"]["simulations"], 100)
+        self.assertGreaterEqual(baselines["random_direction"]["one_sided_p_value"], 0.0)
+        self.assertLessEqual(baselines["random_direction"]["one_sided_p_value"], 1.0)
 
     def test_path_excursion_metrics_measure_targets_and_adverse_move(self):
         result = _path_excursion_metrics({"predictions": [
