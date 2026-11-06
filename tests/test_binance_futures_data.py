@@ -81,6 +81,14 @@ class BinanceFuturesDataTests(unittest.TestCase):
         self.assertAlmostEqual(second["funding"], 0.0001)
         self.assertEqual(coverage["alignment"], "strictly_before_candle_close_no_lookahead")
 
+    def test_download_refuses_to_overwrite_existing_file_by_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "existing.jsonl"
+            target.write_text("keep-me\\n", encoding="utf-8")
+            with self.assertRaises(FileExistsError):
+                download_project60("BTCUSDT", "1m", 1, str(target), get_json=lambda *a, **k: [])
+            self.assertEqual(target.read_text(encoding="utf-8"), "keep-me\\n")
+
     def test_download_writes_project60_rows_and_coverage(self):
         def fake(url, params, timeout=20):
             if url == KLINES_URL:
