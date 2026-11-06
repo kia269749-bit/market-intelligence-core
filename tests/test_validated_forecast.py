@@ -1,6 +1,6 @@
 import unittest
 from mi_core.models import MarketBar
-from mi_core.validated_forecast import forecast_now, walk_forward_forecast, _feat, _feature_cache
+from mi_core.validated_forecast import forecast_now, walk_forward_forecast, _feat, _feature_cache, score_capital_targets
 
 
 class TestValidatedForecast(unittest.TestCase):
@@ -27,6 +27,19 @@ class TestValidatedForecast(unittest.TestCase):
         self.assertEqual(with_derivatives, without_derivatives_features)
         cached = _feature_cache(without_derivatives)
         self.assertEqual(len(cached[25]), 6)
+
+    def test_capital_targets_subtract_funding_carry_before_round_trip_cost(self):
+        result = {
+            "horizon_bars": 60,
+            "predictions": [
+                {"pred": 1, "actual_return_pct": 1.0, "funding_rate_sum_pct": 0.9},
+                {"pred": 1, "actual_return_pct": 1.0},
+            ],
+        }
+        scored = score_capital_targets(result, cost_mode="base")
+        self.assertAlmostEqual(scored["round_trip_cost_pct"], 0.15)
+        self.assertAlmostEqual(scored["mean_funding_cost_pct_for_model_side"], 0.45)
+        self.assertEqual(scored["min_profit_rate"], 0.0)
 
     def test_walk_forward_is_oos_only(self):
         r=walk_forward_forecast(self._bars(), horizon=5, min_train=60)
