@@ -85,17 +85,76 @@ def resolve_open_signals(path: str, current_price: float | dict, now: int | None
             cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct
         if capital <= 0 or not math.isfinite(capital):
             capital=500.0
+        # Funding is not inferred from a single snapshot rate. Until a
+        # complete, timestamp-aligned settlement is attached, this outcome is
+        # explicitly incomplete and cannot train Outcome Memory.
         row.update({"status":status,"resolved_ts":now,"exit_price":exit_price,
                     "observed_price":price,
                     "gross_move_pct":round(gross_pct,6),
                     "round_trip_cost_pct":cost_pct,
-                    "net_profit_usd":round(capital*(gross_pct-cost_pct)/100,4)})
+                    "funding_status":row.get("funding_status","UNVERIFIED"),
+                    "funding_coverage":float(row.get("funding_coverage",0.0) or 0.0),
+                    "funding_cashflow_usd":row.get("funding_cashflow_usd"),
+                    "net_profit_usd":round(capital*(gross_pct-cost_pct)/100,4),
+                    "learning_eligible":False})
         changed+=1
     if changed:
         tmp=p.with_suffix(p.suffix+".tmp")
         tmp.write_text("".join(json.dumps(r,ensure_ascii=False)+"\n" for r in rows),encoding="utf-8")
         tmp.replace(p)
     return changed
+
+def apply_funding_settlements(path: str, settlements: dict) -> int:
+    """Attach verified, holding-period funding cashflows to resolved shadow rows.
+
+    settlements maps signal_id to {coverage, events, cashflow_usd}. Cashflow is
+    signed from the strategy's perspective: receipts are positive, payments
+    are negative. Coverage below 95%, missing events, or invalid values are
+    rejected and never make a sample eligible for learning.
+    """
+    p=Path(path)
+    if not p.exists() or not isinstance(settlements,dict):
+        return 0
+    try:
+        rows=[json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError,json.JSONDecodeError):
+        return 0
+    changed=0
+    for row in rows:
+        if row.get("status") not in ("TARGET","STOP"):
+            continue
+        settlement=settlements.get(row.get("signal_id"))
+        if not isinstance(settlement,dict):
+            continue
+        try:
+            coverage=float(settlement.get("coverage"))
+            events=int(settlement.get("events"))
+            cashflow=float(settlement.get("cashflow_usd"))
+            capital=float(row.get("capital_usd",500.0) or 500.0)
+            gross=float(row.get("gross_move_pct"))
+            cost=float(row.get("round_trip_cost_pct",DEFAULT_COST_POLICY.base_round_trip_pct))
+        except (TypeError,ValueError):
+            continue
+        if (not all(math.isfinite(v) for v in (coverage,cashflow,capital,gross,cost))
+                or coverage < 0.95 or coverage > 1.0 or events < 1
+                or capital <= 0 or cost < 0):
+            continue
+        row.update({
+            "funding_status":"VERIFIED",
+            "funding_coverage":round(coverage,6),
+            "funding_events":events,
+            "funding_cashflow_usd":round(cashflow,6),
+            "funding_verified_ts":int(time.time()),
+            "net_profit_usd":round(capital*(gross-cost)/100.0+cashflow,4),
+            "learning_eligible":True,
+        })
+        changed+=1
+    if changed:
+        tmp=p.with_suffix(p.suffix+".tmp")
+        tmp.write_text("".join(json.dumps(r,ensure_ascii=False)+"\n" for r in rows),encoding="utf-8")
+        tmp.replace(p)
+    return changed
+
 
 def _bucket_confidence(value):
     try:
@@ -143,13 +202,15 @@ def _group_outcomes(rows, key_fn):
 
 def summarize(path: str) -> dict:
     p=Path(path)
+    empty={
+        "count":0,"open":0,"resolved":0,"resolved_total":0,
+        "funding_verified_resolved":0,"funding_incomplete_resolved":0,
+        "wins":0,"losses":0,"win_rate":0.0,"net_profit_usd":0.0,
+        "by_regime":{},"by_direction":{},
+        "by_confidence":{},"by_economic_tier":{},
+    }
     if not p.exists():
-        return {
-            "count":0,"open":0,"resolved":0,"wins":0,"losses":0,
-            "win_rate":0.0,"net_profit_usd":0.0,
-            "by_regime":{},"by_direction":{},
-            "by_confidence":{},"by_economic_tier":{}
-        }
+        return empty
 
     rows=[]
     for line in p.read_text(encoding="utf-8").splitlines():
@@ -158,31 +219,39 @@ def summarize(path: str) -> dict:
         except json.JSONDecodeError:
             continue
 
-    resolved=[r for r in rows if r.get("status") in ("TARGET","STOP")]
-    wins=sum(r.get("status")=="TARGET" for r in resolved)
-    losses=sum(r.get("status")=="STOP" for r in resolved)
-    net=sum(float(r.get("net_profit_usd",0.0) or 0.0) for r in resolved)
+    resolved_all=[r for r in rows if r.get("status") in ("TARGET","STOP")]
+    eligible=[
+        r for r in resolved_all
+        if r.get("funding_status")=="VERIFIED"
+        and r.get("learning_eligible") is True
+        and float(r.get("funding_coverage",0.0) or 0.0)>=0.95
+        and r.get("funding_cashflow_usd") is not None
+    ]
+    wins=sum(r.get("status")=="TARGET" for r in eligible)
+    losses=sum(r.get("status")=="STOP" for r in eligible)
+    net=sum(float(r.get("net_profit_usd",0.0) or 0.0) for r in eligible)
 
     return {
         "count":len(rows),
         "open":sum(r.get("status")=="OPEN" for r in rows),
-        "resolved":len(resolved),
+        "resolved":len(eligible),
+        "resolved_total":len(resolved_all),
+        "funding_verified_resolved":len(eligible),
+        "funding_incomplete_resolved":len(resolved_all)-len(eligible),
         "wins":wins,
         "losses":losses,
-        "win_rate":round(wins/len(resolved),4) if resolved else 0.0,
+        "win_rate":round(wins/len(eligible),4) if eligible else 0.0,
         "net_profit_usd":round(net,4),
         "by_regime":_group_outcomes(
-            resolved, lambda r: str(r.get("regime","UNKNOWN")).upper() or "UNKNOWN"
+            eligible, lambda r: str(r.get("regime","UNKNOWN")).upper() or "UNKNOWN"
         ),
         "by_direction":_group_outcomes(
-            resolved, lambda r: str(r.get("direction","UNKNOWN")).upper() or "UNKNOWN"
+            eligible, lambda r: str(r.get("direction","UNKNOWN")).upper() or "UNKNOWN"
         ),
         "by_confidence":_group_outcomes(
-            resolved, lambda r: _bucket_confidence(r.get("confidence"))
+            eligible, lambda r: _bucket_confidence(r.get("confidence"))
         ),
         "by_economic_tier":_group_outcomes(
-            resolved, lambda r: _bucket_economic(
-                r.get("modeled_profit_usd")
-            )
+            eligible, lambda r: _bucket_economic(r.get("modeled_profit_usd"))
         ),
     }
