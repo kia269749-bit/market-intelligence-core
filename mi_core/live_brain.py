@@ -363,9 +363,15 @@ def _outcome_adjustment(outcome_memory, regime=None, direction=None):
         resolved = int(outcome_memory.get("resolved", 0) or 0)
     except (TypeError, ValueError):
         resolved = 0
-    if resolved < 10:
+    try:
+        funding_verified = int(outcome_memory.get("funding_verified_resolved", 0) or 0)
+    except (TypeError, ValueError):
+        funding_verified = 0
+    if resolved < 10 or funding_verified < 10 or funding_verified < resolved:
         return {"factor": 1.0, "status": "INSUFFICIENT",
-                "reason": "not_enough_resolved_signals"}
+                "reason": "not_enough_funding_verified_outcomes",
+                "funding_verified_resolved": funding_verified,
+                "resolved_reported": resolved}
 
     def economics(bucket, n):
         if not isinstance(bucket, dict) or n <= 0:
