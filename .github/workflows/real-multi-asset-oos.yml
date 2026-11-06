@@ -16,6 +16,7 @@ on:
       - "mi_core/trade_economics.py"
       - "mi_core/adaptive_selector.py"
       - "mi_core/binance_futures_data.py"
+      - "mi_core/hyperliquid_data.py"
       - "mi_core/path_forecast.py"
       - "mi_core/real_data.py"
       - "mi_core/cli.py"
@@ -41,10 +42,10 @@ jobs:
           python-version: "3.11"
       - name: Unit tests
         run: python -m unittest discover -s tests -v
-      - name: Download Binance USD-M Futures Project60 data
+      - name: Download Hyperliquid perpetual Project60 data
         run: |
           mkdir -p data/real reports
-          python -m mi_core.binance_futures_data --symbol ${{ matrix.symbol }} --interval 1h --bars 8000 --out data/real/${{ matrix.symbol }}_futures_project60.jsonl > reports/${{ matrix.symbol }}_futures_coverage.json
+          python -m mi_core.hyperliquid_data --coin ${{ matrix.coin }} --asset-key ${{ matrix.symbol }} --interval 1h --bars 8000 --out data/real/${{ matrix.symbol }}_hyperliquid_project60.jsonl > reports/${{ matrix.symbol }}_hyperliquid_coverage.json
       - name: Evaluate adaptive strategy tournament with central costs
         env:
           SYMBOL: ${{ matrix.symbol }}
@@ -84,8 +85,8 @@ jobs:
         with:
           name: market-intelligence-${{ matrix.symbol }}-oos
           path: |
-            data/real/${{ matrix.symbol }}_futures_project60.jsonl
-            reports/${{ matrix.symbol }}_futures_coverage.json
+            data/real/${{ matrix.symbol }}_hyperliquid_project60.jsonl
+            reports/${{ matrix.symbol }}_hyperliquid_coverage.json
             reports/${{ matrix.symbol }}_adaptive_selector_base.json
             reports/${{ matrix.symbol }}_adaptive_selector_strict.json
 
@@ -115,7 +116,7 @@ jobs:
           import json
           from pathlib import Path
           merged = {}
-          files = sorted(Path("artifacts/data/real").glob("*_futures_project60.jsonl"))
+          files = sorted(Path("artifacts/data/real").glob("*_hyperliquid_project60.jsonl"))
           if len(files) != 5:
               raise SystemExit(f"expected 5 futures files, found {len(files)}")
           for path in files:
