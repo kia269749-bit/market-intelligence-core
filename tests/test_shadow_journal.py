@@ -129,7 +129,7 @@ class ShadowJournalTests(unittest.TestCase):
                 "funding_status":"UNVERIFIED","funding_coverage":0.0,
                 "learning_eligible":False,
             }
-            Path(path).write_text(json.dumps(row)+"\\n",encoding="utf-8")
+            Path(path).write_text(json.dumps(row)+"\n",encoding="utf-8")
             calls=[]
             def fake_fetch(coin,start_ms,end_ms):
                 calls.append((coin,start_ms,end_ms))
