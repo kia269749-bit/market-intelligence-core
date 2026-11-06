@@ -124,7 +124,7 @@ def _signal(bars: Sequence[MarketBar], i: int, strategy: str) -> int:
     return 0
 
 
-def _net_return(bars, signal_index, direction, horizon, cost_pct, funding_events, funding_verified):
+def _net_return(bars, signal_index, direction, horizon, cost_pct, funding_events, funding_event_times, funding_verified):
     """Net return after one round-trip policy cost and discrete holding funding."""
     entry_index = signal_index + 1
     exit_index = signal_index + horizon + 1
@@ -137,9 +137,8 @@ def _net_return(bars, signal_index, direction, horizon, cost_pct, funding_events
         return None
     entry_ts = int(entry_bar.ts)
     exit_ts = int(bars[exit_index].ts)
-    event_times = [item[0] for item in funding_events]
-    lo = bisect_right(event_times, entry_ts)
-    hi = bisect_right(event_times, exit_ts)
+    lo = bisect_right(funding_event_times, entry_ts)
+    hi = bisect_right(funding_event_times, exit_ts)
     funding_rate_sum_pct = sum(item[1] for item in funding_events[lo:hi]) * 100.0
     gross = int(direction) * (exit_price / entry - 1.0) * 100.0
     return gross - int(direction) * funding_rate_sum_pct - float(cost_pct)
@@ -216,6 +215,7 @@ def evaluate_adaptive_selection(
         if event_ts is not None and bar.funding is not None:
             funding_event_map[int(event_ts)] = float(bar.funding)
     funding_events = sorted(funding_event_map.items())
+    funding_event_times = [item[0] for item in funding_events]
     if n < max(80, horizon + 40):
         return {
             "available": False, "reason": "insufficient_history", "samples": n,
@@ -234,7 +234,7 @@ def evaluate_adaptive_selection(
             scheduled[name][i] = True
             next_allowed = i + horizon + 1
             outcomes[name][i] = _net_return(
-                bars, i, direction, horizon, resolved_cost_pct, funding_events, funding_verified
+                bars, i, direction, horizon, resolved_cost_pct, funding_events, funding_event_times, funding_verified
             )
 
     def resolved_returns(name, decision_index, start_index):
