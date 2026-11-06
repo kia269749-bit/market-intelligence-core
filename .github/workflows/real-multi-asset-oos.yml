@@ -9,6 +9,11 @@ on:
     paths:
       - ".github/workflows/real-multi-asset-oos.yml"
       - "mi_core/real_validation.py"
+      - "mi_core/cost_policy.py"
+      - "mi_core/multi_asset_forecast.py"
+      - "mi_core/validated_forecast.py"
+      - "mi_core/economic_edge.py"
+      - "mi_core/trade_economics.py"
       - "mi_core/path_forecast.py"
       - "mi_core/adaptive_selector.py"
       - "mi_core/real_data.py"
@@ -38,42 +43,72 @@ jobs:
       - name: Download real market data
         run: |
           mkdir -p data/real reports
-          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1h --bars 5000 --out data/real/${{ matrix.symbol }}_1h.jsonl --report reports/${{ matrix.symbol }}_1h.json
+          python -m mi_core.cli real --symbol ${{ matrix.symbol }} --interval 1h --bars 8000 --out data/real/${{ matrix.symbol }}_1h.jsonl --report reports/${{ matrix.symbol }}_1h.json
       - name: Run walk-forward OOS validation
         run: |
-          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --out reports/${{ matrix.symbol }}_1h_forecast_validation.json
-      - name: Evaluate adaptive strategy tournament on real OHLC
+          python -m mi_core.cli forecast-validate --input data/real/${{ matrix.symbol }}_1h.jsonl --horizon 60 --train-window 300 --cost-mode base --out reports/${{ matrix.symbol }}_1h_forecast_validation.json
+      - name: Run v4 Project60 WFA with base and strict costs plus baselines
+        run: |
+          python -m mi_core.real_validation --input data/real/${{ matrix.symbol }}_1h.jsonl --top 1 --max-rows 8000 --horizon 60 --min-samples 100 --cost-mode base --out reports/${{ matrix.symbol }}_v4_base.json
+          python -m mi_core.real_validation --input data/real/${{ matrix.symbol }}_1h.jsonl --top 1 --max-rows 8000 --horizon 60 --min-samples 100 --cost-mode strict --out reports/${{ matrix.symbol }}_v4_strict.json
+      - name: Evaluate adaptive strategy tournament with central costs
         env:
           SYMBOL: ${{ matrix.symbol }}
         run: |
-          python - <<'PY'
+          for mode in base strict; do
+            COST_MODE="$mode" python - <<'PY'
           import json, os
           from pathlib import Path
           from mi_core.models import MarketBar
           from mi_core.adaptive_selector import evaluate_adaptive_selection
           symbol = os.environ["SYMBOL"]
+          mode = os.environ["COST_MODE"]
           source = Path(f"data/real/{symbol}_1h.jsonl")
           bars = [MarketBar(**json.loads(line)) for line in source.read_text().splitlines() if line.strip()]
           result = evaluate_adaptive_selection(
-              bars, horizon=24, cost_pct=0.35, train_window=1500,
+              bars, horizon=24, cost_mode=mode, train_window=1500,
               min_train_trades=20, min_oos_trades=12)
-          out = Path(f"reports/{symbol}_adaptive_selector_oos.json")
+          out = Path(f"reports/{symbol}_adaptive_selector_{mode}.json")
           out.write_text(json.dumps(result, indent=2, sort_keys=True))
           print(json.dumps({
-              "symbol": symbol,
-              "samples": result.get("samples"),
+              "symbol": symbol, "cost_mode": mode,
+              "round_trip_cost_pct": result.get("cost_pct"),
               "selected_strategy": result.get("selected_strategy"),
-              "direction": result.get("direction"),
               "training_gate": result.get("training_gate"),
-              "training_trades": (result.get("training") or {}).get("trades"),
               "oos_trades": (result.get("walk_forward_oos") or {}).get("trades"),
               "oos_net_profit_pct": (result.get("walk_forward_oos") or {}).get("net_profit_pct"),
               "oos_expectancy_pct": (result.get("walk_forward_oos") or {}).get("mean_net_pct"),
               "oos_profit_factor": (result.get("walk_forward_oos") or {}).get("profit_factor"),
-              "accepted": result.get("accepted"),
-              "status": result.get("status"),
+              "accepted": result.get("accepted"), "status": result.get("status"),
               "reasons": result.get("reasons"),
           }, sort_keys=True))
+          PY
+          done
+      - name: Print v4 model versus Buy & Hold and Random
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for mode in ("base", "strict"):
+              x=json.loads(Path(f"reports/${{ matrix.symbol }}_v4_{mode}.json").read_text())
+              asset=(x.get("assets") or [{}])[0]
+              baseline=asset.get("baseline_metrics") or {}
+              model=baseline.get("model") or {}
+              buy=baseline.get("buy_and_hold_long") or {}
+              random=baseline.get("random_direction") or {}
+              print(json.dumps({
+                  "symbol":"${{ matrix.symbol }}", "cost_mode":mode,
+                  "round_trip_cost_pct":(x.get("policy") or {}).get("round_trip_cost_pct"),
+                  "oos_resolved":(asset.get("prediction_metrics") or {}).get("resolved"),
+                  "independent_trades":model.get("directional_predictions"),
+                  "model_net_profit_usd":model.get("net_profit_usd"),
+                  "model_profit_factor":model.get("profit_factor"),
+                  "buy_hold_net_profit_usd":buy.get("net_profit_usd"),
+                  "random_mean_net_profit_usd":random.get("mean_net_profit_usd"),
+                  "random_one_sided_p_value":random.get("one_sided_p_value"),
+                  "accepted_assets":x.get("accepted_assets"),
+                  "research_only":x.get("research_only"), "live_orders":x.get("live_orders")
+              }, sort_keys=True))
           PY
       - name: Print comparable metrics
         run: |
@@ -109,7 +144,10 @@ jobs:
             data/real/${{ matrix.symbol }}_1h.jsonl
             reports/${{ matrix.symbol }}_1h.json
             reports/${{ matrix.symbol }}_1h_forecast_validation.json
-            reports/${{ matrix.symbol }}_adaptive_selector_oos.json
+            reports/${{ matrix.symbol }}_v4_base.json
+            reports/${{ matrix.symbol }}_v4_strict.json
+            reports/${{ matrix.symbol }}_adaptive_selector_base.json
+            reports/${{ matrix.symbol }}_adaptive_selector_strict.json
 
 # research matrix trigger
 # validation trigger: real multi-asset OOS run
