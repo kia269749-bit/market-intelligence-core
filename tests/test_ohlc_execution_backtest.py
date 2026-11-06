@@ -33,6 +33,17 @@ class OhlcExecutionTests(unittest.TestCase):
         self.assertEqual(result["status"], "ohlc_unavailable")
         self.assertFalse(result["trade_ready"])
 
+    def test_backtest_uses_central_base_and_strict_costs(self):
+        bars = [bar(i, 100 + i * .01) for i in range(500)]
+        base = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4)
+        strict = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4,
+                          cost_mode="strict")
+        self.assertAlmostEqual(base["cost_round_trip_pct"], 0.15)
+        self.assertAlmostEqual(strict["cost_round_trip_pct"], 0.45)
+        self.assertEqual([x["target_pct"] for x in base["results"][:2]], [0.95, 0.95])
+        self.assertEqual(base["cost_mode"], "base")
+        self.assertEqual(strict["cost_mode"], "strict")
+
     def test_metrics_report_research_only_and_no_trade_ready(self):
         bars = [bar(i, 100 + i * .01) for i in range(500)]
         result = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4,
