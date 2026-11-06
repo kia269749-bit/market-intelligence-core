@@ -321,6 +321,7 @@ def project60_rows(
 def download_project60(
     symbol: str = "BTCUSDT", interval: str = "1h", bars: int = 1000,
     out: str = "data/real/futures_project60.jsonl", *,
+    start_ms: int | None = None, end_ms: int | None = None,
     get_json: Callable[..., Any] = _get_json, timeout: float = 20.0,
     overwrite: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
@@ -330,7 +331,8 @@ def download_project60(
     if target.exists() and target.stat().st_size > 0 and not overwrite:
         raise FileExistsError(f"refusing to overwrite existing data file: {target}")
     candles = fetch_futures_klines(
-        symbol, interval, limit=bars, get_json=get_json, timeout=timeout
+        symbol, interval, limit=bars, start_ms=start_ms, end_ms=end_ms,
+        get_json=get_json, timeout=timeout
     )
     if not candles:
         raise RuntimeError("Binance Futures returned no candles")
@@ -363,11 +365,14 @@ def main(argv=None) -> int:
     parser.add_argument("--symbol", default="BTCUSDT")
     parser.add_argument("--interval", choices=tuple(KLINE_INTERVAL_MS), default="1h")
     parser.add_argument("--bars", type=int, default=1000)
+    parser.add_argument("--start-ms", type=int, default=None)
+    parser.add_argument("--end-ms", type=int, default=None)
     parser.add_argument("--out", default="data/real/futures_project60.jsonl")
     parser.add_argument("--overwrite", action="store_true", help="explicitly replace an existing output file")
     args = parser.parse_args(argv)
     path, coverage = download_project60(
-        args.symbol, args.interval, args.bars, args.out, overwrite=args.overwrite
+        args.symbol, args.interval, args.bars, args.out,
+        start_ms=args.start_ms, end_ms=args.end_ms, overwrite=args.overwrite
     )
     print(json.dumps({"path": str(path), "coverage": coverage}, indent=2))
     return 0
