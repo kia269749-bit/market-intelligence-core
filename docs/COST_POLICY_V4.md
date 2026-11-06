@@ -17,7 +17,7 @@ A rate is selected once per evaluated trade. The base and strict rates are alter
 
 `cost_model="components"` in the capital/profitability helpers is an explicit legacy or diagnostic alternative. It replaces the flat policy rate for that calculation; it is not stacked on top of it.
 
-The active v3 live coordinator explicitly retains its pre-v4 component model. This isolates v4 research-policy changes from active v3 behavior.
+The active v3 live coordinator explicitly retains its pre-v4 component model. This isolates v4 research-policy changes from active v3 behavior. The shadow journal also retains its historical 0.35% fallback for legacy records that do not carry a recorded cost; new v4 research evaluations must store the selected policy mode and rate explicitly.
 
 ## Derivatives data policy
 
