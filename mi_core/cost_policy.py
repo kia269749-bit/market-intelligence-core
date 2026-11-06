@@ -49,7 +49,12 @@ class CostPolicy:
         return round(gross - self.cost_usd(notional_usd, mode=mode), 10)
 
 
-DEFAULT_COST_POLICY = CostPolicy()
+BASE_ROUND_TRIP_COST_PCT = 0.15
+STRICT_ROUND_TRIP_COST_PCT = 0.45
+DEFAULT_COST_POLICY = CostPolicy(
+    base_round_trip_pct=BASE_ROUND_TRIP_COST_PCT,
+    strict_round_trip_pct=STRICT_ROUND_TRIP_COST_PCT,
+)
 
 
 def get_round_trip_cost_pct(mode: str = "base", policy: CostPolicy = DEFAULT_COST_POLICY) -> float:
