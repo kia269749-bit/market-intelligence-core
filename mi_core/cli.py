@@ -95,7 +95,7 @@ def live(exchanges,symbols,interval,cycles):
         count+=1
         if cycles==0 or count<cycles: time.sleep(interval)
 
-def _append_shadow_if_actionable(journal_path, snapshot):
+def _append_shadow_if_actionable(journal_path, snapshot, project60=None):
     """Append only an approved, actionable research signal to the shadow journal."""
     if not journal_path:
         return False
@@ -168,8 +168,20 @@ def _append_shadow_if_actionable(journal_path, snapshot):
                     return False
     except OSError:
         pass
+    project_assets=(project60 or {}).get("assets") or {}
+    funding_asset=project_assets.get(asset.upper()) or {}
+    funding_rate=funding_asset.get("funding") if isinstance(funding_asset,dict) else None
+    funding_timestamp=(project60 or {}).get("timestamp")
     signal={
         "signal_id":signal_id,
+        # A snapshot funding rate is context only, not the holding-period
+        # settlement. Never mark it verified or use it for learning.
+        "funding_status":"UNVERIFIED",
+        "funding_coverage":0.0,
+        "funding_cashflow_usd":None,
+        "funding_entry_rate":funding_rate,
+        "funding_entry_timestamp":funding_timestamp,
+        "learning_eligible":False,
         "asset":asset,
         "direction":bias,
         "entry_price":entry_price,
@@ -282,7 +294,7 @@ def main():
                     resolve_open_signals(x.outcome_journal, current_prices)
                 elif current_price is not None:
                     resolve_open_signals(x.outcome_journal, float(current_price))
-            shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
+            shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap,p60)
             shadow_metrics=summarize_performance(x.outcome_journal) if x.outcome_journal else None
             print_live_brain(snap)
             print(render_persian(snap,p60))
