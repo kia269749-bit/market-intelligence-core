@@ -10,12 +10,14 @@ import statistics
 from typing import Sequence
 
 from .models import MarketBar
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 STRATEGIES = (
     "momentum_5", "ema_trend", "ema_trend_slow", "breakout_20", "breakout_50",
-    "mean_reversion_14", "flow_5", "oi_funding_5", "funding_crowding",
-    "consensus_3", "consensus_4",
+    "mean_reversion_14", "flow_5", "consensus_3", "consensus_4",
 )
+
+DISABLED_DERIVATIVE_STRATEGIES = ("oi_funding_5", "funding_crowding")
 
 
 def _ema(values, period):
@@ -91,27 +93,10 @@ def _signal(bars: Sequence[MarketBar], i: int, strategy: str) -> int:
     flow = statistics.fmean(flow_values) if flow_values else 0.0
     flow_side = 1 if flow >= 0.15 else -1 if flow <= -0.15 else 0
 
-    oi_now = bars[i].oi
-    oi_prev = bars[max(0, i - 5)].oi
-    oi_change = 0.0
-    if oi_now is not None and oi_prev not in (None, 0):
-        oi_change = float(oi_now) / float(oi_prev) - 1.0
-    funding = float(bars[i].funding or 0.0)
-    oi_funding_side = 0
-    if oi_change >= 0.002 and momentum > threshold:
-        oi_funding_side = 1 if funding < 0.0003 else 0
-    elif oi_change >= 0.002 and momentum < -threshold:
-        oi_funding_side = -1 if funding > -0.0003 else 0
-    elif oi_change <= -0.002 and momentum > threshold and flow > 0.10:
-        oi_funding_side = 1
-    elif oi_change <= -0.002 and momentum < -threshold and flow < -0.10:
-        oi_funding_side = -1
-
-    funding_crowding_side = 0
-    if oi_change > 0.002 and funding >= 0.0003 and rsi >= 65.0:
-        funding_crowding_side = -1
-    elif oi_change > 0.002 and funding <= -0.0003 and rsi <= 35.0:
-        funding_crowding_side = 1
+    # Funding/OI strategy families stay disabled until the futures feed passes
+    # real timestamp, freshness, and coverage validation.
+    if strategy in DISABLED_DERIVATIVE_STRATEGIES:
+        return 0
 
     if strategy == "momentum_5":
         return momentum_side
@@ -127,15 +112,11 @@ def _signal(bars: Sequence[MarketBar], i: int, strategy: str) -> int:
         return mean_reversion_side
     if strategy == "flow_5":
         return flow_side
-    if strategy == "oi_funding_5":
-        return oi_funding_side
-    if strategy == "funding_crowding":
-        return funding_crowding_side
     if strategy == "consensus_3":
         score = momentum_side + trend_side + breakout_side
         return 1 if score >= 2 else -1 if score <= -2 else 0
     if strategy == "consensus_4":
-        score = momentum_side + trend_side + breakout_side + flow_side + oi_funding_side
+        score = momentum_side + trend_side + breakout_side + flow_side
         return 1 if score >= 3 else -1 if score <= -3 else 0
     return 0
 
@@ -197,8 +178,10 @@ def _training_gate(metrics, min_trades):
 def evaluate_adaptive_selection(
     bars: Sequence[MarketBar],
     horizon: int = 60,
-    cost_pct: float = 0.35,
+    cost_pct: float | None = None,
     train_window: int = 300,
+    cost_mode: str = "base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
     min_train_trades: int = 20,
     min_oos_trades: int = 12,
 ):
@@ -208,8 +191,9 @@ def evaluate_adaptive_selection(
     its training window. Acceptance requires a separate rolling selector test
     on later, previously unseen outcomes after costs.
     """
-    if horizon < 1 or cost_pct < 0 or train_window < 60:
-        raise ValueError("invalid horizon, cost, or train_window")
+    resolved_cost_pct = resolve_round_trip_cost_pct(cost_mode, cost_policy, override=cost_pct)
+    if horizon < 1 or train_window < 60:
+        raise ValueError("invalid horizon or train_window")
     n = len(bars)
     if n < max(80, horizon + 40):
         return {
@@ -228,7 +212,7 @@ def evaluate_adaptive_selection(
                 continue
             scheduled[name][i] = True
             next_allowed = i + horizon + 1
-            outcomes[name][i] = _net_return(bars, i, direction, horizon, cost_pct)
+            outcomes[name][i] = _net_return(bars, i, direction, horizon, resolved_cost_pct)
 
     def resolved_returns(name, decision_index, start_index):
         # Include only trades whose full outcome was known by decision_index.
@@ -310,7 +294,9 @@ def evaluate_adaptive_selection(
         "available": True,
         "asset": bars[-1].symbol,
         "horizon_bars": horizon,
-        "cost_pct": float(cost_pct),
+        "cost_pct": resolved_cost_pct,
+        "cost_mode": cost_mode,
+        "cost_policy_version": cost_policy.version,
         "samples": n,
         "selected_strategy": chosen["strategy"],
         "direction": "BULLISH" if chosen["current_direction"] > 0 else "BEARISH" if chosen["current_direction"] < 0 else "NONE",
