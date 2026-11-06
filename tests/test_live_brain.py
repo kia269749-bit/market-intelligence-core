@@ -207,7 +207,7 @@ class LiveBrainTests(unittest.TestCase):
         self.assertLess(fused["confidence"],.9)
 
     def test_weak_outcome_memory_reduces_confidence(self):
-        outcome={"resolved":20,"win_rate":0.35}
+        outcome={"resolved":20,"funding_verified_resolved":20,"win_rate":0.35}
         adj=_outcome_adjustment(outcome)
         self.assertEqual(adj["status"],"WEAK")
         self.assertLess(adj["factor"],1.0)
@@ -215,14 +215,14 @@ class LiveBrainTests(unittest.TestCase):
         self.assertLess(fused["confidence"],.8)
 
     def test_negative_net_expectancy_overrides_high_win_rate(self):
-        outcome={"resolved":20,"win_rate":0.80,"net_profit_usd":-100.0}
+        outcome={"resolved":20,"funding_verified_resolved":20,"win_rate":0.80,"net_profit_usd":-100.0}
         result=_outcome_adjustment(outcome)
         self.assertEqual(result["status"],"WEAK")
         self.assertEqual(result["factor"],0.90)
         self.assertEqual(result["net_expectancy_usd"],-5.0)
 
     def test_positive_net_expectancy_overrides_low_win_rate(self):
-        outcome={"resolved":20,"win_rate":0.30,"net_profit_usd":100.0}
+        outcome={"resolved":20,"funding_verified_resolved":20,"win_rate":0.30,"net_profit_usd":100.0}
         result=_outcome_adjustment(outcome)
         self.assertEqual(result["status"],"POSITIVE")
         self.assertEqual(result["factor"],1.02)
@@ -230,7 +230,7 @@ class LiveBrainTests(unittest.TestCase):
 
     def test_regime_memory_uses_net_expectancy_before_win_rate(self):
         outcome={
-            "resolved":20,"win_rate":0.55,"net_profit_usd":0.0,
+            "resolved":20,"funding_verified_resolved":20,"win_rate":0.55,"net_profit_usd":0.0,
             "by_regime":{"TREND":{"resolved":10,"win_rate":0.80,"net_profit_usd":-80.0}},
         }
         result=_outcome_adjustment(outcome,regime="TREND")
@@ -240,6 +240,7 @@ class LiveBrainTests(unittest.TestCase):
     def test_contextual_outcome_memory_is_bounded(self):
         outcome={
             "resolved":20,
+            "funding_verified_resolved":20,
             "win_rate":0.55,
             "by_regime":{
                 "TREND":{"resolved":10,"win_rate":0.70},
@@ -273,8 +274,14 @@ class LiveBrainTests(unittest.TestCase):
 
         self.assertEqual(result["factor"],1.0)
 
+    def test_unverified_funding_memory_is_rejected(self):
+        adj=_outcome_adjustment({"resolved":20,"win_rate":0.90,"net_profit_usd":200.0})
+        self.assertEqual(adj["status"],"INSUFFICIENT")
+        self.assertEqual(adj["factor"],1.0)
+        self.assertEqual(adj["reason"],"not_enough_funding_verified_outcomes")
+
     def test_insufficient_outcome_memory_is_neutral(self):
-        adj=_outcome_adjustment({"resolved":3,"win_rate":0.0})
+        adj=_outcome_adjustment({"resolved":3,"funding_verified_resolved":3,"win_rate":0.0})
         self.assertEqual(adj["status"],"INSUFFICIENT")
         self.assertEqual(adj["factor"],1.0)
 
