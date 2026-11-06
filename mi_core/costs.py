@@ -1,3 +1,9 @@
+"""Diagnostic component cost model only.
+
+This module decomposes fee/spread/slippage/impact for sensitivity reporting.
+Its 11 bps default is not the v4 flat round-trip policy and must never be
+added to the 0.15% base or 0.45% strict policy in economic evaluation.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
