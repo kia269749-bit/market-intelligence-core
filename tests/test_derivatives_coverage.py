@@ -70,7 +70,7 @@ class DerivativeCoverageTests(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "flat.jsonl"
-            path.write_text("\\n".join(json.dumps(x) for x in rows), encoding="utf-8")
+            path.write_text("\n".join(json.dumps(x) for x in rows), encoding="utf-8")
             series = load_project60_assets(path, max_rows=100)
         self.assertEqual(len(series["BTCUSDT"]), 65)
         self.assertEqual(series["BTCUSDT"][-1].price, 164.0)
