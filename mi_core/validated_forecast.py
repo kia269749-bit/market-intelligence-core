@@ -388,10 +388,14 @@ def score_capital_targets(
     min_move = min_profit_usd / capital_usd * 100.0 + resolved_cost_pct
     preferred_move = preferred_profit_usd / capital_usd * 100.0 + resolved_cost_pct
     min_hits = preferred_hits = directional = 0
+    funding_costs = []
     for x in rows:
         directional += 1
         r = float(x["actual_return_pct"])
-        favorable = r if x["pred"] == 1 else -r
+        direction = int(x["pred"])
+        funding_rate_sum_pct = float(x.get("funding_rate_sum_pct") or 0.0)
+        favorable = direction * r - direction * funding_rate_sum_pct
+        funding_costs.append(direction * funding_rate_sum_pct)
         min_hits += favorable >= min_move
         preferred_hits += favorable >= preferred_move
     return {
@@ -403,6 +407,7 @@ def score_capital_targets(
         "cost_policy_version": cost_policy.version,
         "min_required_move_pct": round(min_move, 4),
         "preferred_required_move_pct": round(preferred_move, 4),
+        "mean_funding_cost_pct_for_model_side": round(sum(funding_costs) / len(funding_costs), 6) if funding_costs else 0.0,
         "min_target_hit_rate": round(min_hits / directional, 6) if directional else 0.0,
         "preferred_target_hit_rate": round(preferred_hits / directional, 6) if directional else 0.0,
         "research_only": True,
