@@ -4,6 +4,7 @@ import json
 import math
 import time
 from pathlib import Path
+from .cost_policy import DEFAULT_COST_POLICY
 
 def append_signal(path: str, signal: dict) -> bool:
     p=Path(path); p.parent.mkdir(parents=True, exist_ok=True)
@@ -75,13 +76,13 @@ def resolve_open_signals(path: str, current_price: float | dict, now: int | None
             exit_price=max(price,stop)
         gross_pct=((exit_price-entry)/entry*100) if direction=="BULLISH" else ((entry-exit_price)/entry*100)
         try:
-            cost_pct=float(row.get("round_trip_cost_pct",0.35))
+            cost_pct=float(row.get("round_trip_cost_pct",DEFAULT_COST_POLICY.base_round_trip_pct))
             capital=float(row.get("capital_usd",500.0) or 500.0)
         except (TypeError,ValueError):
-            cost_pct=0.35
+            cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct
             capital=500.0
         if cost_pct < 0 or not math.isfinite(cost_pct):
-            cost_pct=0.35
+            cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct
         if capital <= 0 or not math.isfinite(capital):
             capital=500.0
         row.update({"status":status,"resolved_ts":now,"exit_price":exit_price,
