@@ -31,11 +31,12 @@ class TestValidatedForecast(unittest.TestCase):
     def test_capital_targets_subtract_funding_carry_before_round_trip_cost(self):
         result = {
             "horizon_bars": 60,
-            "predictions": [
-                {"pred": 1, "actual_return_pct": 1.0, "funding_rate_sum_pct": 0.9,
-                 "funding_cost_verified": True},
-                {"pred": 1, "actual_return_pct": 1.0, "funding_cost_verified": False},
-            ],
+            "predictions": (
+                [{"pred": 1, "actual_return_pct": 1.0, "funding_rate_sum_pct": 0.9,
+                  "funding_cost_verified": True}]
+                + [{"pred": 0, "actual_return_pct": 0.0} for _ in range(59)]
+                + [{"pred": 1, "actual_return_pct": 1.0, "funding_cost_verified": False}]
+            ),
         }
         scored = score_capital_targets(result, cost_mode="base")
         self.assertAlmostEqual(scored["round_trip_cost_pct"], 0.15)
