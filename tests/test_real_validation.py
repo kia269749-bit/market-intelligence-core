@@ -33,7 +33,7 @@ class RealValidationTests(unittest.TestCase):
         result = {
             "horizon_bars": 2,
             "predictions": [
-                {"ts": i * 60_000, "pred": (1 if i in (0, 2) else -1),
+                {"ts": i * 60_000, "pred": (1 if i == 0 else -1),
                  "actual": 1, "actual_return_pct": (1.0 if i in (0, 2) else -1.0)}
                 for i in range(4)
             ],
