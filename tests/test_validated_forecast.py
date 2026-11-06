@@ -1,6 +1,6 @@
 import unittest
 from mi_core.models import MarketBar
-from mi_core.validated_forecast import forecast_now, walk_forward_forecast
+from mi_core.validated_forecast import forecast_now, walk_forward_forecast, _feat, _feature_cache
 
 
 class TestValidatedForecast(unittest.TestCase):
@@ -13,6 +13,20 @@ class TestValidatedForecast(unittest.TestCase):
                                  buy_volume=120.0, sell_volume=80.0,
                                  oi=1000.0+i, funding=0.00001))
         return out
+
+    def test_unavailable_derivatives_are_not_model_features(self):
+        bars = self._bars(40)
+        with_derivatives = _feat(bars, 25)
+        without_derivatives = [
+            MarketBar(ts=b.ts, symbol=b.symbol, price=b.price,
+                      buy_volume=b.buy_volume, sell_volume=b.sell_volume)
+            for b in bars
+        ]
+        without_derivatives_features = _feat(without_derivatives, 25)
+        self.assertEqual(len(with_derivatives), 6)
+        self.assertEqual(with_derivatives, without_derivatives_features)
+        cached = _feature_cache(without_derivatives)
+        self.assertEqual(len(cached[25]), 6)
 
     def test_walk_forward_is_oos_only(self):
         r=walk_forward_forecast(self._bars(), horizon=5, min_train=60)
