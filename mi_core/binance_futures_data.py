@@ -21,11 +21,19 @@ KLINES_URL = "https://fapi.binance.com/fapi/v1/klines"
 OPEN_INTEREST_URL = "https://fapi.binance.com/futures/data/openInterestHist"
 FUNDING_URL = "https://fapi.binance.com/fapi/v1/fundingRate"
 
-PERIOD_MS = {
+KLINE_INTERVAL_MS = {
+    "1m": 60_000, "3m": 180_000, "5m": 300_000, "15m": 900_000,
+    "30m": 1_800_000, "1h": 3_600_000, "2h": 7_200_000,
+    "4h": 14_400_000, "6h": 21_600_000, "8h": 28_800_000,
+    "12h": 43_200_000, "1d": 86_400_000, "3d": 259_200_000,
+    "1w": 604_800_000,
+}
+OI_PERIOD_MS = {
     "5m": 300_000, "15m": 900_000, "30m": 1_800_000,
     "1h": 3_600_000, "2h": 7_200_000, "4h": 14_400_000,
     "6h": 21_600_000, "12h": 43_200_000, "1d": 86_400_000,
 }
+OI_PERIOD_FALLBACK = {"1m": "5m", "3m": "5m", "8h": "4h", "3d": "1d", "1w": "1d"}
 
 
 @dataclass(frozen=True)
@@ -87,8 +95,8 @@ def fetch_futures_klines(
     start_ms: int | None = None, end_ms: int | None = None,
     get_json: Callable[..., Any] = _get_json, timeout: float = 20.0,
 ) -> list[FuturesCandle]:
-    if not symbol or interval not in PERIOD_MS:
-        raise ValueError("symbol and a supported futures interval are required")
+    if not symbol or interval not in KLINE_INTERVAL_MS:
+        raise ValueError("symbol and a supported futures kline interval are required")
     if not 1 <= int(limit) <= 1000:
         raise ValueError("limit must be between 1 and 1000")
     if start_ms is not None and int(start_ms) < 0:
@@ -135,7 +143,7 @@ def fetch_open_interest_history(
     get_json: Callable[..., Any] = _get_json, timeout: float = 20.0,
     page_limit: int = 500,
 ) -> list[OpenInterestSnapshot]:
-    if not symbol or period not in PERIOD_MS or int(start_ms) < 0 or int(end_ms) <= int(start_ms):
+    if not symbol or period not in OI_PERIOD_MS or int(start_ms) < 0 or int(end_ms) <= int(start_ms):
         raise ValueError("symbol, supported period, and valid time range are required")
     if not 1 <= int(page_limit) <= 500:
         raise ValueError("open-interest page_limit must be between 1 and 500")
@@ -305,15 +313,17 @@ def download_project60(
         raise RuntimeError("Binance Futures returned no candles")
     start_ms = candles[0].open_time_ms
     end_ms = candles[-1].close_time_ms
+    oi_period = interval if interval in OI_PERIOD_MS else OI_PERIOD_FALLBACK[interval]
     oi = fetch_open_interest_history(
-        symbol, interval, start_ms, end_ms, get_json=get_json, timeout=timeout
+        symbol, oi_period, start_ms, end_ms, get_json=get_json, timeout=timeout
     )
     funding = fetch_funding_rate_history(
         symbol, start_ms, end_ms, get_json=get_json, timeout=timeout
     )
     rows, coverage = project60_rows(
-        candles, oi, funding, oi_max_age_ms=2 * PERIOD_MS[interval]
+        candles, oi, funding, oi_max_age_ms=2 * OI_PERIOD_MS[oi_period]
     )
+    coverage["oi_period"] = oi_period
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
         "".join(json.dumps(row, separators=(",", ":"), ensure_ascii=False) + "\n" for row in rows),
@@ -326,7 +336,7 @@ def download_project60(
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Download Binance USD-M Futures data for Project60 research")
     parser.add_argument("--symbol", default="BTCUSDT")
-    parser.add_argument("--interval", choices=tuple(PERIOD_MS), default="1h")
+    parser.add_argument("--interval", choices=tuple(KLINE_INTERVAL_MS), default="1h")
     parser.add_argument("--bars", type=int, default=1000)
     parser.add_argument("--out", default="data/real/futures_project60.jsonl")
     parser.add_argument("--overwrite", action="store_true", help="explicitly replace an existing output file")
