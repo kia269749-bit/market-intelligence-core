@@ -1,8 +1,13 @@
 import unittest
 from mi_core.trade_economics import evaluate_capital_target
+from mi_core.cost_policy import BASE_ROUND_TRIP_COST_PCT, STRICT_ROUND_TRIP_COST_PCT
 
 
 class CapitalEconomicsTests(unittest.TestCase):
+    def test_v4_cost_policy_constants_are_locked(self):
+        self.assertEqual(BASE_ROUND_TRIP_COST_PCT, 0.15)
+        self.assertEqual(STRICT_ROUND_TRIP_COST_PCT, 0.45)
+
     def test_one_percent_move_clears_base_policy_minimum(self):
         r = evaluate_capital_target(1.0)
         self.assertTrue(r.approved)
