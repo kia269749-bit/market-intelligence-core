@@ -9,6 +9,7 @@ on:
       - "tools/ohlc_execution_backtest.py"
       - "mi_core/real_data.py"
       - "mi_core/binance_futures_data.py"
+      - "mi_core/hyperliquid_data.py"
       - "mi_core/multi_asset_forecast.py"
       - "tests/**"
       - ".github/workflows/ohlc-execution-validation.yml"
@@ -52,14 +53,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Download Binance USD-M Futures 5-minute OHLC, OI, and funding
+      - name: Download Hyperliquid perpetual 5-minute OHLC and funding
         run: |
           mkdir -p data/real reports
-          python -m mi_core.binance_futures_data --symbol ${{ matrix.symbol }} --interval 5m --bars 10000 --out data/real/${{ matrix.symbol }}_5m_futures_project60.jsonl > reports/${{ matrix.symbol }}_5m_futures_coverage.json
+          python -m mi_core.hyperliquid_data --coin ${{ matrix.coin }} --asset-key ${{ matrix.symbol }} --interval 5m --bars 10000 --out data/real/${{ matrix.symbol }}_5m_hyperliquid_project60.jsonl > reports/${{ matrix.symbol }}_5m_hyperliquid_coverage.json
       - name: Run execution-aware walk-forward backtest at base and strict costs
         run: |
-          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m_futures_project60.jsonl --symbol ${{ matrix.symbol }} --max-rows 10000 --out reports/${{ matrix.symbol }}_execution_base.json --horizon-bars 96 --step-bars 48 --max-evals 60 --min-history 300 --cost-mode base --capital 500
-          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m_futures_project60.jsonl --symbol ${{ matrix.symbol }} --max-rows 10000 --out reports/${{ matrix.symbol }}_execution_strict.json --horizon-bars 96 --step-bars 48 --max-evals 60 --min-history 300 --cost-mode strict --capital 500
+          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m_hyperliquid_project60.jsonl --symbol ${{ matrix.symbol }} --max-rows 10000 --out reports/${{ matrix.symbol }}_execution_base.json --horizon-bars 96 --step-bars 48 --max-evals 60 --min-history 300 --cost-mode base --capital 500
+          python tools/ohlc_execution_backtest.py --input data/real/${{ matrix.symbol }}_5m_hyperliquid_project60.jsonl --symbol ${{ matrix.symbol }} --max-rows 10000 --out reports/${{ matrix.symbol }}_execution_strict.json --horizon-bars 96 --step-bars 48 --max-evals 60 --min-history 300 --cost-mode strict --capital 500
       - name: Print compact metrics
         run: |
           python - <<'PY'
@@ -91,7 +92,7 @@ jobs:
         with:
           name: ohlc-execution-${{ matrix.symbol }}
           path: |
-            data/real/${{ matrix.symbol }}_5m_futures_project60.jsonl
-            reports/${{ matrix.symbol }}_5m_futures_coverage.json
+            data/real/${{ matrix.symbol }}_5m_hyperliquid_project60.jsonl
+            reports/${{ matrix.symbol }}_5m_hyperliquid_coverage.json
             reports/${{ matrix.symbol }}_execution_base.json
             reports/${{ matrix.symbol }}_execution_strict.json
