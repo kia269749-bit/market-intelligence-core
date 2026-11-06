@@ -14,6 +14,8 @@ on:
       - "mi_core/validated_forecast.py"
       - "mi_core/economic_edge.py"
       - "mi_core/trade_economics.py"
+      - "mi_core/adaptive_selector.py"
+      - "mi_core/binance_futures_data.py"
       - "mi_core/path_forecast.py"
       - "mi_core/adaptive_selector.py"
       - "mi_core/real_data.py"
