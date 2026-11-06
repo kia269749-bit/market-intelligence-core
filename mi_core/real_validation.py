@@ -104,6 +104,7 @@ def _baseline_metrics(result, capital_usd, round_trip_cost_pct, symbol, horizon,
         "p95_net_profit_usd": percentile(0.95),
         "model_net_profit_percentile": round(sum(v <= model_net for v in random_profits) / n, 4),
         "one_sided_p_value": round((1 + sum(v >= model_net for v in random_profits)) / (n + 1), 4),
+        "p_value_adjustment": "pending_holm_across_assets",
         "seed": int(seed_hex, 16),
     }
     return {
@@ -209,6 +210,65 @@ def _aggregate(asset_results):
     }
 
 
+
+
+def _apply_baseline_holm(asset_results, alpha=0.05):
+    """Holm-adjust random-baseline p-values across evaluated assets per horizon."""
+    entries = []
+    for index, asset in enumerate(asset_results):
+        baseline = asset.get("baseline_metrics") or {}
+        random_result = baseline.get("random_direction") or {}
+        p_value = random_result.get("one_sided_p_value")
+        if isinstance(p_value, (int, float)):
+            entries.append((float(p_value), index))
+    entries.sort(key=lambda item: item[0])
+    adjusted = {}
+    running_max = 0.0
+    count = len(entries)
+    for rank, (p_value, index) in enumerate(entries):
+        value = min(1.0, (count - rank) * p_value)
+        running_max = max(running_max, value)
+        adjusted[index] = running_max
+
+    for index, asset in enumerate(asset_results):
+        baseline = asset.get("baseline_metrics")
+        if not isinstance(baseline, dict):
+            continue
+        model = baseline.get("model") or {}
+        buy_hold = baseline.get("buy_and_hold_long") or {}
+        random_result = baseline.get("random_direction") or {}
+        adjusted_p = adjusted.get(index)
+        beats_buy_hold = _num(model.get("net_profit_usd")) > _num(buy_hold.get("net_profit_usd"))
+        beats_random = _num(model.get("net_profit_usd")) > _num(random_result.get("mean_net_profit_usd"))
+        random_pass = adjusted_p is not None and adjusted_p <= alpha
+        random_result["holm_adjusted_p_value"] = round(adjusted_p, 4) if adjusted_p is not None else None
+        random_result["p_value_adjustment"] = "holm_across_evaluated_assets"
+        gate = {
+            "beats_buy_and_hold": beats_buy_hold,
+            "beats_random_mean": beats_random,
+            "random_holm_adjusted_p_value": random_result["holm_adjusted_p_value"],
+            "random_significance_pass": random_pass,
+            "alpha": alpha,
+            "accepted": bool(beats_buy_hold and beats_random and random_pass),
+        }
+        asset["baseline_gate"] = gate
+        acceptance = asset.get("acceptance_gate")
+        if isinstance(acceptance, dict):
+            acceptance["baseline_gate"] = gate
+            acceptance["accepted"] = bool(acceptance.get("accepted") and gate["accepted"])
+            reasons = list(acceptance.get("reasons") or [])
+            if not beats_buy_hold:
+                reasons.append("did_not_beat_paired_buy_and_hold")
+            if not beats_random:
+                reasons.append("did_not_beat_random_baseline_mean")
+            if not random_pass:
+                reasons.append("random_baseline_holm_pvalue_above_alpha")
+            acceptance["reasons"] = list(dict.fromkeys(reasons))
+            if not acceptance["accepted"] and asset.get("opportunity_tier") in ("TRADE", "WATCH"):
+                asset["opportunity_tier"] = "NO_TRADE"
+    return asset_results
+
+
 def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, preferred_profit_usd, round_trip_cost_pct, cost_mode="base", cost_policy: CostPolicy = DEFAULT_COST_POLICY):
     signal_eligible = int(horizon) >= SHORT_HORIZON_SIGNAL_CUTOFF
     asset_results = []
@@ -267,6 +327,7 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
         })
+    asset_results = _apply_baseline_holm(asset_results)
     aggregate = _aggregate(asset_results)
     return {
         "horizon_bars": horizon, "validated_assets": len(asset_results),
