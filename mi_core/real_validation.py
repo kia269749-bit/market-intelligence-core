@@ -83,12 +83,19 @@ def _attach_funding_holding_costs(result, bars, horizon):
         if event_ts is not None and bar.funding is not None:
             event_rates[int(event_ts)] = float(bar.funding)
     event_times = sorted(event_rates)
+    symbol = bars[0].symbol if bars else "UNKNOWN"
+    coverage = derivative_coverage({symbol: bars}).get(symbol, {})
+    funding_verified = bool(
+        coverage.get("funding_timestamped_present", 0) > 0
+        and coverage.get("funding_fresh_coverage_pct", 0.0) >= 95.0
+    )
     for prediction in result.get("predictions", []):
         entry_ts = int(prediction.get("ts", -1))
         index = by_ts.get(entry_ts)
         if index is None or index + int(horizon) >= len(bars):
             prediction["funding_rate_sum_pct"] = 0.0
             prediction["funding_events_count"] = 0
+            prediction["funding_cost_verified"] = funding_verified
             continue
         exit_ts = int(bars[index + int(horizon)].ts)
         lo = bisect_right(event_times, entry_ts)
@@ -98,11 +105,15 @@ def _attach_funding_holding_costs(result, bars, horizon):
             sum(event_rates[timestamp] for timestamp in selected) * 100.0, 8
         )
         prediction["funding_events_count"] = len(selected)
+        prediction["funding_cost_verified"] = funding_verified
     result["funding_cost_model"] = {
         "source": "discrete_historical_funding_events",
         "alignment": "strictly_after_entry_and_at_or_before_exit",
         "model_feature": False,
-        "missing_funding_is_zero_cost_only_when_no_event_is_recorded": True,
+        "verified": funding_verified,
+        "coverage": coverage,
+        "minimum_fresh_coverage_pct": 95.0,
+        "missing_or_stale_funding_prevents_acceptance": True,
     }
     return result
 
@@ -357,9 +368,14 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
                                         min_high_conf_accuracy=0.55,
                                         min_profit_hit_rate=0.30,
                                         preferred_profit_hit_rate=0.15)
+        funding_verified = bool((result.get("funding_cost_model") or {}).get("verified"))
+        if not funding_verified:
+            gate["accepted"] = False
+            gate["status"] = "NO_TRADE"
+            gate["reasons"] = list(dict.fromkeys(list(gate.get("reasons") or []) + ["funding_history_coverage_below_95pct"]))
         if not signal_eligible:
             tier = "DIAGNOSTIC_ONLY"
-        elif integrity_metrics.get("class_collapse"):
+        elif not funding_verified or integrity_metrics.get("class_collapse"):
             tier = "NO_TRADE"
         elif gate.get("accepted"):
             tier = "TRADE"
@@ -369,6 +385,7 @@ def _validate_horizon(series, selected, horizon, capital_usd, min_profit_usd, pr
             "asset": item["symbol"], "samples": len(bars), "ranking": item,
             "prediction_metrics": prediction_metrics, "capital_metrics": capital_metrics,
             "economic_metrics": economic_metrics, "baseline_metrics": baseline_metrics,
+            "funding_cost_model": result.get("funding_cost_model"),
             "path_metrics": path_metrics,
             "edge_diagnostic": edge_diagnostic, "integrity_metrics": integrity_metrics,
             "opportunity_tier": tier, "signal_eligible": signal_eligible, "acceptance_gate": gate,
