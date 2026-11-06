@@ -35,8 +35,12 @@ def _num(v, default=0.0):
 
 
 def _performance_metrics(rows, directions, capital_usd, round_trip_cost_pct):
+    pairs = [
+        (row, direction) for row, direction in zip(rows, directions)
+        if row.get("funding_cost_verified") is not False
+    ]
     profits = []
-    for row, direction in zip(rows, directions):
+    for row, direction in pairs:
         actual = _num(row.get("actual_return_pct"))
         funding_rate_sum_pct = _num(row.get("funding_rate_sum_pct"))
         favorable = direction * actual - direction * funding_rate_sum_pct
@@ -53,14 +57,14 @@ def _performance_metrics(rows, directions, capital_usd, round_trip_cost_pct):
         max_dd = max(max_dd, peak - equity)
     funding_costs = [
         capital_usd * int(direction) * _num(row.get("funding_rate_sum_pct")) / 100.0
-        for row, direction in zip(rows, directions)
+        for row, direction in pairs
     ]
     return {
         "directional_predictions": n,
-        "funding_events_count": sum(int(row.get("funding_events_count", 0) or 0) for row in rows),
+        "funding_events_count": sum(int(row.get("funding_events_count", 0) or 0) for row, _ in pairs),
         "funding_cost_total_usd": round(sum(funding_costs), 4),
         "mean_funding_cost_pct_for_side": round(
-            sum(int(direction) * _num(row.get("funding_rate_sum_pct")) for row, direction in zip(rows, directions)) / n, 6
+            sum(int(direction) * _num(row.get("funding_rate_sum_pct")) for row, direction in pairs) / n, 6
         ) if n else 0.0,
         "positive_net_outcomes": wins,
         "positive_net_rate": round(wins / n, 6) if n else 0.0,
