@@ -30,7 +30,7 @@ class BinanceFuturesDataTests(unittest.TestCase):
             self.assertEqual(url, KLINES_URL)
             self.assertEqual(params["symbol"], "BTCUSDT")
             return [self._kline()]
-        candles = fetch_futures_klines("btcusdt", "1m", limit=1, get_json=fake)
+        candles = fetch_futures_klines("btcusdt", "1m", limit=1, start_ms=0, end_ms=60_000, get_json=fake)
         self.assertEqual(len(candles), 1)
         self.assertEqual(candles[0].close, 101.0)
         self.assertEqual(candles[0].taker_buy_quote_volume, 404.0)
@@ -115,7 +115,8 @@ class BinanceFuturesDataTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             path, coverage = download_project60(
-                "BTCUSDT", "1m", 1, str(Path(td) / "futures.jsonl"), get_json=fake
+                "BTCUSDT", "1m", 1, str(Path(td) / "futures.jsonl"),
+                start_ms=0, end_ms=60_000, get_json=fake
             )
             row = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
         asset = row["coins"]["BTCUSDT"]
