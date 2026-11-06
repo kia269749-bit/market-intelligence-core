@@ -106,6 +106,9 @@ jobs:
                   "buy_hold_net_profit_usd":buy.get("net_profit_usd"),
                   "random_mean_net_profit_usd":random.get("mean_net_profit_usd"),
                   "random_one_sided_p_value":random.get("one_sided_p_value"),
+                  "random_holm_adjusted_p_value":random.get("holm_adjusted_p_value"),
+                  "beats_buy_and_hold":(asset.get("baseline_gate") or {}).get("beats_buy_and_hold"),
+                  "beats_random_mean":(asset.get("baseline_gate") or {}).get("beats_random_mean"),
                   "accepted_assets":x.get("accepted_assets"),
                   "research_only":x.get("research_only"), "live_orders":x.get("live_orders")
               }, sort_keys=True))
