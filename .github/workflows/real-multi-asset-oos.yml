@@ -162,6 +162,7 @@ jobs:
                       "random_mean_net_usd": ((asset.get("baseline_metrics") or {}).get("random_direction") or {}).get("mean_net_profit_usd"),
                       "random_p_holm": ((asset.get("baseline_metrics") or {}).get("random_direction") or {}).get("holm_adjusted_p_value"),
                       "baseline_gate": asset.get("baseline_gate"),
+                      "funding_cost_model": asset.get("funding_cost_model"),
                       "accepted": (asset.get("acceptance_gate") or {}).get("accepted"),
                       "tier": asset.get("opportunity_tier")
                   } for asset in report.get("assets", [])]
