@@ -1,6 +1,8 @@
 name: v4 research validation
 
 on:
+  push:
+    branches: ["release/v4-integration-20261106"]
   pull_request:
     branches: ["main"]
   workflow_dispatch:
