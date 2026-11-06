@@ -23,7 +23,11 @@ The active v3 live coordinator explicitly retains its pre-v4 component model. Th
 
 Funding and open interest are not model inputs until their source, timestamps, freshness, and coverage are validated. Missing values are not zero and are not neutral evidence.
 
-The v4 forecast feature set therefore excludes Funding/OI until a real collection window has passed coverage and freshness checks. `mi_core/binance_futures_data.py` now provides a public Binance USD-M Futures collector for perpetual candles, historical open-interest snapshots, and settled funding events. It joins both derivatives strictly before candle close, preserves source timestamps/ages, emits coverage metadata, and refuses to overwrite an existing output unless explicitly requested. The Project60 loader retains these values and reports presence plus freshness coverage, but ranking and forecast features remain disabled until the collected file is inspected and validated.
+The v4 forecast feature set therefore excludes Funding/OI until a real collection window has passed coverage and freshness checks. `mi_core/binance_futures_data.py` now provides a public Binance USD-M Futures collector for perpetual candles, historical open-interest snapshots, and settled funding events. It joins both derivatives strictly before candle close, preserves source timestamps/ages, emits coverage metadata, and refuses to overwrite an existing output unless explicitly requested. The Project60 loader retains these values and reports presence plus freshness coverage, but ranking and forecast features remain disabled until the collected file is inspected and validated. Example collection command (writes a new file and refuses to overwrite a non-empty file):
+
+```bash
+python -m mi_core.binance_futures_data --symbol BTCUSDT --interval 1h --bars 1000 --out data/real/btcusdt_usdm_project60.jsonl
+```
 
 ## Walk-forward reporting
 
