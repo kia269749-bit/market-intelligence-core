@@ -78,7 +78,7 @@ def _directional_metrics(
 def _baseline_metrics(result, capital_usd, round_trip_cost_pct, symbol, horizon, simulations=1000):
     """Paired Buy & Hold and reproducible random-direction baselines on identical OOS rows."""
     rows = [
-        row for row in non_overlapping_predictions(result, require_actual=True)
+        row for row in non_overlapping_predictions(result)
         if row.get("actual_return_pct") is not None and row.get("pred") in (-1, 1)
     ]
     model_dirs = [int(row["pred"]) for row in rows]
@@ -122,8 +122,8 @@ def _path_excursion_metrics(
 ):
     rows=[x for x in non_overlapping_predictions(result) if x.get("pred") in (-1,1)]
     target_levels = (
-        min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct,
-        preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct,
+        round(min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct, 2),
+        round(preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct, 2),
     )
     out={"directional_predictions":len(rows),"target_hit_rates":{},"adverse_excursion_rates":{}}
     for level in target_levels:
