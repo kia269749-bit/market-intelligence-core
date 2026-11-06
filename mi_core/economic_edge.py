@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from .validated_forecast import non_overlapping_predictions
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 
 def _num(v, default=0.0):
@@ -40,15 +41,20 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.35,
+    round_trip_cost_pct=None,
+    cost_mode="base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
 ):
     """Explain where OOS economics succeed or fail."""
     rows = _directional_rows(result)
-    min_required = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
-    preferred_required = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
+    resolved_cost_pct = resolve_round_trip_cost_pct(
+        cost_mode, cost_policy, override=round_trip_cost_pct
+    )
+    min_required = min_profit_usd / capital_usd * 100.0 + resolved_cost_pct
+    preferred_required = preferred_profit_usd / capital_usd * 100.0 + resolved_cost_pct
 
     total = len(rows)
     cost_limited = magnitude_limited = target4 = target10 = adverse05 = 0
@@ -66,7 +72,7 @@ def diagnose_economic_edge(
         favorable = actual if pred == 1 else -actual
         mfe = _num(x.get("favorable_mfe_pct"))
         mae = _num(x.get("adverse_mae_pct"))
-        net_pct = favorable - round_trip_cost_pct
+        net_pct = favorable - resolved_cost_pct
         net_usd = capital_usd * net_pct / 100.0
         net_values.append(net_usd)
 
@@ -75,7 +81,7 @@ def diagnose_economic_edge(
         target10 += favorable >= preferred_required
         adverse05 += mae >= 0.50
         magnitude_limited += favorable > 0 and favorable < min_required
-        cost_limited += favorable > 0 and favorable <= round_trip_cost_pct
+        cost_limited += favorable > 0 and favorable <= resolved_cost_pct
 
         prior = _num(x.get("prior_move_pct"))
         if prior * pred >= late_move_threshold_pct:
@@ -136,7 +142,9 @@ def diagnose_economic_edge(
         "confidence_buckets": bucket_out,
         "thresholds": {
             "capital_usd": capital_usd,
-            "round_trip_cost_pct": round_trip_cost_pct,
+            "round_trip_cost_pct": resolved_cost_pct,
+            "cost_mode": cost_mode,
+            "cost_policy_version": cost_policy.version,
             "usd4_required_move_pct": round(min_required, 4),
             "usd10_required_move_pct": round(preferred_required, 4),
             "late_move_threshold_pct": late_move_threshold_pct,
