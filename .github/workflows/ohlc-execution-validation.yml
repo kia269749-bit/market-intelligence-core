@@ -6,6 +6,7 @@ on:
     paths:
       - "mi_core/models.py"
       - "mi_core/cost_policy.py"
+      - "tools/ohlc_execution_backtest.py"
       - "mi_core/real_data.py"
       - "tools/ohlc_execution_backtest.py"
       - "tests/**"
