@@ -109,6 +109,7 @@ class BinanceFuturesDataTests(unittest.TestCase):
         self.assertAlmostEqual(asset["funding"], 0.0001)
         self.assertEqual(coverage["oi_coverage_pct"], 100.0)
         self.assertEqual(coverage["funding_coverage_pct"], 100.0)
+        self.assertEqual(coverage["oi_period"], "5m")
         self.assertFalse(coverage["features_enabled"])
 
 
