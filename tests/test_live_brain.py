@@ -214,6 +214,29 @@ class LiveBrainTests(unittest.TestCase):
         fused=_fuse([("BULLISH",.8)],1.0,{"name":"TREND"},outcome)
         self.assertLess(fused["confidence"],.8)
 
+    def test_negative_net_expectancy_overrides_high_win_rate(self):
+        outcome={"resolved":20,"win_rate":0.80,"net_profit_usd":-100.0}
+        result=_outcome_adjustment(outcome)
+        self.assertEqual(result["status"],"WEAK")
+        self.assertEqual(result["factor"],0.90)
+        self.assertEqual(result["net_expectancy_usd"],-5.0)
+
+    def test_positive_net_expectancy_overrides_low_win_rate(self):
+        outcome={"resolved":20,"win_rate":0.30,"net_profit_usd":100.0}
+        result=_outcome_adjustment(outcome)
+        self.assertEqual(result["status"],"POSITIVE")
+        self.assertEqual(result["factor"],1.02)
+        self.assertEqual(result["net_expectancy_usd"],5.0)
+
+    def test_regime_memory_uses_net_expectancy_before_win_rate(self):
+        outcome={
+            "resolved":20,"win_rate":0.55,"net_profit_usd":0.0,
+            "by_regime":{"TREND":{"resolved":10,"win_rate":0.80,"net_profit_usd":-80.0}},
+        }
+        result=_outcome_adjustment(outcome,regime="TREND")
+        self.assertEqual(result["factor"],0.95)
+        self.assertEqual(result["context_used"][0]["net_expectancy_usd"],-8.0)
+
     def test_contextual_outcome_memory_is_bounded(self):
         outcome={
             "resolved":20,
