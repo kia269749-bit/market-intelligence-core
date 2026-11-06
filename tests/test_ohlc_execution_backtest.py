@@ -23,6 +23,18 @@ class OhlcExecutionTests(unittest.TestCase):
         self.assertAlmostEqual(trades[0]["exit_price"], 99.5)
         self.assertAlmostEqual(trades[0]["net_return_pct"], -0.85)
 
+    def test_simulator_applies_directional_funding_cashflow(self):
+        bars = [bar(0, 100), bar(1, 100), bar(2, 100)]
+        candidate = [{"index": 0, "ts": 0, "direction": "UP", "confidence": .8, "target_probability": .7}]
+        trades = _simulate(
+            bars, candidate, 5.0, 5.0, 0.15, horizon_bars=1,
+            funding_events=[(300_000, 0.001)], funding_event_times=[300_000],
+            funding_verified=True,
+        )
+        self.assertEqual(trades[0]["funding_events_count"], 1)
+        self.assertAlmostEqual(trades[0]["funding_cost_pct"], 0.1)
+        self.assertAlmostEqual(trades[0]["net_return_pct"], -0.25)
+
     def test_short_stop_gap_uses_worse_open(self):
         bars = [bar(0, 100), bar(1, 100), bar(2, 102, op=102, high=103, low=101)]
         candidate = [{"index": 0, "ts": 0, "direction": "DOWN", "confidence": .8, "target_probability": .7}]
