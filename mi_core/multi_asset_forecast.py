@@ -49,6 +49,10 @@ def load_project60_assets(path, max_rows=800):
                     bid=_num(ob.get("bid_usd")), ask=_num(ob.get("ask_usd")),
                     buy_volume=_num(tr.get("buy_usd")),
                     sell_volume=_num(tr.get("sell_usd")),
+                    open=_num(a.get("open")) if a.get("open") is not None else None,
+                    high=_num(a.get("high")) if a.get("high") is not None else None,
+                    low=_num(a.get("low")) if a.get("low") is not None else None,
+                    derivatives=a.get("derivatives") if isinstance(a.get("derivatives"), dict) else None,
                 ))
         except (TypeError, ValueError, json.JSONDecodeError):
             continue
@@ -62,18 +66,44 @@ def derivative_coverage(series):
     report = {}
     for symbol, bars in series.items():
         n = len(bars)
-        oi_n = sum(
-            b.oi is not None and math.isfinite(float(b.oi)) for b in bars
+        oi_n = sum(b.oi is not None and math.isfinite(float(b.oi)) for b in bars)
+        funding_n = sum(b.funding is not None and math.isfinite(float(b.funding)) for b in bars)
+        oi_timestamped = sum(
+            isinstance((b.derivatives or {}).get("oi_timestamp_ms"), (int, float))
+            for b in bars
         )
-        funding_n = sum(
-            b.funding is not None and math.isfinite(float(b.funding)) for b in bars
+        funding_timestamped = sum(
+            isinstance((b.derivatives or {}).get("funding_timestamp_ms"), (int, float))
+            for b in bars
         )
+        oi_fresh_ages = [
+            int((b.derivatives or {}).get("oi_age_ms"))
+            for b in bars
+            if b.oi is not None and isinstance((b.derivatives or {}).get("oi_age_ms"), (int, float))
+            and 0 <= int((b.derivatives or {}).get("oi_age_ms")) <= 2 * 60 * 60 * 1000
+        ]
+        funding_fresh_ages = [
+            int((b.derivatives or {}).get("funding_age_ms"))
+            for b in bars
+            if b.funding is not None and isinstance((b.derivatives or {}).get("funding_age_ms"), (int, float))
+            and 0 <= int((b.derivatives or {}).get("funding_age_ms")) <= 9 * 60 * 60 * 1000
+        ]
+        oi_fresh = len(oi_fresh_ages)
+        funding_fresh = len(funding_fresh_ages)
         report[symbol] = {
             "bars": n,
             "oi_present": oi_n,
             "oi_coverage_pct": round(100.0 * oi_n / n, 4) if n else 0.0,
+            "oi_timestamped_present": oi_timestamped,
+            "oi_fresh_present": oi_fresh,
+            "oi_fresh_coverage_pct": round(100.0 * oi_fresh / n, 4) if n else 0.0,
+            "oi_max_age_ms": max(oi_fresh_ages) if oi_fresh_ages else None,
             "funding_present": funding_n,
             "funding_coverage_pct": round(100.0 * funding_n / n, 4) if n else 0.0,
+            "funding_timestamped_present": funding_timestamped,
+            "funding_fresh_present": funding_fresh,
+            "funding_fresh_coverage_pct": round(100.0 * funding_fresh / n, 4) if n else 0.0,
+            "funding_max_age_ms": max(funding_fresh_ages) if funding_fresh_ages else None,
             "derivatives_features_enabled": False,
         }
     return report
