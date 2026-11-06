@@ -24,6 +24,7 @@ def _directional_rows(result):
         x for x in non_overlapping_predictions(result)
         if x.get("pred") in (-1, 1)
         and x.get("actual_return_pct") is not None
+        and x.get("funding_cost_verified") is not False
     ]
 
 
@@ -58,6 +59,7 @@ def diagnose_economic_edge(
 
     total = len(rows)
     cost_limited = magnitude_limited = target4 = target10 = adverse05 = 0
+    funding_costs = []
     correct_direction = 0
     late_proxy = 0
     net_values = []
@@ -69,8 +71,11 @@ def diagnose_economic_edge(
     for x in rows:
         pred = int(x["pred"])
         actual = _num(x.get("actual_return_pct"))
-        favorable = actual if pred == 1 else -actual
-        mfe = _num(x.get("favorable_mfe_pct"))
+        funding_rate_sum_pct = _num(x.get("funding_rate_sum_pct"))
+        funding_cost_pct = pred * funding_rate_sum_pct
+        favorable = pred * actual - funding_cost_pct
+        mfe = _num(x.get("favorable_mfe_pct")) - funding_cost_pct
+        funding_costs.append(funding_cost_pct)
         mae = _num(x.get("adverse_mae_pct"))
         net_pct = favorable - resolved_cost_pct
         net_usd = capital_usd * net_pct / 100.0
@@ -116,8 +121,8 @@ def diagnose_economic_edge(
     positive_mfe_but_missed4 = sum(
         _num(x.get("favorable_mfe_pct")) >= min_required
         and (
-            (_num(x.get("actual_return_pct")) if x["pred"] == 1
-             else -_num(x.get("actual_return_pct")))
+            (int(x["pred"]) * _num(x.get("actual_return_pct"))
+             - int(x["pred"]) * _num(x.get("funding_rate_sum_pct")))
             < min_required
         )
         for x in rows
@@ -131,6 +136,8 @@ def diagnose_economic_edge(
         "usd10_hit_rate": rate(target10),
         "positive_net_rate": rate(sum(v > 0 for v in net_values)),
         "net_profit_usd": round(sum(net_values), 4),
+        "funding_cost_total_usd": round(sum(capital_usd * value / 100.0 for value in funding_costs), 4),
+        "mean_funding_cost_pct_for_model_side": round(sum(funding_costs) / total, 6) if total else 0.0,
         "expectancy_usd": round(sum(net_values) / total, 4) if total else 0.0,
         "avg_favorable_mfe_pct": round(sum(_num(x.get("favorable_mfe_pct")) for x in rows) / total, 6) if total else 0.0,
         "avg_adverse_mae_pct": round(sum(_num(x.get("adverse_mae_pct")) for x in rows) / total, 6) if total else 0.0,
