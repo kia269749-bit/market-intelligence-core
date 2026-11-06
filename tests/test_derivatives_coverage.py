@@ -45,13 +45,15 @@ class DerivativeCoverageTests(unittest.TestCase):
                         "funding_timestamp_ms": now - 4 * 60 * 60 * 1000,
                         "oi_age_ms": 60 * 60 * 1000,
                         "funding_age_ms": 4 * 60 * 60 * 1000,
+                        "oi_max_age_ms": 2 * 60 * 60 * 1000,
+                        "funding_max_age_ms": 9 * 60 * 60 * 1000,
                     },
                 }
             },
         }
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "project60.jsonl"
-            path.write_text(json.dumps(row) + "\\n", encoding="utf-8")
+            path.write_text(json.dumps(row) + "\n", encoding="utf-8")
             series = load_project60_assets(path)
         coverage = derivative_coverage(series)["BTC"]
         self.assertEqual(coverage["oi_fresh_coverage_pct"], 100.0)
