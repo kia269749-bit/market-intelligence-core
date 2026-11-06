@@ -66,7 +66,7 @@ jobs:
           source = Path(f"data/real/{symbol}_1h.jsonl")
           bars = [MarketBar(**json.loads(line)) for line in source.read_text().splitlines() if line.strip()]
           result = evaluate_adaptive_selection(
-              bars, horizon=24, cost_mode=mode, train_window=1500,
+              bars, horizon=60, cost_mode=mode, train_window=1500,
               min_train_trades=20, min_oos_trades=12)
           out = Path(f"reports/{symbol}_adaptive_selector_{mode}.json")
           out.write_text(json.dumps(result, indent=2, sort_keys=True))
