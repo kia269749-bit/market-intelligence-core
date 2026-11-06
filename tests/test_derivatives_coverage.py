@@ -61,6 +61,21 @@ class DerivativeCoverageTests(unittest.TestCase):
         self.assertEqual(coverage["oi_timestamped_present"], 1)
         self.assertFalse(coverage["derivatives_features_enabled"])
 
+    def test_loader_accepts_flat_binance_marketbar_jsonl(self):
+        rows = [
+            {"ts": i * 60_000, "symbol": "BTCUSDT", "price": 100.0 + i,
+             "open": 100.0 + i, "high": 101.0 + i, "low": 99.0 + i,
+             "volume": 1000.0, "buy_volume": 600.0, "sell_volume": 400.0}
+            for i in range(65)
+        ]
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "flat.jsonl"
+            path.write_text("\\n".join(json.dumps(x) for x in rows), encoding="utf-8")
+            series = load_project60_assets(path, max_rows=100)
+        self.assertEqual(len(series["BTCUSDT"]), 65)
+        self.assertEqual(series["BTCUSDT"][-1].price, 164.0)
+        self.assertEqual(series["BTCUSDT"][-1].open, 164.0)
+
     def test_derivatives_do_not_change_rank_until_validated(self):
         missing = rank_assets({"BTC": self._bars(False)})[0]
         present = rank_assets({"BTC": self._bars(True)})[0]
