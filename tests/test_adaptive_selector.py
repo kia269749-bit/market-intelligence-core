@@ -21,6 +21,8 @@ class AdaptiveSelectorTests(unittest.TestCase):
                 buy_volume=120.0 if i % 5 else 60.0,
                 sell_volume=60.0 if i % 5 else 120.0,
                 oi=10000.0 + i, funding=0.0001,
+                derivatives={"funding_timestamp_ms": i - 1, "funding_age_ms": 1,
+                             "funding_max_age_ms": 2},
             ))
         return rows
 
@@ -41,6 +43,17 @@ class AdaptiveSelectorTests(unittest.TestCase):
         self.assertGreaterEqual(result["walk_forward_oos"]["trades"], 0)
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
+
+    def test_missing_funding_blocks_adaptive_economic_acceptance(self):
+        bars = [MarketBar(ts=i, symbol="BTC", price=100.0 + i * 0.01) for i in range(320)]
+        result = evaluate_adaptive_selection(
+            bars, horizon=60, cost_mode="base", train_window=120,
+            min_train_trades=4, min_oos_trades=3,
+        )
+        self.assertFalse(result["funding_data_verified"])
+        self.assertEqual(result["status"], "FUNDING_UNVERIFIED")
+        self.assertFalse(result["accepted"])
+        self.assertEqual(result["walk_forward_oos"]["trades"], 0)
 
     def test_derivative_strategies_are_disabled_until_feed_validation(self):
         bars = self._bars()
