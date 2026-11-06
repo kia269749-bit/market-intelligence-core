@@ -23,6 +23,7 @@ from .multi_asset_forecast import scan_project60, load_project60_assets
 from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
+from .cost_policy import DEFAULT_COST_POLICY
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -134,13 +135,13 @@ def _append_shadow_if_actionable(journal_path, snapshot):
     try:
         expected_move=float(expected_move)
         capital_usd=float(economics.get("capital_usd") or 500.0)
-        round_trip_cost_pct=float(economics.get("round_trip_cost_pct") or 0.35)
+        round_trip_cost_pct=float(economics.get("round_trip_cost_pct") if economics.get("round_trip_cost_pct") is not None else DEFAULT_COST_POLICY.base_round_trip_pct)
         if not math.isfinite(expected_move) or expected_move <= 0:
             return False
         if not math.isfinite(capital_usd) or capital_usd <= 0:
             return False
         if not math.isfinite(round_trip_cost_pct) or round_trip_cost_pct <= 0:
-            round_trip_cost_pct=0.35
+            round_trip_cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct
         risk=build_risk_levels(entry_price,bias,expected_move)
     except (TypeError,ValueError):
         return False
