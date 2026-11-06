@@ -52,7 +52,7 @@ jobs:
           - {symbol: BTCUSDT, coin: BTC}
           - {symbol: ETHUSDT, coin: ETH}
           - {symbol: SOLUSDT, coin: SOL}
-          - {symbol: BNBUSDT, coin: BNB}
+          - {symbol: DOGEUSDT, coin: DOGE}
           - {symbol: XRPUSDT, coin: XRP}
     steps:
       - uses: actions/checkout@v4
