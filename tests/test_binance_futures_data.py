@@ -35,6 +35,20 @@ class BinanceFuturesDataTests(unittest.TestCase):
         self.assertEqual(candles[0].close, 101.0)
         self.assertEqual(candles[0].taker_buy_quote_volume, 404.0)
 
+    def test_futures_klines_paginate_beyond_exchange_page_limit(self):
+        calls = []
+        def fake(url, params, timeout=20):
+            calls.append(dict(params))
+            if len(calls) == 1:
+                return [self._kline(i * 60_000, (i + 1) * 60_000 - 1) for i in range(1000)]
+            return [self._kline(60_000_000, 60_059_999)]
+        candles = fetch_futures_klines(
+            "BTCUSDT", "1m", limit=1001, start_ms=0, end_ms=60_060_000, get_json=fake
+        )
+        self.assertEqual(len(candles), 1001)
+        self.assertEqual([x["limit"] for x in calls], [1000, 1])
+        self.assertEqual(calls[1]["startTime"], 60_000_000)
+
     def test_open_interest_history_paginates_without_repeating_cursor(self):
         calls = []
         def fake(url, params, timeout=20):
