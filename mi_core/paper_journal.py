@@ -4,6 +4,7 @@ import json
 import math
 import time
 from pathlib import Path
+from urllib.request import Request, urlopen
 from .cost_policy import DEFAULT_COST_POLICY
 
 def append_signal(path: str, signal: dict) -> bool:
@@ -129,6 +130,7 @@ def apply_funding_settlements(path: str, settlements: dict) -> int:
         try:
             coverage=float(settlement.get("coverage"))
             events=int(settlement.get("events"))
+            expected_events=int(settlement.get("expected_events",events))
             cashflow=float(settlement.get("cashflow_usd"))
             capital=float(row.get("capital_usd",500.0) or 500.0)
             gross=float(row.get("gross_move_pct"))
@@ -136,7 +138,9 @@ def apply_funding_settlements(path: str, settlements: dict) -> int:
         except (TypeError,ValueError):
             continue
         if (not all(math.isfinite(v) for v in (coverage,cashflow,capital,gross,cost))
-                or coverage < 0.95 or coverage > 1.0 or events < 1
+                or coverage < 0.95 or coverage > 1.0 or events < 0
+                or expected_events < 0 or events > expected_events
+                or (expected_events > 0 and events < 1)
                 or capital <= 0 or cost < 0):
             continue
         row.update({
@@ -198,6 +202,83 @@ def _group_outcomes(rows, key_fn):
         item["win_rate"]=round(item["wins"]/n,4) if n else 0.0
         item["net_profit_usd"]=round(item["net_profit_usd"],4)
     return groups
+
+
+def _fetch_hyperliquid_funding_history(coin: str, start_ms: int, end_ms: int) -> list:
+    payload={"type":"fundingHistory","coin":str(coin).upper(),
+             "startTime":int(start_ms),"endTime":int(end_ms)}
+    request=Request(
+        "https://api.hyperliquid.xyz/info",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type":"application/json","User-Agent":"MarketIntelligenceCore/4"},
+        method="POST",
+    )
+    with urlopen(request,timeout=12) as response:
+        data=json.loads(response.read().decode("utf-8"))
+    return data if isinstance(data,list) else []
+
+
+def settle_hyperliquid_funding(path: str, fetcher=None) -> int:
+    """Fetch actual Hyperliquid funding events for resolved shadow positions.
+
+    Funding cashflow is signed from the position's perspective. A positive
+    rate is paid by longs and received by shorts. Expected event count follows
+    hourly UTC settlement boundaries crossed during the holding interval;
+    samples below 95% event coverage remain ineligible.
+    """
+    p=Path(path)
+    if not p.exists():
+        return 0
+    fetch=fetcher or _fetch_hyperliquid_funding_history
+    try:
+        rows=[json.loads(line) for line in p.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except (OSError,json.JSONDecodeError):
+        return 0
+    settlements={}
+    hour_ms=3_600_000
+    for row in rows:
+        if (row.get("status") not in ("TARGET","STOP")
+                or row.get("funding_status")=="VERIFIED"
+                or not row.get("signal_id")):
+            continue
+        try:
+            start_ms=int(row.get("ts"))*1000
+            end_ms=int(row.get("resolved_ts"))*1000
+            capital=float(row.get("capital_usd",500.0) or 500.0)
+            direction=str(row.get("direction","")).upper()
+            coin=str(row.get("asset","")).upper()
+        except (TypeError,ValueError):
+            continue
+        if (not coin or direction not in ("BULLISH","BEARISH")
+                or end_ms <= start_ms or capital <= 0):
+            continue
+        expected=max(0,end_ms//hour_ms-start_ms//hour_ms)
+        try:
+            events=fetch(coin,start_ms,end_ms)
+        except Exception:
+            continue
+        unique={}
+        for event in events if isinstance(events,list) else []:
+            if not isinstance(event,dict):
+                continue
+            try:
+                timestamp=int(event.get("time"))
+                rate=float(event.get("fundingRate"))
+            except (TypeError,ValueError):
+                continue
+            if start_ms < timestamp <= end_ms and math.isfinite(rate):
+                unique[timestamp]=rate
+        observed=len(unique)
+        coverage=1.0 if expected==0 else min(1.0,observed/expected)
+        if coverage < 0.95 or (expected>0 and observed==0):
+            continue
+        direction_sign=1.0 if direction=="BULLISH" else -1.0
+        cashflow=sum(-direction_sign*rate*capital for rate in unique.values())
+        settlements[row["signal_id"]]={
+            "coverage":coverage,"events":observed,
+            "expected_events":expected,"cashflow_usd":cashflow,
+        }
+    return apply_funding_settlements(path,settlements)
 
 
 def _funding_learning_eligible(row: dict) -> bool:
