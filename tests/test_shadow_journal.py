@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from mi_core.cli import _append_shadow_if_actionable
-from mi_core.paper_journal import summarize
+from mi_core.paper_journal import summarize, resolve_open_signals
 
 
 class ShadowJournalTests(unittest.TestCase):
@@ -45,7 +45,7 @@ class ShadowJournalTests(unittest.TestCase):
             self.assertAlmostEqual(row["stop"],98.75)
             self.assertAlmostEqual(row["target"],102.5)
             self.assertEqual(row["capital_usd"],500.0)
-            self.assertEqual(row["round_trip_cost_pct"],0.35)
+            self.assertEqual(row["round_trip_cost_pct"],0.15)
             self.assertTrue(row["research_only"])
             self.assertFalse(row["live_orders"])
             self.assertEqual(summarize(path)["count"],1)
@@ -82,6 +82,19 @@ class ShadowJournalTests(unittest.TestCase):
             path=str(Path(td)/"shadow.jsonl")
             self.assertFalse(_append_shadow_if_actionable(path,self._snapshot(bias="NEUTRAL")))
             self.assertFalse(Path(path).exists())
+
+    def test_shadow_resolution_uses_central_base_cost_when_missing(self):
+        with tempfile.TemporaryDirectory() as td:
+            path=str(Path(td)/"shadow.jsonl")
+            Path(path).write_text(json.dumps({
+                "status":"OPEN","asset":"BTC","direction":"BULLISH",
+                "entry_price":100.0,"stop":99.0,"target":102.5,
+                "capital_usd":500.0
+            })+"\\n",encoding="utf-8")
+            self.assertEqual(resolve_open_signals(path,103.0,now=456),1)
+            row=json.loads(Path(path).read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(row["round_trip_cost_pct"],0.15)
+            self.assertAlmostEqual(row["net_profit_usd"],11.75)
 
     def test_outcome_summary_groups_context(self):
         with tempfile.TemporaryDirectory() as td:
