@@ -2,6 +2,7 @@
 from __future__ import annotations
 import math, statistics
 from .models import MarketBar
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 
 def _ret(a, b):
@@ -19,17 +20,12 @@ def _feat(bars, i):
         sell = float(b.sell_volume or 0)
         den = buy + sell
         flow.append((buy - sell) / den if den else 0)
-    oi = 0
-    if bars[i].oi is not None and bars[i - 1].oi not in (None, 0):
-        oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1
     return [
         sum(rs[-5:]) / vol,
         sum(rs[-10:]) / (vol * 2 ** .5),
         sum(rs[-20:]) / (vol * 4),
         sum(flow[-5:]) / 5,
         sum(flow[-20:]) / 20,
-        oi * 100,
-        float(bars[i].funding or 0) * 10000,
         vol,
     ]
 
@@ -93,8 +89,6 @@ def _feature_cache(bars):
             rsum(20) / (vol * 4),
             fsum(5) / 5,
             fsum(20) / 20,
-            oi * 100,
-            float(bars[i].funding or 0) * 10000,
             vol,
         ]
     return out
@@ -213,7 +207,7 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         "resolved": resolved,
         "accuracy": round(correct / resolved, 6) if resolved else 0,
         "predictions": preds,
-        "model_version": "wf-logit-v2",
+        "model_version": "wf-logit-v4-price-flow-only",
         "research_only": True,
         "live_orders": False,
     }
@@ -285,7 +279,7 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
         "confidence_source": "model_class_probability_not_independently_calibrated",
         "class_mean_return_pct": {str(k): round(v, 4) for k, v in class_mean_return.items()},
         "current_move_pct": round(current_move_pct, 4),
-        "model_version": "wf-logit-v3-mature-labels",
+        "model_version": "wf-logit-v4-price-flow-only",
         "research_only": True,
         "live_orders": False,
     }
@@ -369,14 +363,30 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
     }
 
 
-def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
-    """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
+def score_capital_targets(
+    result,
+    capital_usd=500.0,
+    min_profit_usd=4.0,
+    preferred_profit_usd=10.0,
+    *,
+    cost_mode="base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
+    round_trip_cost_pct=None,
+):
+    """Score non-overlapping OOS outcomes under the central v4 cost policy.
+
+    round_trip_cost_pct remains an explicit compatibility/scenario override;
+    normal callers should select only cost_mode='base' or 'strict'.
+    """
+    resolved_cost_pct = resolve_round_trip_cost_pct(
+        cost_mode, cost_policy, override=round_trip_cost_pct
+    )
     rows = [
         x for x in non_overlapping_predictions(result)
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
     ]
-    min_move = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
-    preferred_move = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
+    min_move = min_profit_usd / capital_usd * 100.0 + resolved_cost_pct
+    preferred_move = preferred_profit_usd / capital_usd * 100.0 + resolved_cost_pct
     min_hits = preferred_hits = directional = 0
     for x in rows:
         directional += 1
@@ -388,6 +398,9 @@ def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferr
         "resolved_directional": directional,
         "min_profit_usd": min_profit_usd,
         "preferred_profit_usd": preferred_profit_usd,
+        "round_trip_cost_pct": resolved_cost_pct,
+        "cost_mode": cost_mode,
+        "cost_policy_version": cost_policy.version,
         "min_required_move_pct": round(min_move, 4),
         "preferred_required_move_pct": round(preferred_move, 4),
         "min_target_hit_rate": round(min_hits / directional, 6) if directional else 0.0,
