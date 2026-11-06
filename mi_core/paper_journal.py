@@ -284,13 +284,15 @@ def settle_hyperliquid_funding(path: str, fetcher=None) -> int:
 def _funding_learning_eligible(row: dict) -> bool:
     try:
         coverage=float(row.get("funding_coverage",0.0) or 0.0)
+        cashflow=float(row.get("funding_cashflow_usd"))
+        net_profit=float(row.get("net_profit_usd"))
     except (TypeError,ValueError):
         return False
     return (
         row.get("funding_status")=="VERIFIED"
         and row.get("learning_eligible") is True
         and math.isfinite(coverage) and coverage>=0.95
-        and row.get("funding_cashflow_usd") is not None
+        and math.isfinite(cashflow) and math.isfinite(net_profit)
     )
 
 
