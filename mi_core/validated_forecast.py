@@ -423,6 +423,7 @@ def score_capital_targets(
         "preferred_required_move_pct": round(preferred_move, 4),
         "mean_funding_cost_pct_for_model_side": round(sum(funding_costs) / len(funding_costs), 6) if funding_costs else 0.0,
         "min_target_hit_rate": round(min_hits / directional, 6) if directional else 0.0,
+        "min_profit_rate": round(min_hits / directional, 6) if directional else 0.0,
         "preferred_target_hit_rate": round(preferred_hits / directional, 6) if directional else 0.0,
         "research_only": True,
         "live_orders": False,
