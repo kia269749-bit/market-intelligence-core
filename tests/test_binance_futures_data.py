@@ -124,6 +124,7 @@ class BinanceFuturesDataTests(unittest.TestCase):
         self.assertEqual(coverage["oi_coverage_pct"], 100.0)
         self.assertEqual(coverage["funding_coverage_pct"], 100.0)
         self.assertEqual(coverage["oi_period"], "5m")
+        self.assertEqual(coverage["oi_history_max_days"], 30)
         self.assertFalse(coverage["features_enabled"])
 
 
