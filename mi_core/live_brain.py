@@ -4,6 +4,7 @@ import math, time, statistics
 from .fomo_live import scan_boosted
 from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
 from .trade_economics import evaluate_capital_target
+from .cost_policy import DEFAULT_COST_POLICY
 from .timing_engine import evaluate_entry_timing
 
 def _num(v, d=0.0):
@@ -653,7 +654,8 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         selected=forecast.get("selected") or {}
         eco=evaluate_capital_target(_num(selected.get("expected_move_pct", abs(_num(selected.get("expected_return_pct"))))),
                                     capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
-                                    cost_model="components")
+                                    cost_policy=DEFAULT_COST_POLICY, cost_mode="base",
+                                    cost_model="policy")
         approved=bool(eco.approved and forecast_alignment.get("approved"))
         economic_reason=eco.reason if not eco.approved else forecast_alignment.get("reason","forecast_gate_blocked")
         capital_economics={"available":True,"approved":approved,
