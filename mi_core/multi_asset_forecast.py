@@ -31,12 +31,17 @@ def load_project60_assets(path, max_rows=800):
     for line in lines:
         try:
             row = json.loads(line)
-            coins = row.get("coins", {})
+            coins = row.get("coins")
             if isinstance(coins, list):
                 coins = {str(v.get("coin")): v for v in coins if isinstance(v, dict)}
             if not isinstance(coins, dict):
-                continue
-            ts = int(_num(row.get("timestamp")))
+                # Also accept the flat MarketBar JSONL emitted by mi_core.cli real.
+                flat_symbol = str(row.get("symbol") or "").strip()
+                if flat_symbol and row.get("price") is not None:
+                    coins = {flat_symbol: row}
+                else:
+                    continue
+            ts = int(_num(row.get("timestamp", row.get("ts"))))
             for symbol, a in coins.items():
                 if not isinstance(a, dict) or _num(a.get("price")) <= 0:
                     continue
@@ -44,11 +49,12 @@ def load_project60_assets(path, max_rows=800):
                 ob = a.get("orderbook") or {}
                 series.setdefault(symbol, []).append(MarketBar(
                     ts=ts, symbol=symbol, price=_num(a.get("price")),
-                    oi=_num(a.get("open_interest")) if a.get("open_interest") is not None else None,
+                    oi=_num(a.get("open_interest", a.get("oi"))) if a.get("open_interest", a.get("oi")) is not None else None,
                     funding=_num(a.get("funding")) if a.get("funding") is not None else None,
-                    bid=_num(ob.get("bid_usd")), ask=_num(ob.get("ask_usd")),
-                    buy_volume=_num(tr.get("buy_usd")),
-                    sell_volume=_num(tr.get("sell_usd")),
+                    bid=_num(ob.get("bid_usd", a.get("bid"))), ask=_num(ob.get("ask_usd", a.get("ask"))),
+                    volume=_num(a.get("volume")),
+                    buy_volume=_num(tr.get("buy_usd", a.get("buy_volume"))),
+                    sell_volume=_num(tr.get("sell_usd", a.get("sell_volume")),
                     open=_num(a.get("open")) if a.get("open") is not None else None,
                     high=_num(a.get("high")) if a.get("high") is not None else None,
                     low=_num(a.get("low")) if a.get("low") is not None else None,
