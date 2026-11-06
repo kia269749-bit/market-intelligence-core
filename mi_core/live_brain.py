@@ -621,7 +621,8 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     if forecast and forecast.get("available"):
         selected=forecast.get("selected") or {}
         eco=evaluate_capital_target(_num(selected.get("expected_move_pct", abs(_num(selected.get("expected_return_pct"))))),
-                                    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
+                                    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
+                                    cost_model="components")
         approved=bool(eco.approved and forecast_alignment.get("approved"))
         economic_reason=eco.reason if not eco.approved else forecast_alignment.get("reason","forecast_gate_blocked")
         capital_economics={"available":True,"approved":approved,
