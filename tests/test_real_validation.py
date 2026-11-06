@@ -3,7 +3,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from mi_core.models import MarketBar
 from mi_core.real_validation import (
+    _attach_funding_holding_costs,
+    _performance_metrics,
     _directional_metrics,
     _baseline_metrics,
     _aggregate,
@@ -30,6 +33,37 @@ class RealValidationTests(unittest.TestCase):
         self.assertAlmostEqual(result["net_profit_usd"], -7.75, places=4)
         self.assertLess(result["expectancy_usd"], 0.0)
         self.assertEqual(result["positive_net_outcomes"], 1)
+
+    def test_funding_carry_is_directional_and_reduces_net_profit(self):
+        row = {"actual_return_pct": 1.0, "funding_rate_sum_pct": 0.5}
+        long_metrics = _performance_metrics([row], [1], 500.0, 0.15)
+        short_metrics = _performance_metrics([row], [-1], 500.0, 0.15)
+        self.assertAlmostEqual(long_metrics["net_profit_usd"], 1.75)
+        self.assertAlmostEqual(short_metrics["net_profit_usd"], -3.25)
+        self.assertAlmostEqual(long_metrics["funding_cost_total_usd"], 2.5)
+        self.assertAlmostEqual(short_metrics["funding_cost_total_usd"], -2.5)
+
+    def test_funding_events_are_summed_only_inside_holding_interval(self):
+        bars = [
+            MarketBar(ts=0, symbol="BTC", price=100.0, funding=0.00005,
+                      derivatives={"funding_timestamp_ms": -1000, "funding_age_ms": 1000,
+                                   "funding_max_age_ms": 120000}),
+            MarketBar(ts=60000, symbol="BTC", price=101.0, funding=0.0001,
+                      derivatives={"funding_timestamp_ms": 60000, "funding_age_ms": 0,
+                                   "funding_max_age_ms": 120000}),
+            MarketBar(ts=120000, symbol="BTC", price=102.0, funding=0.0002,
+                      derivatives={"funding_timestamp_ms": 120000, "funding_age_ms": 0,
+                                   "funding_max_age_ms": 120000}),
+            MarketBar(ts=180000, symbol="BTC", price=103.0, funding=0.0002,
+                      derivatives={"funding_timestamp_ms": 120000, "funding_age_ms": 60000,
+                                   "funding_max_age_ms": 120000}),
+        ]
+        result = {"predictions": [{"ts": 0, "pred": 1}]}
+        _attach_funding_holding_costs(result, bars, horizon=2)
+        prediction = result["predictions"][0]
+        self.assertAlmostEqual(prediction["funding_rate_sum_pct"], 0.03)
+        self.assertEqual(prediction["funding_events_count"], 2)
+        self.assertTrue(result["funding_cost_model"]["verified"])
 
     def test_wfa_uses_non_overlapping_rows_and_reports_baselines(self):
         result = {
