@@ -239,8 +239,13 @@ def download_project60(
     target = Path(out)
     if target.exists() and target.stat().st_size > 0 and not overwrite:
         raise FileExistsError(f"refusing to overwrite existing data file: {target}")
+    interval_ms = KLINE_INTERVAL_MS[interval]
     end_bound = int(end_ms) if end_ms is not None else int(time.time() * 1000)
-    start_bound = int(start_ms) if start_ms is not None else max(0, end_bound - KLINE_INTERVAL_MS[interval] * int(bars))
+    if start_ms is not None:
+        start_bound = int(start_ms)
+    else:
+        aligned_end = (end_bound // interval_ms) * interval_ms - 1
+        start_bound = max(0, aligned_end - interval_ms * int(bars) + 1)
     candles = fetch_candles(coin, interval, start_bound, end_bound, post_json=post_json)
     if not candles:
         raise RuntimeError("Hyperliquid returned no perpetual candles")
