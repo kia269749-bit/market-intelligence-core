@@ -1,0 +1,34 @@
+# Kronos integration (research-only)
+
+## What is integrated
+
+Project60 uses the official upstream Kronos implementation as an optional OHLCV foundation-model provider. The adapter lives in `mi_core/kronos_adapter.py` and loads the upstream checkout lazily. No upstream model code or weights are copied into this repository.
+
+- Supported checkpoints: `NeoQuasar/Kronos-mini`, `NeoQuasar/Kronos-small`, and `NeoQuasar/Kronos-base`.
+- Mini uses the 2k tokenizer and up to 2048 context bars; Small/Base use the base tokenizer and 512 context bars.
+- The adapter generates independent sampled paths in bounded batches (up to 100 paths), rather than treating the upstream predictor's averaged `sample_count` output as separate scenarios.
+- Output includes OHLCV paths and descriptive p10/median/p90 summaries.
+- Scenario frequency is **not** a calibrated probability and is not a trading signal.
+
+## Data contract
+
+Kronos requires explicit, completed OHLC bars. Project60 price-only snapshots are not converted into fake OHLC bars. Missing open/high/low values cause a closed failure with `missing_ohlc`. Timestamps must be strictly increasing. Use a consistent bar interval and UTC timestamps.
+
+## Optional dependencies and upstream checkout
+
+1. Clone the official repository separately: https://github.com/shiyu-coder/Kronos
+2. Install its documented requirements in an isolated environment. The upstream implementation requires PyTorch, pandas, Hugging Face Hub, and tqdm.
+3. Download model weights only after choosing a checkpoint and checking storage/RAM.
+4. Configure `KronosConfig(repo_path=...)` with the local upstream checkout path.
+
+Do not install PyTorch into the user's existing Termux environment as part of this code change. Benchmark on a disposable environment first; CPU inference may be slow and Android/PyTorch wheel support varies.
+
+## Brain integration boundary
+
+The Market Brain records Kronos output as a separate evidence source. It does not add Kronos scenario frequency to fusion votes, confidence, execution readiness, shadow eligibility, or Outcome Memory. This remains true until a frozen, independent OOS protocol demonstrates calibrated probabilities and positive net expectancy after the centralized 0.15% base and 0.45% strict round-trip cost policies.
+
+## Upstream provenance
+
+- Project: https://github.com/shiyu-coder/Kronos
+- Paper: https://arxiv.org/abs/2508.02739
+- License: MIT (retain upstream copyright/license notices when copying any upstream source; this integration imports the upstream checkout and does not vendor its code).
