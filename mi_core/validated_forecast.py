@@ -5,17 +5,41 @@ from .models import MarketBar
 from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 
+def _coverage_status(coverage):
+    if coverage <= 0:
+        return "MISSING"
+    if coverage >= 0.95:
+        return "AVAILABLE"
+    return "PARTIAL"
+
+
 def _data_coverage(bars):
     total = len(bars)
     if not total:
-        return {"samples": 0, "oi": {"present": 0, "coverage": 0.0},
-                "funding": {"present": 0, "coverage": 0.0}}
-    oi_present = sum(b.oi is not None for b in bars)
-    funding_present = sum(b.funding is not None for b in bars)
+        return {
+            "samples": 0,
+            "oi": {"present": 0, "coverage": 0.0, "status": "MISSING"},
+            "funding": {"present": 0, "coverage": 0.0, "status": "MISSING"},
+        }
+    oi_present = sum(
+        i > 0 and bar.oi is not None and bars[i - 1].oi not in (None, 0)
+        for i, bar in enumerate(bars)
+    )
+    funding_present = sum(bar.funding is not None for bar in bars)
+    oi_coverage = oi_present / total
+    funding_coverage = funding_present / total
     return {
         "samples": total,
-        "oi": {"present": oi_present, "coverage": round(oi_present / total, 6)},
-        "funding": {"present": funding_present, "coverage": round(funding_present / total, 6)},
+        "oi": {
+            "present": oi_present,
+            "coverage": round(oi_coverage, 6),
+            "status": _coverage_status(oi_coverage),
+        },
+        "funding": {
+            "present": funding_present,
+            "coverage": round(funding_coverage, 6),
+            "status": _coverage_status(funding_coverage),
+        },
     }
 
 
@@ -175,7 +199,7 @@ def _predict(m, x):
 
 def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_band=.0015, fit_every=1):
     if len(bars) < min_train + 25 + horizon:
-        return {"available": False, "reason": "insufficient_history", "samples": len(bars)}
+        return {"available": False, "reason": "insufficient_history", "samples": len(bars), "feature_data_coverage": _data_coverage(bars)}
 
     feature_cache = _feature_cache(bars)
     label_cache = _labels_cache(bars, horizon, flat_band)
@@ -261,7 +285,7 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
             X.append(f)
             y.append(lab)
     if len(X) < 60:
-        return {"available": False, "reason": "insufficient_training_samples", "samples": len(X)}
+        return {"available": False, "reason": "insufficient_training_samples", "samples": len(X), "feature_data_coverage": _data_coverage(bars)}
     p = _predict(_fit(X, y), _feat(bars, i))
     direction = {1: "UP", 0: "FLAT", -1: "DOWN"}[max(p, key=p.get)]
     rs = [_ret(bars[k].price, bars[k - 1].price) for k in range(max(1, i - 19), i + 1)]
