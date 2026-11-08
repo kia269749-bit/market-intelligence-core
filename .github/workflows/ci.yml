@@ -11,6 +11,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.11"}
-      - run: python -m unittest discover -s tests -v
+      - run: python -m pip install pytest
+      - run: python -m pytest -q
       - run: python -m mi_core.cli demo --out /tmp/mi-demo
       - run: python -m mi_core.cli analyze --input /tmp/mi-demo/market.jsonl
