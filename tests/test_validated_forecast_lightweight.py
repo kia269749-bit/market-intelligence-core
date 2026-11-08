@@ -89,5 +89,7 @@ def test_missing_derivatives_are_explicit_features_and_reported():
     coverage = result["feature_data_coverage"]
     assert coverage["oi"]["present"] == 0
     assert coverage["oi"]["coverage"] == 0.0
+    assert coverage["oi"]["status"] == "MISSING"
     assert coverage["funding"]["present"] == 0
     assert coverage["funding"]["coverage"] == 0.0
+    assert coverage["funding"]["status"] == "MISSING"
