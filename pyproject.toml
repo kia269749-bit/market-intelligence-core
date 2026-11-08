@@ -9,5 +9,8 @@ description = "Auditable crypto market intelligence and validation engine"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+kronos = ["torch>=2.2", "pandas>=2.0", "huggingface-hub>=0.23", "tqdm>=4.66"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

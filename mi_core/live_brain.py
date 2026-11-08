@@ -610,7 +610,7 @@ def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None, ca
 
 def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None,
              fomo_leader_evidence=None, outcome_memory=None, forecast=None, candle_evidence=None, market_context=None,
-             multi_timeframe=None):
+             multi_timeframe=None, kronos_forecast=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
@@ -720,9 +720,10 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False,"candidate_signal":fomo_candidate_signal},
           "multi_timeframe":mtf or {"available":False,"reason":"not_requested","research_only":True,"live_orders":False},
           "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"multi_timeframe":{"available":bool(mtf.get("available")),"bias":mtf_bias,"confidence_score":round(mtf_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
-          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
+          "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},
+          "kronos":kronos_forecast or {"available":False,"reason":"not_requested"},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
-        "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
+        "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext + isolated Kronos OHLCV scenario evidence -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
 def print_live(snapshot):
@@ -795,6 +796,14 @@ def print_live(snapshot):
                 h.get("1_hour",{}).get("up",.5), h.get("4_hours",{}).get("up",.5),
                 fc.get("early_reversal",False), fc.get("breakout_probability",.5)*100))
 
+    kronos=e.get("kronos") or {}
+    if kronos.get("available"):
+        print("KRONOS model={} scenarios={} horizon={}b up_path_fraction={} median_return={} p10={} p90={} | evidence_only=True".format(
+            kronos.get("model_name","Kronos"),kronos.get("scenario_count",0),kronos.get("pred_len",0),
+            kronos.get("scenario_up_fraction"),kronos.get("scenario_return_median_pct"),
+            kronos.get("scenario_return_p10_pct"),kronos.get("scenario_return_p90_pct")))
+    elif kronos.get("reason") not in (None,"not_requested"):
+        print("KRONOS unavailable | {}".format(kronos.get("reason")))
     for i,row in enumerate(e["fomo"]["top"],1):
         print("  FOMO#{} {} score={} vol={:,.0f} chg={:.2f}%".format(i,row.get("token"),row.get("fomo_score"),row.get("volume_24h_usd",0),row.get("price_change_24h_pct",0)))
     if snapshot.get("fomo_error"): print("fomo_warning="+snapshot["fomo_error"])
