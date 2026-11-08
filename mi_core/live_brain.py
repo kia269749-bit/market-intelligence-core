@@ -723,7 +723,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},
           "kronos":kronos_forecast or {"available":False,"reason":"not_requested"},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
-        "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
+        "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext + isolated Kronos OHLCV scenario evidence -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
 def print_live(snapshot):
