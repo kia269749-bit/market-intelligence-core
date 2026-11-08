@@ -18,8 +18,10 @@ Kronos requires explicit, completed OHLC bars. Project60 price-only snapshots ar
 
 1. Clone the official repository separately: https://github.com/shiyu-coder/Kronos
 2. Install its documented requirements in an isolated environment. The upstream implementation requires PyTorch, pandas, Hugging Face Hub, and tqdm.
-3. Download model weights only after choosing a checkpoint and checking storage/RAM.
-4. Configure `KronosConfig(repo_path=...)` with the local upstream checkout path.
+3. From the Market Intelligence Core checkout, install the optional adapter dependencies with `python -m pip install -e ".[kronos]"`.
+4. Install any additional packages listed by the pinned upstream Kronos `requirements.txt` in the same isolated environment.
+5. Download model weights only after choosing a checkpoint and checking storage/RAM.
+6. Configure `KronosConfig(repo_path=...)` with the local upstream checkout path.
 
 ## Optional Market Brain invocation
 
