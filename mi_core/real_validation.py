@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 
 from .multi_asset_forecast import load_project60_assets, rank_assets
@@ -24,15 +25,18 @@ from .validated_forecast import (
 
 def _num(v, default=0.0):
     try:
-        return float(v)
-    except (TypeError, ValueError):
+        value = float(v)
+        return value if math.isfinite(value) else default
+    except (TypeError, ValueError, OverflowError):
         return default
 
 
 def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
     rows = [
         r for r in result.get("predictions", [])
-        if r.get("actual_return_pct") is not None and r.get("pred") in (-1, 1)
+        if r.get("actual_return_pct") is not None
+        and r.get("pred") in (-1, 1)
+        and math.isfinite(_num(r.get("actual_return_pct"), float("nan")))
     ]
     profits = []
     for row in rows:
@@ -64,14 +68,38 @@ def _directional_metrics(result, capital_usd=500.0, round_trip_cost_pct=0.35):
 
 
 def _path_excursion_metrics(result, target_levels=(1.15, 2.35), stop_levels=(0.50, 0.75, 1.00, 1.25, 1.50)):
-    rows=[x for x in result.get("predictions",[]) if x.get("pred") in (-1,1)]
-    out={"directional_predictions":len(rows),"target_hit_rates":{},"adverse_excursion_rates":{}}
+    rows = [
+        x for x in result.get("predictions", [])
+        if x.get("pred") in (-1, 1)
+    ]
+    mfe_values = [
+        _num(x.get("favorable_mfe_pct"), float("nan"))
+        for x in rows
+    ]
+    mae_values = [
+        _num(x.get("adverse_mae_pct"), float("nan"))
+        for x in rows
+    ]
+    valid_mfe = [v for v in mfe_values if math.isfinite(v)]
+    valid_mae = [v for v in mae_values if math.isfinite(v)]
+
+    out = {
+        "directional_predictions": len(rows),
+        "mfe_samples": len(valid_mfe),
+        "mae_samples": len(valid_mae),
+        "target_hit_rates": {},
+        "adverse_excursion_rates": {},
+    }
     for level in target_levels:
-        hits=sum(_num(x.get("favorable_mfe_pct")) >= level for x in rows)
-        out["target_hit_rates"][str(level)] = round(hits/len(rows),6) if rows else 0.0
+        hits = sum(v >= level for v in valid_mfe)
+        out["target_hit_rates"][str(level)] = (
+            round(hits / len(valid_mfe), 6) if valid_mfe else 0.0
+        )
     for stop in stop_levels:
-        hits=sum(_num(x.get("adverse_mae_pct")) >= stop for x in rows)
-        out["adverse_excursion_rates"][str(stop)] = round(hits/len(rows),6) if rows else 0.0
+        hits = sum(v >= stop for v in valid_mae)
+        out["adverse_excursion_rates"][str(stop)] = (
+            round(hits / len(valid_mae), 6) if valid_mae else 0.0
+        )
     return out
 
 

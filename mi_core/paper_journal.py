@@ -1,6 +1,7 @@
 """Append-only shadow journal and lightweight outcome resolution."""
 from __future__ import annotations
 import json
+import math
 import time
 from bisect import bisect_right
 from pathlib import Path
@@ -75,6 +76,7 @@ def resolve_open_signals(
     current_price: float | dict,
     now: int | None = None,
     project60_path: str | None = None,
+    price_timestamp: float | None = None,
 ) -> int:
     """Resolve target/stop first, then expire forecasts after enough new samples."""
     p = Path(path)
@@ -91,10 +93,26 @@ def resolve_open_signals(
 
     changed = 0
     now = int(time.time() if now is None else now)
-    price_map = (
-        {str(k).upper(): float(v) for k, v in current_price.items()}
-        if isinstance(current_price, dict) else None
-    )
+    price_map = None
+    scalar_price = None
+    if isinstance(current_price, dict):
+        price_map = {}
+        for key, value in current_price.items():
+            try:
+                value = float(value)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if math.isfinite(value) and value > 0:
+                price_map[str(key).upper()] = value
+    else:
+        try:
+            scalar_price = float(current_price)
+        except (TypeError, ValueError, OverflowError):
+            scalar_price = None
+        if scalar_price is not None and (
+            not math.isfinite(scalar_price) or scalar_price <= 0
+        ):
+            scalar_price = None
     sample_times = _project60_sample_timestamps(project60_path)
 
     for row in rows:
@@ -107,7 +125,27 @@ def resolve_open_signals(
                     continue
                 price = price_map[asset]
             else:
-                price = float(current_price)
+                if scalar_price is None:
+                    continue
+                price = scalar_price
+
+            if not math.isfinite(price) or price <= 0:
+                continue
+
+            if price_timestamp is not None:
+                try:
+                    observed_ts = float(price_timestamp)
+                    forecast_ts = float(row["forecast_ts"])
+                except (KeyError, TypeError, ValueError, OverflowError):
+                    continue
+                if (
+                    not math.isfinite(observed_ts)
+                    or not math.isfinite(forecast_ts)
+                    or observed_ts <= forecast_ts
+                    or observed_ts > now
+                    or now - observed_ts > 180
+                ):
+                    continue
 
             direction = str(row["direction"]).upper()
             entry = float(row["entry_price"])

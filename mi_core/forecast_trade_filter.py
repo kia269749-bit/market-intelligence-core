@@ -5,8 +5,17 @@ is high. The filter requires directional agreement, sufficient confidence and
 a modeled net profit floor after round-trip costs.
 """
 from __future__ import annotations
+import math
 from .trade_economics import evaluate_capital_target
 from .adaptive_signal_policy import policy_decision
+
+
+def _finite_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
@@ -14,26 +23,42 @@ def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
                       exchange="hyperliquid_perps", order_type="taker",
                       regime="UNKNOWN", quality_score=1.0, agreement=1.0,
                       leader_follower=False):
-    if not forecast.get("available"):
-        return {"approved": False, "status": "NO_TRADE", "reason": "forecast_unavailable",
+    if not isinstance(forecast, dict) or not forecast.get("available"):
+        return {"approved": False, "status": "NO_TRADE",
+                "reason": "forecast_unavailable",
                 "research_only": True, "live_orders": False}
 
-    direction = forecast.get("direction")
-    confidence = float(forecast.get("confidence", 0.0))
-    expected = float(forecast.get("expected_return_pct", 0.0))
+    direction = str(forecast.get("direction") or "").upper()
+    confidence = _finite_number(forecast.get("confidence", 0.0))
+    expected = _finite_number(forecast.get("expected_return_pct", 0.0))
+    quality = _finite_number(quality_score)
+    agree = _finite_number(agreement)
+
+    if (confidence is None or expected is None or quality is None or agree is None
+            or not 0.0 <= confidence <= 1.0
+            or not 0.0 <= quality <= 1.0
+            or not 0.0 <= agree <= 1.0
+            or expected < 0.0):
+        return {"approved": False, "status": "NO_TRADE",
+                "reason": "invalid_input", "direction": direction,
+                "research_only": True, "live_orders": False}
+
     if direction not in ("UP", "DOWN"):
-        return {"approved": False, "status": "NO_TRADE", "reason": "forecast_not_directional",
-                "direction": direction, "confidence": confidence,
+        return {"approved": False, "status": "NO_TRADE",
+                "reason": "forecast_not_directional", "direction": direction,
+                "confidence": confidence,
                 "research_only": True, "live_orders": False}
 
-    # Adaptive thresholds relax modestly in clean trends and tighten in noisy regimes.
     policy = policy_decision(
-        confidence, direction, regime=regime, quality_score=quality_score,
-        agreement=agreement, leader_follower=leader_follower)
+        confidence, direction, regime=regime, quality_score=quality,
+        agreement=agree, leader_follower=leader_follower)
     if not policy["eligible"]:
-        return {"approved": False, "status": "NO_TRADE", "reason": policy["reason"],
-                "direction": direction, "confidence": confidence,
-                "policy": policy["policy"], "policy_status": policy["status"], "research_only": True, "live_orders": False}
+        return {
+            "approved": False, "status": "NO_TRADE", "reason": policy["reason"],
+            "direction": direction, "confidence": confidence,
+            "policy": policy["policy"], "policy_status": policy["status"],
+            "research_only": True, "live_orders": False,
+        }
 
     signed_move = expected if direction == "UP" else -expected
     economics = evaluate_capital_target(
@@ -42,7 +67,9 @@ def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
         order_type=order_type)
     status = "NO_TRADE"
     if economics.approved:
-        status = "STRONG" if policy["status"] == "STRONG" and economics.tier == "STRONG" else "WATCH"
+        status = ("STRONG" if policy["status"] == "STRONG"
+                  and economics.tier == "STRONG" else "WATCH")
+
     return {
         "approved": economics.approved,
         "status": status,

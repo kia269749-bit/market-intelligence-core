@@ -4,6 +4,46 @@ import math, statistics
 from .models import MarketBar
 
 
+def _validate_forecast_input(bars):
+    """Fail closed on invalid prices, numeric features, or chronology."""
+    if not isinstance(bars, (list, tuple)):
+        return "bars_not_sequence"
+
+    previous_ts = None
+
+    for index, bar in enumerate(bars):
+        try:
+            ts = float(bar.ts)
+            price = float(bar.price)
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return f"invalid_timestamp_or_price_at_{index}"
+
+        if not math.isfinite(ts) or ts <= 0:
+            return f"invalid_timestamp_at_{index}"
+        if not math.isfinite(price) or price <= 0:
+            return f"invalid_price_at_{index}"
+
+        if previous_ts is not None and ts <= previous_ts:
+            return f"timestamps_not_strictly_increasing_at_{index}"
+        previous_ts = ts
+
+        # MarketBar is immutable, but its numeric fields can still contain
+        # NaN/Infinity when constructed from unvalidated external data.
+        try:
+            values = vars(bar).items()
+        except TypeError:
+            values = ()
+
+        for name, value in values:
+            if isinstance(value, bool) or value is None:
+                continue
+            if isinstance(value, (int, float)):
+                if not math.isfinite(value):
+                    return f"non_finite_{name}_at_{index}"
+
+    return None
+
+
 def _ret(a, b):
     return math.log(a / b) if a > 0 and b > 0 else 0.0
 
@@ -238,6 +278,17 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
 
 
 def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
+    invalid_reason = _validate_forecast_input(bars)
+    if invalid_reason is not None:
+        return {
+            "available": False,
+            "reason": "invalid_input",
+            "detail": invalid_reason,
+            "samples": len(bars) if isinstance(bars, (list, tuple)) else 0,
+            "research_only": True,
+            "live_orders": False,
+        }
+
     if len(bars) < 100:
         return {"available": False, "reason": "insufficient_history", "samples": len(bars)}
     i = len(bars) - 1
@@ -310,14 +361,68 @@ def score_predictions(result):
     }
 
 
-def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_high_conf_samples=20, min_high_conf_accuracy=0.55, min_profit_hit_rate=0.30, preferred_profit_hit_rate=0.15):
-    """Conservative research gate. No orders are created."""
+def _finite_number(value):
+    """Return a finite float for int/float inputs, excluding bool."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    try:
+        number = float(value)
+    except (OverflowError, TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def forecast_acceptance_gate(
+    metrics, capital_metrics,
+    min_oos_samples=100, min_high_conf_samples=20, min_high_conf_accuracy=0.55,
+    min_profit_hit_rate=0.30, preferred_profit_hit_rate=0.15,
+    economic_metrics=None,
+    min_net_profit_usd=None,
+    min_expectancy_usd=None,
+    max_drawdown_usd=None,
+):
+    """Conservative research gate. No orders are created.
+
+    Economic checks are opt-in. With no economic thresholds, legacy behavior
+    is preserved. If a threshold is enabled, absent or invalid economic data
+    fails closed with an explicit reason.
+    """
     reasons = []
+
+    net_threshold = min_net_profit_usd
+    expectancy_threshold = min_expectancy_usd
+    drawdown_threshold = max_drawdown_usd
+
+    if net_threshold is not None:
+        value = _finite_number(net_threshold)
+        if value is None:
+            reasons.append("invalid_min_net_profit_usd_threshold")
+            net_threshold = None
+        else:
+            net_threshold = value
+
+    if expectancy_threshold is not None:
+        value = _finite_number(expectancy_threshold)
+        if value is None:
+            reasons.append("invalid_min_expectancy_usd_threshold")
+            expectancy_threshold = None
+        else:
+            expectancy_threshold = value
+
+    if drawdown_threshold is not None:
+        value = _finite_number(drawdown_threshold)
+        if value is None or value < 0:
+            reasons.append("invalid_max_drawdown_usd_threshold")
+            drawdown_threshold = None
+        else:
+            drawdown_threshold = value
+
     resolved = int(metrics.get("resolved", 0))
     high_n = int(metrics.get("high_conf_samples", 0))
     high_acc = float(metrics.get("high_conf_accuracy", 0.0))
     min_hit = float(capital_metrics.get("min_target_hit_rate", 0.0))
     pref_hit = float(capital_metrics.get("preferred_target_hit_rate", 0.0))
+
     if resolved < min_oos_samples:
         reasons.append("insufficient_oos_samples")
     if high_n < min_high_conf_samples:
@@ -328,6 +433,37 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
         reasons.append("weak_usd4_target_hit_rate")
     if pref_hit < preferred_profit_hit_rate:
         reasons.append("weak_usd10_target_hit_rate")
+
+    economic_checks_enabled = any(
+        threshold is not None
+        for threshold in (min_net_profit_usd, min_expectancy_usd, max_drawdown_usd)
+    )
+
+    if economic_checks_enabled:
+        if not isinstance(economic_metrics, dict):
+            reasons.append("invalid_economic_metrics_payload")
+        else:
+            if min_net_profit_usd is not None and net_threshold is not None:
+                net = _finite_number(economic_metrics.get("net_profit_usd"))
+                if net is None:
+                    reasons.append("missing_or_invalid_net_profit_usd")
+                elif net < net_threshold:
+                    reasons.append("insufficient_net_profit_usd")
+
+            if min_expectancy_usd is not None and expectancy_threshold is not None:
+                expectancy = _finite_number(economic_metrics.get("expectancy_usd"))
+                if expectancy is None:
+                    reasons.append("missing_or_invalid_expectancy_usd")
+                elif expectancy < expectancy_threshold:
+                    reasons.append("insufficient_expectancy_usd")
+
+            if max_drawdown_usd is not None and drawdown_threshold is not None:
+                drawdown = _finite_number(economic_metrics.get("max_drawdown_usd"))
+                if drawdown is None or drawdown < 0:
+                    reasons.append("missing_or_invalid_drawdown_usd")
+                elif drawdown > drawdown_threshold:
+                    reasons.append("excessive_drawdown_usd")
+
     return {
         "accepted": not reasons,
         "status": "PASS" if not reasons else "NO_TRADE",
@@ -338,10 +474,14 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
             "min_high_conf_accuracy": min_high_conf_accuracy,
             "min_usd4_hit_rate": min_profit_hit_rate,
             "min_usd10_hit_rate": preferred_profit_hit_rate,
+            "min_net_profit_usd": min_net_profit_usd,
+            "min_expectancy_usd": min_expectancy_usd,
+            "max_drawdown_usd": max_drawdown_usd,
         },
         "research_only": True,
         "live_orders": False,
     }
+
 
 
 def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):

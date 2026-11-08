@@ -1,10 +1,23 @@
 """Lightweight live coordinator with conservative multi-source brain safeguards."""
 from __future__ import annotations
+
+import math
 import time, statistics
 from .fomo_live import scan_boosted
 from .multi_exchange import fetch_snapshot, DEFAULT_SYMBOLS, EXCHANGES
 from .trade_economics import evaluate_capital_target
 from .timing_engine import evaluate_entry_timing
+
+
+def _finite_input(v):
+    """Return a finite float, or None for invalid input."""
+    if isinstance(v, bool):
+        return None
+    try:
+        number = float(v)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) else None
 
 def _num(v, d=0.0):
     try: return float(v)
@@ -124,56 +137,133 @@ def _forecast_from_project60(path, asset="BTC", max_rows=600):
             "early_reversal":bool(reversal),"breakout_probability":round(breakout_prob,4),
             "method":"momentum+volatility probabilistic baseline","research_only":True}
 
+
 def _validated_forecast_from_project60(path, asset="BTC", max_rows=500):
-    """Build MarketBars from Project60 and return walk-forward-trained forecast outputs."""
+    """Build a forecast only from finite, chronologically increasing Project60 bars."""
     if not path:
-        return {"available":False,"reason":"no_history_path"}
-    from pathlib import Path
+        return {"available": False, "reason": "no_history_path"}
+
     import json
+    import math
+    from pathlib import Path
     from .models import MarketBar
     from .validated_forecast import forecast_now
-    p=Path(path)
+
+    p = Path(path)
     if not p.exists():
-        return {"available":False,"reason":"history_not_found"}
-    bars=[]
+        return {"available": False, "reason": "history_not_found"}
+
+    def number(value, default=None):
+        if value is None or isinstance(value, bool):
+            return default
+        try:
+            result = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return default
+        return result if math.isfinite(result) else default
+
+    bars = []
+    last_source_ts = None
     try:
-        for line in p.read_text(encoding="utf-8").splitlines()[-max_rows:]:
+        lines = p.read_text(encoding="utf-8").splitlines()[-max_rows:]
+        for line in lines:
             try:
-                x=json.loads(line); coins=x.get("coins",{})
-                if isinstance(coins,list):
-                    coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
-                a=coins.get(asset) or coins.get(asset.upper())
-                if not isinstance(a,dict): continue
-                price=_num(a.get("price"))
-                if price<=0: continue
-                ob=a.get("orderbook") or {}; tr=a.get("trades") or {}
-                bars.append(MarketBar(ts=int(_num(x.get("timestamp"))), symbol=asset, price=price,
-                    oi=_num(a.get("open_interest")) if a.get("open_interest") is not None else None,
-                    funding=_num(a.get("funding")) if a.get("funding") is not None else None,
-                    buy_volume=_num(tr.get("buy_usd")), sell_volume=_num(tr.get("sell_usd")),
-                    bid=_num(ob.get("bid_usd")), ask=_num(ob.get("ask_usd"))))
-            except (TypeError,ValueError,json.JSONDecodeError):
+                row = json.loads(line)
+                if not isinstance(row, dict):
+                    continue
+                raw_ts = number(row.get("timestamp"))
+                if raw_ts is None or raw_ts <= 0:
+                    continue
+                ts = int(raw_ts)
+                if ts <= 0 or (last_source_ts is not None and ts <= last_source_ts):
+                    continue
+                last_source_ts = ts
+
+                coins = row.get("coins", {})
+                if isinstance(coins, list):
+                    coins = {
+                        str(v.get("coin")): v
+                        for v in coins
+                        if isinstance(v, dict) and v.get("coin") is not None
+                    }
+                if not isinstance(coins, dict):
+                    continue
+                item = coins.get(asset) or coins.get(asset.upper())
+                if not isinstance(item, dict):
+                    continue
+
+                price = number(item.get("price"))
+                if price is None or price <= 0:
+                    continue
+                orderbook = item.get("orderbook")
+                orderbook = orderbook if isinstance(orderbook, dict) else {}
+                trades = item.get("trades")
+                trades = trades if isinstance(trades, dict) else {}
+
+                bid = number(orderbook.get("bid_usd"), 0.0)
+                ask = number(orderbook.get("ask_usd"), 0.0)
+                buy = number(trades.get("buy_usd"), 0.0)
+                sell = number(trades.get("sell_usd"), 0.0)
+                if min(bid, ask, buy, sell) < 0:
+                    continue
+
+                bars.append(MarketBar(
+                    ts=ts,
+                    symbol=asset,
+                    price=price,
+                    oi=number(item.get("open_interest")),
+                    funding=number(item.get("funding")),
+                    buy_volume=buy,
+                    sell_volume=sell,
+                    bid=bid,
+                    ask=ask,
+                ))
+            except (TypeError, ValueError, OverflowError, json.JSONDecodeError):
                 continue
     except OSError:
-        return {"available":False,"reason":"history_read_error"}
-    if len(bars)<100:
-        return {"available":False,"reason":"insufficient_history","samples":len(bars)}
-    horizons={}
-    for h in (5,15,60,240):
-        result=forecast_now(bars,horizon=h,train_window=min(300,len(bars)-1))
+        return {"available": False, "reason": "history_read_error"}
+
+    if len(bars) < 100:
+        return {
+            "available": False,
+            "reason": "insufficient_history",
+            "samples": len(bars),
+        }
+
+    horizons = {}
+    for horizon in (5, 15, 60, 240):
+        result = forecast_now(
+            bars, horizon=horizon, train_window=min(300, len(bars) - 1)
+        )
         if result.get("available"):
-            # Anchor forecast metadata to the exact latest Project60 bar.
             result["ts"] = int(bars[-1].ts)
             result["current_price"] = bars[-1].price
             result["asset"] = asset
-            result["horizon_bars"] = int(result.get("horizon_bars", h))
-            horizons[str(h)] = result
+            result["horizon_bars"] = int(result.get("horizon_bars", horizon))
+            horizons[str(horizon)] = result
+
     if not horizons:
-        return {"available":False,"reason":"forecast_training_unavailable","samples":len(bars)}
-    selected=next((horizons[k] for k in ("60","15","5","240") if k in horizons), None)
-    return {"available":True,"asset":asset,"samples":len(bars),"horizons":horizons,
-            "selected":selected,"method":"walk-forward trained multinomial forecast",
-            "research_only":True,"live_orders":False}
+        return {
+            "available": False,
+            "reason": "forecast_training_unavailable",
+            "samples": len(bars),
+        }
+
+    selected = next(
+        (horizons[key] for key in ("60", "15", "5", "240") if key in horizons),
+        None,
+    )
+    return {
+        "available": True,
+        "asset": asset,
+        "samples": len(bars),
+        "horizons": horizons,
+        "selected": selected,
+        "method": "walk-forward trained multinomial forecast",
+        "research_only": True,
+        "live_orders": False,
+    }
+
 
 def _smart_money_score(fomo_leader_evidence):
     lf=fomo_leader_evidence or {}
@@ -391,22 +481,43 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         direction=str(lf.get("direction","")).upper()
         if direction in ("BULLISH","BEARISH"): votes.append((direction,min(1.0,_num(lf.get("confidence"),0.0))))
     top=fomo.get("candidates",[])[:3]
-    capital_economics={"available":False,"reason":"no_forecast"}
-    timing={"state":"WAIT","reason":"no_forecast","research_only":True,"live_orders":False}
+    forecast_available = isinstance(forecast, dict) and bool(forecast.get("available"))
+    forecast_block_reason = (
+        None if forecast_available
+        else "forecast_missing" if forecast is None
+        else "forecast_unavailable"
+    )
+    capital_economics={"available":False,"reason":forecast_block_reason or "no_forecast"}
+    timing={"state":"WAIT","reason":forecast_block_reason or "no_forecast","research_only":True,"live_orders":False}
     combined_preview=_fuse(votes,quality["score"],regime,outcome_memory,smart_money,candle_evidence,market_context)
-    if forecast and forecast.get("available"):
-        selected=forecast.get("selected") or {}
-        eco=evaluate_capital_target(_num(selected.get("expected_return_pct")),
-                                    capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
-        capital_economics={"available":True,"approved":eco.approved,
-                           "expected_move_pct":eco.expected_move_pct,
-                           "required_move_pct":eco.required_move_pct,
-                           "preferred_required_move_pct":eco.preferred_required_move_pct,
-                           "net_move_pct":eco.net_move_pct,
-                           "modeled_profit_usd":eco.modeled_profit_usd,
-                           "round_trip_cost_pct":eco.round_trip_cost_pct,
-                           "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,"reason":eco.reason}
-        timing=evaluate_entry_timing(confidence=_num(selected.get("confidence")), expected_move_pct=_num(selected.get("expected_return_pct")), current_move_pct=_num(selected.get("current_move_pct")), required_move_pct=_num(eco.required_move_pct), agreement=combined_preview.get("agreement",0.0), quality_score=quality.get("score",0.0), regime=regime.get("name","UNKNOWN"))
+    forecast_input_invalid=False
+    if forecast_available:
+        selected=forecast.get("selected")
+        if not isinstance(selected, dict):
+            forecast_input_invalid=True
+        else:
+            expected=_finite_input(selected.get("expected_return_pct"))
+            confidence=_finite_input(selected.get("confidence"))
+            current_move=_finite_input(selected.get("current_move_pct"))
+            if (expected is None or expected < 0 or confidence is None
+                    or not 0.0 <= confidence <= 1.0 or current_move is None):
+                forecast_input_invalid=True
+
+        if forecast_input_invalid:
+            capital_economics={"available":False,"approved":False,"reason":"invalid_input"}
+            timing={"state":"WAIT","reason":"invalid_input","research_only":True,"live_orders":False}
+        else:
+            eco=evaluate_capital_target(expected,
+                                        capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0)
+            capital_economics={"available":True,"approved":eco.approved,
+                               "expected_move_pct":eco.expected_move_pct,
+                               "required_move_pct":eco.required_move_pct,
+                               "preferred_required_move_pct":eco.preferred_required_move_pct,
+                               "net_move_pct":eco.net_move_pct,
+                               "modeled_profit_usd":eco.modeled_profit_usd,
+                               "round_trip_cost_pct":eco.round_trip_cost_pct,
+                               "tier":eco.tier,"min_profit_usd":eco.min_profit_usd,"preferred_profit_usd":eco.preferred_profit_usd,"reason":eco.reason}
+            timing=evaluate_entry_timing(confidence=confidence, expected_move_pct=expected, current_move_pct=current_move, required_move_pct=_num(eco.required_move_pct), agreement=combined_preview.get("agreement",0.0), quality_score=quality.get("score",0.0), regime=regime.get("name","UNKNOWN"))
     # Raw FOMO candidates are discovery evidence only. They are not allowed to
     # cast a directional market vote until Leader->Follower evidence confirms them.
     # This prevents a token pump from masquerading as broad smart-money confirmation.
@@ -417,6 +528,14 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         elif avg_change<=-15: fomo_candidate_signal="BEARISH_CANDIDATE"
     combined=combined_preview
     no_trade=_no_trade_guard(quality,regime,micro,smart_money,outcome_memory)
+    if forecast_block_reason:
+        combined["actionable"]=False
+        no_trade["blocked"]=True
+        no_trade["reasons"]=list(no_trade.get("reasons",[]))+[forecast_block_reason]
+    if forecast_input_invalid:
+        combined["actionable"]=False
+        no_trade["blocked"]=True
+        no_trade["reasons"]=list(no_trade.get("reasons",[]))+["invalid_forecast_input"]
     # Data-quality gate: HEALTHY -> normal analysis, DEGRADED -> watch-only, UNSAFE -> WAIT.
     if quality_status == "DEGRADED":
         combined["actionable"]=False
@@ -435,7 +554,24 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         combined["confidence"]=round(combined["confidence"]*.70,4); combined["actionable"]=False
     elif micro["divergence"] in ("BULLISH_DIVERGENCE","BEARISH_DIVERGENCE"):
         combined["confidence"]=round(combined["confidence"]*.85,4)
-    if micro["squeeze_risk"]: combined["actionable"]=False
+    if micro["squeeze_risk"]:
+        combined["actionable"]=False
+
+    # Recheck actionability after all post-fusion confidence penalties.
+    if combined.get("confidence", 0.0) < 0.60:
+        combined["actionable"]=False
+        no_trade["blocked"]=True
+        reason="post_penalty_confidence_below_floor"
+        if reason not in no_trade["reasons"]:
+            no_trade["reasons"].append(reason)
+
+    # Entry timing is a required research gate, not merely display information.
+    if timing.get("state") != "EARLY":
+        combined["actionable"]=False
+        no_trade["blocked"]=True
+        reason="entry_timing_" + str(timing.get("state", "WAIT")).lower()
+        if reason not in no_trade["reasons"]:
+            no_trade["reasons"].append(reason)
     if quality_status=="UNSAFE":
         combined={"bias":"NEUTRAL","confidence":0.0,"agreement":combined["agreement"],"actionable":False,
                   "regime":regime["name"],"outcome_memory":_outcome_adjustment(outcome_memory)}

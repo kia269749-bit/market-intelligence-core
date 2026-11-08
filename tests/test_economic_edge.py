@@ -43,5 +43,71 @@ class EconomicEdgeTests(unittest.TestCase):
         self.assertIn("insufficient_directional_oos_rows", result["diagnostic_hypotheses"])
 
 
+
+    def test_non_finite_returns_are_excluded_from_economic_samples(self):
+        result = diagnose_economic_edge({"predictions": [
+            {"pred": 1, "actual_return_pct": float("nan"),
+             "favorable_mfe_pct": 2.0, "adverse_mae_pct": 0.2},
+            {"pred": 1, "actual_return_pct": float("inf"),
+             "favorable_mfe_pct": 2.0, "adverse_mae_pct": 0.2},
+            {"pred": 1, "actual_return_pct": 0.5,
+             "favorable_mfe_pct": 0.8, "adverse_mae_pct": 0.2},
+        ]})
+        self.assertEqual(result["samples"], 1)
+        self.assertAlmostEqual(result["net_profit_usd"], 1.75, places=4)
+
+    def test_missing_path_data_is_not_counted_as_zero_excursion(self):
+        result = diagnose_economic_edge({"predictions": [
+            {"pred": 1, "actual_return_pct": 0.5,
+             "favorable_mfe_pct": 1.5, "adverse_mae_pct": 0.2},
+            {"pred": 1, "actual_return_pct": 0.5},
+        ]})
+        self.assertEqual(result["samples"], 2)
+        self.assertEqual(result["mfe_samples"], 1)
+        self.assertEqual(result["mae_samples"], 1)
+        self.assertAlmostEqual(result["avg_favorable_mfe_pct"], 1.5, places=6)
+        self.assertAlmostEqual(result["avg_adverse_mae_pct"], 0.2, places=6)
+
+
+    def test_mfe_hypothesis_uses_only_rows_with_valid_mfe(self):
+        predictions = [
+            {
+                "pred": 1,
+                "actual_return_pct": 0.1,
+                "favorable_mfe_pct": 5.0,
+                "adverse_mae_pct": 0.2,
+            }
+        ]
+        predictions.extend([
+            {"pred": 1, "actual_return_pct": 0.1}
+            for _ in range(10)
+        ])
+
+        result = diagnose_economic_edge({"predictions": predictions})
+
+        self.assertEqual(result["samples"], 11)
+        self.assertEqual(result["mfe_samples"], 1)
+        self.assertIn(
+            "path_reached_usd4_but_horizon_end_did_not_hold_it",
+            result["diagnostic_hypotheses"],
+        )
+
+
+    def test_missing_mfe_does_not_trigger_path_retention_hypothesis(self):
+        predictions = [
+            {"pred": 1, "actual_return_pct": 0.1}
+            for _ in range(11)
+        ]
+
+        result = diagnose_economic_edge({"predictions": predictions})
+
+        self.assertEqual(result["samples"], 11)
+        self.assertEqual(result["mfe_samples"], 0)
+        self.assertNotIn(
+            "path_reached_usd4_but_horizon_end_did_not_hold_it",
+            result["diagnostic_hypotheses"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

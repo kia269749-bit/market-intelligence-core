@@ -80,5 +80,45 @@ class AdaptiveSignalPolicyTests(unittest.TestCase):
         self.assertEqual(result["status"], "WATCH")
 
 
+    def test_policy_rejects_nonfinite_and_malformed_inputs(self):
+        for bad in (float("nan"), float("inf"), float("-inf"), "bad", -0.1, 1.1):
+            result = policy_decision(
+                bad, "UP", regime="TREND", quality_score=1.0, agreement=0.85
+            )
+            self.assertFalse(result["eligible"])
+            self.assertEqual(result["reason"], "invalid_input")
+
+    def test_policy_rejects_invalid_quality_or_agreement(self):
+        for field in ("quality_score", "agreement"):
+            for bad in (float("nan"), float("inf"), "bad", -0.1, 1.1):
+                kwargs = {"quality_score": 1.0, "agreement": 0.85}
+                kwargs[field] = bad
+                result = policy_decision(0.8, "UP", **kwargs)
+                self.assertFalse(result["eligible"])
+                self.assertEqual(result["reason"], "invalid_input")
+
+    def test_forecast_filter_rejects_invalid_numeric_inputs(self):
+        base = {
+            "available": True, "direction": "UP",
+            "confidence": 0.8, "expected_return_pct": 1.5,
+        }
+        cases = (
+            ("confidence", float("nan")),
+            ("confidence", "bad"),
+            ("confidence", 1.1),
+            ("expected_return_pct", float("inf")),
+            ("expected_return_pct", -0.2),
+        )
+        for field, bad in cases:
+            forecast = dict(base)
+            forecast[field] = bad
+            result = evaluate_forecast(
+                forecast, regime="TREND", quality_score=1.0, agreement=0.85
+            )
+            self.assertFalse(result["approved"])
+            self.assertEqual(result["status"], "NO_TRADE")
+            self.assertEqual(result["reason"], "invalid_input")
+
+
 if __name__ == "__main__":
     unittest.main()

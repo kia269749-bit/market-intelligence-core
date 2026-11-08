@@ -137,5 +137,27 @@ class RealValidationTests(unittest.TestCase):
         self.assertTrue(long["signal_eligible"])
         self.assertEqual(short["accepted_assets"], 0)
 
+
+    def test_directional_metrics_excludes_non_finite_returns(self):
+        result = _directional_metrics({"predictions": [
+            {"pred": 1, "actual_return_pct": float("nan")},
+            {"pred": 1, "actual_return_pct": float("inf")},
+            {"pred": 1, "actual_return_pct": 0.5},
+        ]})
+        self.assertEqual(result["directional_predictions"], 1)
+        self.assertAlmostEqual(result["net_profit_usd"], 0.75, places=4)
+
+    def test_path_metrics_use_only_valid_path_samples(self):
+        result = _path_excursion_metrics({"predictions": [
+            {"pred": 1, "favorable_mfe_pct": 2.0, "adverse_mae_pct": 0.6},
+            {"pred": 1},
+            {"pred": -1, "favorable_mfe_pct": float("nan"),
+             "adverse_mae_pct": float("inf")},
+        ]})
+        self.assertEqual(result["mfe_samples"], 1)
+        self.assertEqual(result["mae_samples"], 1)
+        self.assertEqual(result["target_hit_rates"]["1.15"], 1.0)
+        self.assertEqual(result["adverse_excursion_rates"]["0.5"], 1.0)
+
 if __name__ == "__main__":
     unittest.main()

@@ -19,6 +19,9 @@ class MarketBar:
     derivatives: Optional[Mapping[str, float | int | None]] = None
     microstructure: Optional[Mapping[str, float | int | None]] = None
     exchange_snapshots: Optional[tuple[Mapping[str, float | int | None], ...]] = None
+    open: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
 
     def to_dict(self): return asdict(self)
 

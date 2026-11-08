@@ -19,80 +19,217 @@ def _num(v, d=0.0):
         return d
 
 
+
 def load_project60_assets(path, max_rows=800):
+    """Load only finite, positive-price bars with strictly increasing timestamps."""
+    import json
+    import math
+    from pathlib import Path
+
     p = Path(path)
     if not p.exists():
         return {}
-    series = {}
     try:
         lines = p.read_text(encoding="utf-8").splitlines()[-max_rows:]
     except OSError:
         return {}
+
+    def number(value, default=None):
+        if value is None or isinstance(value, bool):
+            return default
+        try:
+            result = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return default
+        return result if math.isfinite(result) else default
+
+    series = {}
+    last_source_ts = None
+
     for line in lines:
         try:
             row = json.loads(line)
+            if not isinstance(row, dict):
+                continue
+            raw_ts = number(row.get("timestamp"))
+            if raw_ts is None or raw_ts <= 0:
+                continue
+            ts = int(raw_ts)
+            if ts <= 0 or (last_source_ts is not None and ts <= last_source_ts):
+                continue
+            last_source_ts = ts
+
             coins = row.get("coins", {})
             if isinstance(coins, list):
-                coins = {str(v.get("coin")): v for v in coins if isinstance(v, dict)}
+                coins = {
+                    str(v.get("coin")): v
+                    for v in coins
+                    if isinstance(v, dict) and v.get("coin") is not None
+                }
             if not isinstance(coins, dict):
                 continue
-            ts = int(_num(row.get("timestamp")))
-            for symbol, a in coins.items():
-                if not isinstance(a, dict) or _num(a.get("price")) <= 0:
+
+            for symbol, asset in coins.items():
+                if not isinstance(asset, dict):
                     continue
-                tr = a.get("trades") or {}
-                ob = a.get("orderbook") or {}
-                series.setdefault(symbol, []).append(MarketBar(
-                    ts=ts, symbol=symbol, price=_num(a.get("price")),
-                    oi=_num(a.get("open_interest")) if a.get("open_interest") is not None else None,
-                    funding=_num(a.get("funding")) if a.get("funding") is not None else None,
-                    bid=_num(ob.get("bid_usd")), ask=_num(ob.get("ask_usd")),
-                    buy_volume=_num(tr.get("buy_usd")),
-                    sell_volume=_num(tr.get("sell_usd")),
+                price = number(asset.get("price"))
+                if price is None or price <= 0:
+                    continue
+
+                trades = asset.get("trades")
+                trades = trades if isinstance(trades, dict) else {}
+                orderbook = asset.get("orderbook")
+                orderbook = orderbook if isinstance(orderbook, dict) else {}
+
+                oi = number(asset.get("open_interest"))
+                funding = number(asset.get("funding"))
+                bid = number(orderbook.get("bid_usd"), 0.0)
+                ask = number(orderbook.get("ask_usd"), 0.0)
+                buy = number(trades.get("buy_usd"), 0.0)
+                sell = number(trades.get("sell_usd"), 0.0)
+
+                # Negative depth/flow values are not meaningful input.
+                if bid < 0 or ask < 0 or buy < 0 or sell < 0:
+                    continue
+
+                series.setdefault(str(symbol), []).append(MarketBar(
+                    ts=ts,
+                    symbol=str(symbol),
+                    price=price,
+                    oi=oi,
+                    funding=funding,
+                    bid=bid,
+                    ask=ask,
+                    buy_volume=buy,
+                    sell_volume=sell,
                 ))
-        except (TypeError, ValueError, json.JSONDecodeError):
+        except (TypeError, ValueError, OverflowError, json.JSONDecodeError):
             continue
+
     return series
 
 
+
+
 def rank_assets(series, min_samples=60):
+    """Rank only chronologically valid series with finite numeric inputs."""
+    import math
+    import statistics
+
     ranked = []
     for symbol, bars in series.items():
         if len(bars) < min_samples:
             continue
-        prices = [b.price for b in bars]
-        returns = []
-        for i in range(1, len(prices)):
-            if prices[i] > 0 and prices[i-1] > 0:
-                returns.append(math.log(prices[i] / prices[i-1]))
+
+        valid = True
+        previous_ts = None
+        for bar in bars:
+            try:
+                ts = float(bar.ts)
+                price = float(bar.price)
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                valid = False
+                break
+            if not math.isfinite(ts) or ts <= 0:
+                valid = False
+                break
+            if previous_ts is not None and ts <= previous_ts:
+                valid = False
+                break
+            previous_ts = ts
+            if not math.isfinite(price) or price <= 0:
+                valid = False
+                break
+
+            for field in ("buy_volume", "sell_volume", "bid", "ask"):
+                value = getattr(bar, field, 0.0)
+                try:
+                    value = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    valid = False
+                    break
+                if not math.isfinite(value) or value < 0:
+                    valid = False
+                    break
+            if not valid:
+                break
+
+            for field in ("oi", "funding"):
+                value = getattr(bar, field, None)
+                if value is not None:
+                    try:
+                        value = float(value)
+                    except (TypeError, ValueError, OverflowError):
+                        valid = False
+                        break
+                    if not math.isfinite(value):
+                        valid = False
+                        break
+            if not valid:
+                break
+
+        if not valid:
+            continue
+
+        prices = [float(b.price) for b in bars]
+        returns = [
+            math.log(prices[i] / prices[i - 1])
+            for i in range(1, len(prices))
+        ]
         if len(returns) < 20:
             continue
+
         recent = sum(returns[-10:])
         medium = sum(returns[-30:])
         vol = statistics.pstdev(returns[-20:]) or 1e-8
         b = bars[-1]
-        den = b.buy_volume + b.sell_volume
-        flow = (b.buy_volume - b.sell_volume) / den if den else 0.0
-        book_den = b.bid + b.ask
-        book = (b.bid - b.ask) / book_den if book_den else 0.0
+        buy = float(b.buy_volume)
+        sell = float(b.sell_volume)
+        den = buy + sell
+        flow = (buy - sell) / den if den else 0.0
+        bid = float(b.bid)
+        ask = float(b.ask)
+        book_den = bid + ask
+        book = (bid - ask) / book_den if book_den else 0.0
+
         oi_change = 0.0
-        if b.oi is not None and bars[-2].oi not in (None, 0):
-            oi_change = b.oi / bars[-2].oi - 1.0
-        # Rank strength, not profitability. Volatility is capped so wild noise
-        # does not automatically win the shortlist.
-        momentum = max(-1.0, min(1.0, (recent / max(vol * 3, 1e-8))))
-        medium_score = max(-1.0, min(1.0, (medium / max(vol * 6, 1e-8))))
-        score = 0.35 * abs(momentum) + 0.25 * abs(medium_score) + 0.20 * abs(flow) + 0.15 * abs(book) + 0.05 * min(1.0, abs(oi_change) * 20)
-        direction = "BULLISH" if (momentum + flow + book) > 0.15 else "BEARISH" if (momentum + flow + book) < -0.15 else "NEUTRAL"
+        prior_oi = getattr(bars[-2], "oi", None)
+        current_oi = getattr(b, "oi", None)
+        if current_oi is not None and prior_oi not in (None, 0):
+            oi_change = float(current_oi) / float(prior_oi) - 1.0
+            if not math.isfinite(oi_change):
+                continue
+
+        momentum = max(-1.0, min(1.0, recent / max(vol * 3, 1e-8)))
+        medium_score = max(-1.0, min(1.0, medium / max(vol * 6, 1e-8)))
+        score = (
+            0.35 * abs(momentum)
+            + 0.25 * abs(medium_score)
+            + 0.20 * abs(flow)
+            + 0.15 * abs(book)
+            + 0.05 * min(1.0, abs(oi_change) * 20)
+        )
+        direction = (
+            "BULLISH" if momentum + flow + book > 0.15
+            else "BEARISH" if momentum + flow + book < -0.15
+            else "NEUTRAL"
+        )
         ranked.append({
-            "symbol": symbol, "samples": len(bars), "score": round(score, 4),
-            "direction": direction, "momentum": round(momentum, 4),
+            "symbol": symbol,
+            "samples": len(bars),
+            "score": round(score, 4),
+            "direction": direction,
+            "momentum": round(momentum, 4),
             "medium_score": round(medium_score, 4),
-            "flow": round(flow, 4), "orderbook": round(book, 4),
-            "oi_change": round(oi_change, 6), "volatility": round(vol, 6),
+            "flow": round(flow, 4),
+            "orderbook": round(book, 4),
+            "oi_change": round(oi_change, 6),
+            "volatility": round(vol, 6),
         })
-    ranked.sort(key=lambda x: x["score"], reverse=True)
+
+    ranked.sort(key=lambda item: item["score"], reverse=True)
     return ranked
+
 
 
 def _candidate_regime(item):

@@ -159,8 +159,160 @@ class LiveBrainTests(unittest.TestCase):
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}), patch("mi_core.live_brain.evaluate_capital_target", wraps=__import__("mi_core.trade_economics", fromlist=["evaluate_capital_target"]).evaluate_capital_target):
             snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5}, forecast=forecast)
         self.assertTrue(snap["capital_economics"]["available"])
-        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 1.15, places=2)
-        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.35, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 0.95, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.15, places=2)
+
+    def test_missing_or_unavailable_forecast_blocks_action(self):
+        market={"rows":[{"change_24h_pct":0.0,"price":100}],
+                "data_quality":{"status":"HEALTHY","score":1.0}}
+        cases = (
+            ("missing", None, "forecast_missing"),
+            ("unavailable", {"available":False}, "forecast_unavailable"),
+        )
+        fused={"bias":"BULLISH","confidence":0.86,"agreement":1.0,
+               "actionable":True,"regime":"TREND","outcome_memory":{}}
+        patches = (
+            patch("mi_core.live_brain.fetch_snapshot", return_value=market),
+            patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}),
+            patch("mi_core.live_brain._fuse", return_value=fused.copy()),
+        )
+        with patches[0], patches[1], patches[2]:
+            for name, forecast, reason in cases:
+                with self.subTest(case=name):
+                    snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5},
+                                  forecast=forecast)
+                    ev=snap["evidence"]
+                    self.assertFalse(ev["combined"]["actionable"])
+                    self.assertTrue(ev["no_trade"]["blocked"])
+                    self.assertIn(reason, ev["no_trade"]["reasons"])
+                    self.assertEqual(snap["capital_economics"]["reason"], reason)
+                    self.assertEqual(ev["timing"]["state"], "WAIT")
+                    self.assertEqual(ev["timing"]["reason"], reason)
+                    self.assertTrue(snap["research_only"])
+                    self.assertFalse(snap["live_orders"])
+
+    def test_invalid_forecast_numeric_inputs_block_action(self):
+        market={"rows":[{"change_24h_pct":0.0,"price":100}],
+                "data_quality":{"status":"HEALTHY","score":1.0}}
+        bad_values = (
+            {"expected_return_pct":float("nan"),"confidence":0.8,"current_move_pct":0.1},
+            {"expected_return_pct":0.8,"confidence":float("inf"),"current_move_pct":0.1},
+            {"expected_return_pct":0.8,"confidence":0.8,"current_move_pct":"bad"},
+            {"expected_return_pct":-0.1,"confidence":0.8,"current_move_pct":0.1},
+            {"expected_return_pct":0.8,"confidence":1.5,"current_move_pct":0.1},
+        )
+        with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}):
+            for selected in bad_values:
+                with self.subTest(selected=selected):
+                    snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5},
+                                  forecast={"available":True,"selected":selected})
+                    ce=snap["capital_economics"]
+                    self.assertFalse(ce["available"])
+                    self.assertEqual(ce["reason"],"invalid_input")
+                    self.assertEqual(snap["evidence"]["timing"]["reason"],"invalid_input")
+                    self.assertFalse(snap["evidence"]["combined"]["actionable"])
+                    self.assertTrue(snap["evidence"]["no_trade"]["blocked"])
+                    self.assertIn("invalid_forecast_input",snap["evidence"]["no_trade"]["reasons"])
+                    self.assertTrue(snap["research_only"])
+                    self.assertFalse(snap["live_orders"])
+
+    def test_valid_early_entry_remains_actionable(self):
+        market = {
+            "rows": [{"change_24h_pct": 0.0, "price": 100}],
+            "data_quality": {"status": "HEALTHY", "score": 1.0},
+        }
+        fused = {
+            "bias": "BULLISH",
+            "confidence": 0.86,
+            "agreement": 1.0,
+            "actionable": True,
+            "regime": "TREND",
+            "outcome_memory": {},
+        }
+        micro = {
+            "divergence": "NONE",
+            "squeeze_risk": False,
+            "flow_bullish": 0,
+            "flow_bearish": 0,
+            "details": [],
+        }
+        forecast = {
+            "available": True,
+            "selected": {
+                "expected_return_pct": 3.0,
+                "confidence": 0.8,
+                "current_move_pct": 0.1,
+            },
+        }
+
+        with patch("mi_core.live_brain.fetch_snapshot", return_value=market), \
+             patch("mi_core.live_brain.scan_boosted",
+                   return_value={"candidates": []}), \
+             patch("mi_core.live_brain._data_quality",
+                   return_value={"status": "HEALTHY", "score": 1.0}), \
+             patch("mi_core.live_brain._regime",
+                   return_value={"name": "TREND"}), \
+             patch("mi_core.live_brain._microstructure",
+                   return_value=micro), \
+             patch("mi_core.live_brain._fuse",
+                   return_value=fused.copy()):
+            snap = run_once(
+                project60={"bias": "NEUTRAL", "confidence": 0.5},
+                forecast=forecast,
+            )
+
+        ev = snap["evidence"]
+        self.assertEqual(ev["timing"]["state"], "EARLY")
+        self.assertTrue(snap["capital_economics"]["approved"])
+        self.assertFalse(ev["no_trade"]["blocked"])
+        self.assertTrue(ev["combined"]["actionable"])
+        self.assertEqual(ev["combined"]["bias"], "BULLISH")
+        self.assertGreaterEqual(ev["combined"]["confidence"], 0.60)
+        self.assertTrue(snap["research_only"])
+        self.assertFalse(snap["live_orders"])
+
+    def test_late_entry_timing_blocks_actionable_fusion(self):
+        market={"rows":[{"change_24h_pct":0.0,"price":100}],
+                "data_quality":{"status":"HEALTHY","score":1.0}}
+        fused={"bias":"BULLISH","confidence":0.86,"agreement":1.0,
+               "actionable":True,"regime":"TREND","outcome_memory":{}}
+        forecast={"available":True,"selected":{
+            "expected_return_pct":3.0,"confidence":0.8,"current_move_pct":0.1}}
+        with patch("mi_core.live_brain.fetch_snapshot", return_value=market), \
+             patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}), \
+             patch("mi_core.live_brain._fuse", return_value=fused.copy()), \
+             patch("mi_core.live_brain.evaluate_entry_timing",
+                   return_value={"state":"LATE","reason":"test_late"}):
+            snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5},
+                          forecast=forecast)
+        ev=snap["evidence"]
+        self.assertFalse(ev["combined"]["actionable"])
+        self.assertTrue(ev["no_trade"]["blocked"])
+        self.assertIn("entry_timing_late", ev["no_trade"]["reasons"])
+
+    def test_divergence_penalty_rechecks_confidence_floor(self):
+        market={"rows":[{"change_24h_pct":0.0,"price":100}],
+                "data_quality":{"status":"HEALTHY","score":1.0}}
+        fused={"bias":"BULLISH","confidence":0.65,"agreement":1.0,
+               "actionable":True,"regime":"TREND","outcome_memory":{}}
+        micro={"divergence":"BEARISH_DIVERGENCE","squeeze_risk":False,
+               "flow_bullish":0,"flow_bearish":0,"details":[]}
+        forecast={"available":True,"selected":{
+            "expected_return_pct":3.0,"confidence":0.8,"current_move_pct":0.1}}
+        with patch("mi_core.live_brain.fetch_snapshot", return_value=market), \
+             patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}), \
+             patch("mi_core.live_brain._fuse", return_value=fused.copy()), \
+             patch("mi_core.live_brain._microstructure", return_value=micro), \
+             patch("mi_core.live_brain.evaluate_entry_timing",
+                   return_value={"state":"EARLY","reason":"test_early"}):
+            snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5},
+                          forecast=forecast)
+        ev=snap["evidence"]
+        self.assertAlmostEqual(ev["combined"]["confidence"],0.5525,places=4)
+        self.assertFalse(ev["combined"]["actionable"])
+        self.assertTrue(ev["no_trade"]["blocked"])
+        self.assertIn("post_penalty_confidence_below_floor",
+                      ev["no_trade"]["reasons"])
 
     def test_timing_consumption_is_capped_for_display(self):
         timing=evaluate_entry_timing(expected_move_pct=0.14, current_move_pct=0.266, required_move_pct=1.15)

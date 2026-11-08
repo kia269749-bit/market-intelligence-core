@@ -2,6 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+BASE_ROUND_TRIP_COST_PCT = 0.15
+STRICT_ROUND_TRIP_COST_PCT = 0.45
+
+def get_round_trip_cost_pct(policy: str = "base") -> float:
+    """Return the centrally defined research round-trip cost policy."""
+    policies = {
+        "base": BASE_ROUND_TRIP_COST_PCT,
+        "strict": STRICT_ROUND_TRIP_COST_PCT,
+    }
+    try:
+        return policies[policy.strip().lower()]
+    except (AttributeError, KeyError):
+        raise ValueError("policy must be 'base' or 'strict'") from None
+
 
 @dataclass(frozen=True)
 class ExecutionCostConfig:

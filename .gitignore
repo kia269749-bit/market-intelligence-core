@@ -3,3 +3,15 @@ __pycache__/
 .venv/
 data/
 reports/
+.backup_*/
+*.bak*
+*.backup_*
+.env
+backups/
+_backups/
+forward_test/
+*.pre_*
+*.tgz
+*.tar.gz
+.env.*
+!.env.example

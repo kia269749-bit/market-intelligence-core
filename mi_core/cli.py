@@ -31,22 +31,85 @@ def demo(out):
     print(fp)
 
 def load_project60_bars(path, asset="BTC", max_rows=800):
-    rows=[]
+    rows = []
+    last_ts = None
+
     for line in Path(path).read_text(encoding="utf-8").splitlines()[-max_rows:]:
         try:
-            x=json.loads(line); coins=x.get("coins",{})
-            if isinstance(coins,list): coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
-            a=coins.get(asset) or coins.get(asset.upper())
-            if not isinstance(a,dict): continue
-            tr=a.get("trades") or {}; ob=a.get("orderbook") or {}
-            price=float(a.get("price") or 0)
-            if price<=0: continue
-            rows.append(MarketBar(int(float(x.get("timestamp",0))),asset,price,
-                oi=float(a["open_interest"]) if a.get("open_interest") is not None else None,
-                funding=float(a["funding"]) if a.get("funding") is not None else None,
-                bid=float(ob.get("bid_usd") or 0),ask=float(ob.get("ask_usd") or 0),
-                buy_volume=float(tr.get("buy_usd") or 0),sell_volume=float(tr.get("sell_usd") or 0)))
-        except (TypeError,ValueError,json.JSONDecodeError): continue
+            x = json.loads(line)
+            if not isinstance(x, dict):
+                continue
+
+            coins = x.get("coins", {})
+            if isinstance(coins, list):
+                coins = {
+                    str(v.get("coin")): v
+                    for v in coins
+                    if isinstance(v, dict)
+                }
+            if not isinstance(coins, dict):
+                continue
+
+            a = coins.get(asset) or coins.get(asset.upper())
+            if not isinstance(a, dict):
+                continue
+
+            price = float(a.get("price"))
+            timestamp = float(x.get("timestamp"))
+
+            if not math.isfinite(price) or price <= 0:
+                continue
+            if not math.isfinite(timestamp) or timestamp <= 0:
+                continue
+
+            ts = int(timestamp)
+            if ts <= 0:
+                continue
+
+            tr = a.get("trades") or {}
+            ob = a.get("orderbook") or {}
+            if not isinstance(tr, dict):
+                tr = {}
+            if not isinstance(ob, dict):
+                ob = {}
+
+            def finite_optional(value):
+                if value is None:
+                    return None
+                try:
+                    number = float(value)
+                except (TypeError, ValueError, OverflowError):
+                    return None
+                return number if math.isfinite(number) else None
+
+            oi = finite_optional(a.get("open_interest"))
+            funding = finite_optional(a.get("funding"))
+            bid = finite_optional(ob.get("bid_usd"))
+            ask = finite_optional(ob.get("ask_usd"))
+            buy = finite_optional(tr.get("buy_usd"))
+            sell = finite_optional(tr.get("sell_usd"))
+
+            bar = MarketBar(
+                ts, asset, price,
+                oi=oi,
+                funding=funding,
+                bid=bid if bid is not None else 0.0,
+                ask=ask if ask is not None else 0.0,
+                buy_volume=buy if buy is not None else 0.0,
+                sell_volume=sell if sell is not None else 0.0,
+            )
+        except (TypeError, ValueError, OverflowError, json.JSONDecodeError, AttributeError):
+            continue
+
+        if last_ts is not None and bar.ts <= last_ts:
+            raise ValueError(
+                f"Project60 timestamps must be strictly increasing for {asset}: "
+                f"{bar.ts} follows {last_ts}"
+            )
+
+        rows.append(bar)
+        last_ts = bar.ts
+
     return rows
 
 def load_input(path):
@@ -252,28 +315,43 @@ def main():
                     market_context={"available":False,"reason":"context_error","research_only":True,"live_orders":False}
             snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context)
             if x.outcome_journal:
-                fc=snap.get("evidence",{}).get("forecast",{})
-                selected=fc.get("selected") if isinstance(fc,dict) else {}
-                current_price=selected.get("current_price") if isinstance(selected,dict) else None
                 current_prices={}
+                record_ts=None
                 if x.project60_file:
                     try:
-                        latest=Path(x.project60_file).read_text(encoding="utf-8").splitlines()[-1]
-                        payload=json.loads(latest)
-                        coins=payload.get("coins",{})
-                        if isinstance(coins,list):
-                            coins={str(v.get("coin")):v for v in coins if isinstance(v,dict)}
-                        for asset,row in coins.items():
-                            if isinstance(row,dict) and row.get("price") is not None:
-                                price=float(row.get("price"))
-                                if price>0:
-                                    current_prices[str(asset).upper()]=price
-                    except (OSError,ValueError,TypeError,IndexError,json.JSONDecodeError):
+                        lines=Path(x.project60_file).read_text(encoding="utf-8").splitlines()
+                        if lines:
+                            payload=json.loads(lines[-1])
+                            ts=float(payload.get("timestamp"))
+                            age=time.time()-ts
+                            if math.isfinite(ts) and 0 <= age <= 180:
+                                coins=payload.get("coins",{})
+                                if isinstance(coins,list):
+                                    coins={str(v.get("coin","")).upper():v
+                                           for v in coins if isinstance(v,dict)}
+                                if isinstance(coins,dict):
+                                    for asset,row in coins.items():
+                                        if not isinstance(row,dict) or row.get("price") is None:
+                                            continue
+                                        try:
+                                            price=float(row["price"])
+                                        except (TypeError,ValueError,OverflowError):
+                                            continue
+                                        if math.isfinite(price) and price > 0:
+                                            current_prices[str(asset).upper()]=price
+                                    if current_prices:
+                                        record_ts=ts
+                    except (OSError,ValueError,TypeError,OverflowError,json.JSONDecodeError):
                         current_prices={}
-                if current_prices:
-                    resolve_open_signals(x.outcome_journal, current_prices, project60_path=x.project60_file)
-                elif current_price is not None:
-                    resolve_open_signals(x.outcome_journal, float(current_price), project60_path=x.project60_file)
+                        record_ts=None
+                # Never substitute a forecast price for a missing/stale market observation.
+                if current_prices and record_ts is not None:
+                    resolve_open_signals(
+                        x.outcome_journal,
+                        current_prices,
+                        project60_path=x.project60_file,
+                        price_timestamp=record_ts,
+                    )
             shadow_added=_append_shadow_if_actionable(x.outcome_journal,snap)
             shadow_metrics=summarize_performance(x.outcome_journal) if x.outcome_journal else None
             print_live_brain(snap)

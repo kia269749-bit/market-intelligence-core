@@ -22,6 +22,9 @@ def build_action(market_rows, bias, confidence, risk_policy=None):
         target2=price*1.025
         gate=evaluate_usd10_setup(price,stop,target2,"BULLISH",_num(confidence),min_net_profit_usd=min_profit,max_position_usd=max_position,max_risk_usd=max_risk)
         if not gate.approved:
+            if gate.gate.approved and gate.reason == "usd10_requires_too_large_position" and gate.gate.net_target_pct > 0:
+                return {"status":"EARLY_WATCH_BUY","symbol":row.get("symbol"),"price":price,"gate":gate,
+                        "reason":"رصد زودهنگام صعودی؛ گیت سود هنوز تأیید نشده است."}
             return {"status":"WAIT","symbol":row.get("symbol"),"price":price,"gate":gate,
                     "reason":"سیگنال جهت‌دار است اما بعد از کارمزد/اسپرد/اسلیپیج، مزیت خالص یا R/R کافی نیست."}
         return {"status":"WATCH_BUY","symbol":row.get("symbol"),"price":price,
@@ -33,12 +36,21 @@ def build_action(market_rows, bias, confidence, risk_policy=None):
         target=price*0.975
         gate=evaluate_usd10_setup(price,stop,target,"BEARISH",_num(confidence),min_net_profit_usd=min_profit,max_position_usd=max_position,max_risk_usd=max_risk)
         if not gate.approved:
+            if gate.gate.approved and gate.reason == "usd10_requires_too_large_position" and gate.gate.net_target_pct > 0:
+                return {"status":"EARLY_WATCH_SELL","symbol":row.get("symbol"),"price":price,"gate":gate,
+                        "reason":"رصد زودهنگام نزولی؛ گیت سود هنوز تأیید نشده است."}
             return {"status":"WAIT","symbol":row.get("symbol"),"price":price,"gate":gate,
                     "reason":"فشار نزولی هست اما بعد از هزینه‌ها، مزیت خالص یا R/R کافی نیست."}
         return {"status":"WATCH_SELL","symbol":row.get("symbol"),"price":price,
                 "exit_low":price*0.999,"exit_high":price*1.002,"invalid":stop,
                 "target":target,"gate":gate,
                 "reason":"فشار ترکیبی نزولی و مزیت خالصِ هزینه‌محور از حداقل گیت عبور کرده است."}
+    if bias == "BULLISH" and 0.60 <= _num(confidence) < 0.65:
+        return {"status":"EARLY_WATCH_BUY","symbol":row.get("symbol"),"price":price,
+                "reason":"رصد زودهنگام صعودی؛ اعتماد هنوز به آستانه بررسی سناریوی ورود نرسیده است."}
+    if bias == "BEARISH" and 0.60 <= _num(confidence) < 0.65:
+        return {"status":"EARLY_WATCH_SELL","symbol":row.get("symbol"),"price":price,
+                "reason":"رصد زودهنگام نزولی؛ اعتماد هنوز به آستانه بررسی سناریوی ورود نرسیده است."}
     return {"status":"WAIT","symbol":row.get("symbol"),"price":price,
             "reason":"شواهد هنوز برای ورود یا خروج با اعتماد کافی هم‌جهت نیستند."}
 
@@ -85,7 +97,12 @@ def render_persian(snapshot, project60=None):
             i,row.get("token","?"),row.get("fomo_score","?"),_num(row.get("volume_24h_usd")),
             _num(row.get("price_change_24h_pct"))))
     gate=a.get("gate")
-    if a["status"]=="WATCH_BUY":
+    if a["status"] in ("EARLY_WATCH_BUY","EARLY_WATCH_SELL"):
+        label = "صعودی" if a["status"] == "EARLY_WATCH_BUY" else "نزولی"
+        lines += ["🟡 سناریو: رصد زودهنگام " + label,
+                  "⛔ این مورد سیگنال تأییدشده نیست و مجوز ورود محسوب نمی‌شود.",
+                  "💡 " + a["reason"]]
+    elif a["status"]=="WATCH_BUY":
         lines += ["🟢 سناریو: بررسی ورود",
                   "💰 محدوده ورود: {:.2f} تا {:.2f}".format(a["entry_low"],a["entry_high"]),
                   "🛑 حد بی‌اعتباری: {:.2f}".format(a["stop"]),

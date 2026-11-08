@@ -46,3 +46,34 @@ def test_walk_forward_uses_cached_features_and_stays_research_only():
     assert result["predictions"]
     assert result["research_only"] is True
     assert result["live_orders"] is False
+
+
+# Standard-library tests: runnable without pytest.
+import unittest
+
+
+class ForecastMinimumHistoryTests(unittest.TestCase):
+    def test_horizon_60_with_200_bars_has_no_predictions(self):
+        result = walk_forward_forecast(
+            _bars(200),
+            horizon=60,
+            train_window=300,
+            min_train=60,
+            fit_every=10,
+        )
+        self.assertEqual(result["predictions"], [])
+        self.assertFalse(result["available"])
+
+    def test_horizon_60_with_201_bars_starts_at_index_140(self):
+        result = walk_forward_forecast(
+            _bars(201),
+            horizon=60,
+            train_window=300,
+            min_train=60,
+            fit_every=10,
+        )
+        self.assertTrue(result["available"], result)
+        self.assertGreaterEqual(len(result["predictions"]), 1)
+        self.assertEqual(result["predictions"][0]["bar_index"], 140)
+        self.assertTrue(result["research_only"])
+        self.assertFalse(result["live_orders"])

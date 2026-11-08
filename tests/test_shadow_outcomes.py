@@ -69,5 +69,63 @@ class ShadowOutcomeTests(unittest.TestCase):
             self.assertEqual(states["BTC"],"TARGET")
             self.assertEqual(states["ETH"],"OPEN")
 
+
+    def test_stale_price_timestamp_does_not_resolve_signal(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "journal.jsonl"
+            append_signal(p, {
+                "signal_id": "stale-ts",
+                "asset": "BTC",
+                "direction": "BULLISH",
+                "entry_price": 100,
+                "stop": 99,
+                "target": 102,
+                "forecast_ts": 100,
+            })
+            changed = resolve_open_signals(
+                str(p), {"BTC": 102}, now=200, price_timestamp=100
+            )
+            self.assertEqual(changed, 0)
+            row = json.loads(p.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(row["status"], "OPEN")
+
+    def test_non_finite_price_does_not_resolve_signal(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "journal.jsonl"
+            append_signal(p, {
+                "signal_id": "infinite-price",
+                "asset": "BTC",
+                "direction": "BULLISH",
+                "entry_price": 100,
+                "stop": 99,
+                "target": 102,
+            })
+            changed = resolve_open_signals(
+                str(p), {"BTC": float("inf")}, now=200
+            )
+            self.assertEqual(changed, 0)
+            row = json.loads(p.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(row["status"], "OPEN")
+
+
+    def test_old_market_observation_does_not_resolve_signal(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "journal.jsonl"
+            append_signal(p, {
+                "signal_id": "old-observation",
+                "asset": "BTC",
+                "direction": "BULLISH",
+                "entry_price": 100,
+                "stop": 99,
+                "target": 102,
+                "forecast_ts": 100,
+            })
+            changed = resolve_open_signals(
+                str(p), {"BTC": 102}, now=1000, price_timestamp=700
+            )
+            self.assertEqual(changed, 0)
+            row = json.loads(p.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(row["status"], "OPEN")
+
 if __name__=="__main__":
     unittest.main()

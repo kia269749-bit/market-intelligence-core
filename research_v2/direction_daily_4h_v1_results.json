@@ -1,0 +1,295 @@
+{
+  "protocol": "DIRECTION_PROTOCOL_v1",
+  "research_only": true,
+  "live_orders": false,
+  "data_cutoff_exclusive_utc": "2025-01-01T00:00:00Z",
+  "input_sha256": {
+    "data/real_oos_audit/long_history_20261011/BTCUSDT_1d.jsonl": "bd2a91ee7251ee94830a78ba1bd12af6158bf39739a9053358658f926d614df6",
+    "data/real_oos_audit/long_history_20261011/BTCUSDT_4h.jsonl": "6708d8194065278ae0d810cbb4fc4589293eb0ccb3d2156e462294a3079f0f46",
+    "data/real_oos_audit/long_history_20261011/ETHUSDT_1d.jsonl": "c6f8a5b1862fe9dbeffffb7daaed7746e5b4067ce85304a596e1a6f2e86d27d5",
+    "data/real_oos_audit/long_history_20261011/ETHUSDT_4h.jsonl": "34ddd3ea79b78a7bb65063d1b1d1e639eff93801abbd2ee16b8065608a2213e2"
+  },
+  "assets": {
+    "BTCUSDT": {
+      "input_rows_before_cutoff": {
+        "1d": 2192,
+        "4h": 10961
+      },
+      "close_time_boundary_audit": {
+        "1d": {
+          "rows_checked": 2192,
+          "anomaly_count": 0,
+          "anomaly_timestamps_utc": []
+        },
+        "4h": {
+          "rows_checked": 10961,
+          "anomaly_count": 9,
+          "anomaly_timestamps_utc": [
+            "2020-02-19T08:00:00Z",
+            "2020-04-25T00:00:00Z",
+            "2020-06-28T00:00:00Z",
+            "2020-12-21T12:00:00Z",
+            "2021-02-11T00:00:00Z",
+            "2021-04-20T00:00:00Z",
+            "2021-04-25T04:00:00Z",
+            "2021-08-13T00:00:00Z",
+            "2021-09-29T04:00:00Z"
+          ]
+        }
+      },
+      "sample_diagnostics_A_and_B": {
+        "decision_candidates": 1827,
+        "missing_next_daily_candle": 0,
+        "missing_exact_h4_alignment": 1,
+        "exact_zero_returns_excluded": 0,
+        "valid_nonzero_target_samples": 1826
+      },
+      "development_A": {
+        "start_utc": "2020-01-01",
+        "end_utc_exclusive": "2023-01-01",
+        "samples": 1095,
+        "majority_direction": "UP",
+        "majority_up": 561,
+        "majority_down": 534
+      },
+      "evaluation_B": {
+        "start_utc": "2023-01-01",
+        "end_utc_exclusive": "2025-01-01",
+        "target_samples": 731,
+        "methods": {
+          "daily_ema50_200": {
+            "n": 731,
+            "accuracy": 0.5034199726402189,
+            "balanced_accuracy": 0.49132828888222957,
+            "confusion_up_positive": {
+              "TP": 343,
+              "TN": 25,
+              "FP": 330,
+              "FN": 33
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 0,
+            "coverage": 1.0
+          },
+          "h4_ema50_200": {
+            "n": 731,
+            "accuracy": 0.506155950752394,
+            "balanced_accuracy": 0.5014608930176805,
+            "confusion_up_positive": {
+              "TP": 250,
+              "TN": 120,
+              "FP": 235,
+              "FN": 126
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 0,
+            "coverage": 1.0
+          },
+          "combined_agreement": {
+            "n": 459,
+            "accuracy": 0.5076252723311547,
+            "balanced_accuracy": 0.4842780463664395,
+            "confusion_up_positive": {
+              "TP": 229,
+              "TN": 4,
+              "FP": 214,
+              "FN": 12
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 272,
+            "coverage": 0.627906976744186
+          },
+          "training_majority_A": {
+            "n": 731,
+            "accuracy": 0.5143638850889193,
+            "balanced_accuracy": 0.5,
+            "confusion_up_positive": {
+              "TP": 376,
+              "TN": 0,
+              "FP": 355,
+              "FN": 0
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 0,
+            "coverage": 1.0
+          },
+          "persistence": {
+            "n": 731,
+            "accuracy": 0.454172366621067,
+            "balanced_accuracy": 0.45376086305064434,
+            "confusion_up_positive": {
+              "TP": 176,
+              "TN": 156,
+              "FP": 199,
+              "FN": 200
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 0,
+            "coverage": 1.0
+          }
+        }
+      }
+    },
+    "ETHUSDT": {
+      "input_rows_before_cutoff": {
+        "1d": 2192,
+        "4h": 10961
+      },
+      "close_time_boundary_audit": {
+        "1d": {
+          "rows_checked": 2192,
+          "anomaly_count": 0,
+          "anomaly_timestamps_utc": []
+        },
+        "4h": {
+          "rows_checked": 10961,
+          "anomaly_count": 9,
+          "anomaly_timestamps_utc": [
+            "2020-02-19T08:00:00Z",
+            "2020-04-25T00:00:00Z",
+            "2020-06-28T00:00:00Z",
+            "2020-12-21T12:00:00Z",
+            "2021-02-11T00:00:00Z",
+            "2021-04-20T00:00:00Z",
+            "2021-04-25T04:00:00Z",
+            "2021-08-13T00:00:00Z",
+            "2021-09-29T04:00:00Z"
+          ]
+        }
+      },
+      "sample_diagnostics_A_and_B": {
+        "decision_candidates": 1827,
+        "missing_next_daily_candle": 0,
+        "missing_exact_h4_alignment": 1,
+        "exact_zero_returns_excluded": 0,
+        "valid_nonzero_target_samples": 1826
+      },
+      "development_A": {
+        "start_utc": "2020-01-01",
+        "end_utc_exclusive": "2023-01-01",
+        "samples": 1095,
+        "majority_direction": "UP",
+        "majority_up": 581,
+        "majority_down": 514
+      },
+      "evaluation_B": {
+        "start_utc": "2023-01-01",
+        "end_utc_exclusive": "2025-01-01",
+        "target_samples": 731,
+        "methods": {
+          "daily_ema50_200": {
+            "n": 731,
+            "accuracy": 0.4774281805745554,
+            "balanced_accuracy": 0.47223595505617977,
+            "confusion_up_positive": {
+              "TP": 252,
+              "TN": 97,
+              "FP": 259,
+              "FN": 123
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 0,
+            "coverage": 1.0
+          },
+          "h4_ema50_200": {
+            "n": 731,
+            "accuracy": 0.4897400820793434,
+            "balanced_accuracy": 0.4877228464419476,
+            "confusion_up_positive": {
+              "TP": 212,
+              "TN": 146,
+              "FP": 210,
+              "FN": 163
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 0,
+            "coverage": 1.0
+          },
+          "combined_agreement": {
+            "n": 432,
+            "accuracy": 0.4722222222222222,
+            "balanced_accuracy": 0.4667924771075036,
+            "confusion_up_positive": {
+              "TP": 155,
+              "TN": 49,
+              "FP": 162,
+              "FN": 66
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 299,
+            "coverage": 0.5909712722298222
+          },
+          "training_majority_A": {
+            "n": 731,
+            "accuracy": 0.5129958960328317,
+            "balanced_accuracy": 0.5,
+            "confusion_up_positive": {
+              "TP": 375,
+              "TN": 0,
+              "FP": 356,
+              "FN": 0
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 0,
+            "coverage": 1.0
+          },
+          "persistence": {
+            "n": 731,
+            "accuracy": 0.46101231190150477,
+            "balanced_accuracy": 0.4606479400749064,
+            "confusion_up_positive": {
+              "TP": 178,
+              "TN": 159,
+              "FP": 197,
+              "FN": 197
+            },
+            "eligible_target_samples": 731,
+            "no_prediction_count": 0,
+            "coverage": 1.0
+          }
+        }
+      }
+    }
+  },
+  "unweighted_mean_asset_metrics_B": {
+    "daily_ema50_200": {
+      "asset_count": 2,
+      "mean_accuracy": 0.4904240766073871,
+      "mean_balanced_accuracy": 0.48178212196920467,
+      "mean_coverage": 1.0
+    },
+    "h4_ema50_200": {
+      "asset_count": 2,
+      "mean_accuracy": 0.49794801641586867,
+      "mean_balanced_accuracy": 0.49459186972981406,
+      "mean_coverage": 1.0
+    },
+    "combined_agreement": {
+      "asset_count": 2,
+      "mean_accuracy": 0.48992374727668847,
+      "mean_balanced_accuracy": 0.4755352617369716,
+      "mean_coverage": 0.6094391244870041
+    },
+    "training_majority_A": {
+      "asset_count": 2,
+      "mean_accuracy": 0.5136798905608755,
+      "mean_balanced_accuracy": 0.5,
+      "mean_coverage": 1.0
+    },
+    "persistence": {
+      "asset_count": 2,
+      "mean_accuracy": 0.4575923392612859,
+      "mean_balanced_accuracy": 0.45720440156277536,
+      "mean_coverage": 1.0
+    }
+  },
+  "notes": [
+    "No rows at or after the cutoff were loaded into the dataset.",
+    "Canonical candle end is ts + expected interval; source close_time is audit-only.",
+    "Source close_time boundary anomalies are reported per asset and timeframe.",
+    "No synthetic candles were created.",
+    "No strategy profitability was evaluated.",
+    "No confidence intervals are included in this first implementation.",
+    "Combined accuracy is conditional on agreement; inspect coverage."
+  ]
+}

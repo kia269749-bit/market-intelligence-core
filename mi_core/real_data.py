@@ -53,6 +53,12 @@ def rows_to_bars(rows, symbol, now_ms=None):
             volume = float(r[5])
             close_time = int(r[6])
             taker_buy = float(r[9])
+            try:
+                o_, h_, l_ = float(r[1]), float(r[2]), float(r[3])
+                ohlc_ok = (all(isfinite(x) and x > 0 for x in (o_, h_, l_))
+                           and l_ <= min(o_, close_price) and h_ >= max(o_, close_price))
+            except (TypeError, ValueError):
+                ohlc_ok = False
 
             if now_ms is not None and close_time >= int(now_ms):
                 continue
@@ -72,6 +78,9 @@ def rows_to_bars(rows, symbol, now_ms=None):
                 volume=volume,
                 buy_volume=taker_buy,
                 sell_volume=volume - taker_buy,
+                open=o_ if ohlc_ok else None,
+                high=h_ if ohlc_ok else None,
+                low=l_ if ohlc_ok else None,
             ))
         except (TypeError, ValueError, IndexError, OverflowError):
             continue

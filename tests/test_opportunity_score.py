@@ -39,11 +39,54 @@ class OpportunityScoreTests(unittest.TestCase):
         result = score_opportunity(**data)
         self.assertFalse(result["early_watch"])
 
+    def test_unavailable_forecast_cannot_become_opportunity(self):
+        data = self._base()
+        data["forecast"]["available"] = False
+        result = score_opportunity(**data)
+
+        self.assertEqual(result["score"], 0.0)
+        self.assertEqual(result["label"], "NONE")
+        self.assertFalse(result["early_watch"])
+        self.assertEqual(result["reason"], "forecast_unavailable")
+        self.assertTrue(result["research_only"])
+        self.assertFalse(result["live_orders"])
+
     def test_nondirectional_is_not_opportunity(self):
         data = self._base()
         data["forecast"]["direction"] = "FLAT"
         result = score_opportunity(**data)
         self.assertEqual(result["label"], "NONE")
+
+
+    def test_invalid_numeric_inputs_fail_closed(self):
+        cases = (
+            ("confidence", float("nan")),
+            ("confidence", float("inf")),
+            ("expected_return_pct", "bad"),
+            ("expected_return_pct", float("inf")),
+            ("expected_return_pct", -0.1),
+        )
+        for field, bad in cases:
+            data = self._base()
+            data["forecast"][field] = bad
+            result = score_opportunity(**data)
+            self.assertEqual(result["score"], 0.0)
+            self.assertEqual(result["label"], "NONE")
+            self.assertFalse(result["early_watch"])
+            self.assertEqual(result["reason"], "invalid_input")
+
+    def test_invalid_context_and_ranking_fail_closed(self):
+        for target, field, bad in (
+            ("adaptive_context", "agreement", float("nan")),
+            ("adaptive_context", "quality_score", 1.1),
+            ("ranking", "score", "bad"),
+            ("trade_filter", "net_move_pct", float("inf")),
+        ):
+            data = self._base()
+            data[target][field] = bad
+            result = score_opportunity(**data)
+            self.assertEqual(result["label"], "NONE")
+            self.assertEqual(result["reason"], "invalid_input")
 
 
 if __name__ == "__main__":

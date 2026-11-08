@@ -7,20 +7,29 @@ it never creates, approves, or blocks live orders.
 from __future__ import annotations
 
 from collections import defaultdict
+import math
+
+from .costs import BASE_ROUND_TRIP_COST_PCT
+
+
+def _finite_num(v):
+    try:
+        value = float(v)
+        return value if math.isfinite(value) else None
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 def _num(v, default=0.0):
-    try:
-        return float(v)
-    except (TypeError, ValueError):
-        return default
+    value = _finite_num(v)
+    return value if value is not None else default
 
 
 def _directional_rows(result):
     return [
         x for x in result.get("predictions", [])
         if x.get("pred") in (-1, 1)
-        and x.get("actual_return_pct") is not None
+        and _finite_num(x.get("actual_return_pct")) is not None
     ]
 
 
@@ -38,7 +47,7 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.35,
+    round_trip_cost_pct=BASE_ROUND_TRIP_COST_PCT,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
@@ -56,14 +65,15 @@ def diagnose_economic_edge(
     buckets = defaultdict(lambda: {"n": 0, "positive_net": 0, "target4": 0,
                                    "target10": 0, "net_profit_usd": 0.0,
                                    "favorable_mfe_pct": 0.0,
-                                   "adverse_mae_pct": 0.0})
+                                   "adverse_mae_pct": 0.0,
+                                   "mfe_n": 0, "mae_n": 0})
 
     for x in rows:
         pred = int(x["pred"])
         actual = _num(x.get("actual_return_pct"))
         favorable = actual if pred == 1 else -actual
-        mfe = _num(x.get("favorable_mfe_pct"))
-        mae = _num(x.get("adverse_mae_pct"))
+        mfe_value = _finite_num(x.get("favorable_mfe_pct"))
+        mae_value = _finite_num(x.get("adverse_mae_pct"))
         net_pct = favorable - round_trip_cost_pct
         net_usd = capital_usd * net_pct / 100.0
         net_values.append(net_usd)
@@ -71,7 +81,8 @@ def diagnose_economic_edge(
         correct_direction += favorable > 0
         target4 += favorable >= min_required
         target10 += favorable >= preferred_required
-        adverse05 += mae >= 0.50
+        if mae_value is not None:
+            adverse05 += mae_value >= 0.50
         magnitude_limited += favorable > 0 and favorable < min_required
         cost_limited += favorable > 0 and favorable <= round_trip_cost_pct
 
@@ -86,8 +97,12 @@ def diagnose_economic_edge(
         q["target4"] += favorable >= min_required
         q["target10"] += favorable >= preferred_required
         q["net_profit_usd"] += net_usd
-        q["favorable_mfe_pct"] += mfe
-        q["adverse_mae_pct"] += mae
+        if mfe_value is not None:
+            q["favorable_mfe_pct"] += mfe_value
+            q["mfe_n"] += 1
+        if mae_value is not None:
+            q["adverse_mae_pct"] += mae_value
+            q["mae_n"] += 1
 
     def rate(n):
         return round(n / total, 6) if total else 0.0
@@ -101,35 +116,61 @@ def diagnose_economic_edge(
             "usd4_hit_rate": round(q["target4"] / n, 6),
             "usd10_hit_rate": round(q["target10"] / n, 6),
             "net_profit_usd": round(q["net_profit_usd"], 4),
-            "avg_favorable_mfe_pct": round(q["favorable_mfe_pct"] / n, 6),
-            "avg_adverse_mae_pct": round(q["adverse_mae_pct"] / n, 6),
+            "mfe_samples": q["mfe_n"],
+            "mae_samples": q["mae_n"],
+            "avg_favorable_mfe_pct": round(
+                q["favorable_mfe_pct"] / q["mfe_n"], 6
+            ) if q["mfe_n"] else None,
+            "avg_adverse_mae_pct": round(
+                q["adverse_mae_pct"] / q["mae_n"], 6
+            ) if q["mae_n"] else None,
         }
 
+    valid_mfe_rows = [
+        x for x in rows
+        if _finite_num(x.get("favorable_mfe_pct")) is not None
+    ]
+    valid_mae_rows = [
+        x for x in rows
+        if _finite_num(x.get("adverse_mae_pct")) is not None
+    ]
     positive_mfe_but_missed4 = sum(
-        _num(x.get("favorable_mfe_pct")) >= min_required
+        _finite_num(x.get("favorable_mfe_pct")) >= min_required
         and (
             (_num(x.get("actual_return_pct")) if x["pred"] == 1
              else -_num(x.get("actual_return_pct")))
             < min_required
         )
-        for x in rows
+        for x in valid_mfe_rows
     )
 
     return {
         "available": bool(rows),
         "samples": total,
+        "mfe_samples": len(valid_mfe_rows),
+        "mae_samples": len(valid_mae_rows),
         "direction_correct_rate": rate(correct_direction),
         "usd4_hit_rate": rate(target4),
         "usd10_hit_rate": rate(target10),
         "positive_net_rate": rate(sum(v > 0 for v in net_values)),
         "net_profit_usd": round(sum(net_values), 4),
         "expectancy_usd": round(sum(net_values) / total, 4) if total else 0.0,
-        "avg_favorable_mfe_pct": round(sum(_num(x.get("favorable_mfe_pct")) for x in rows) / total, 6) if total else 0.0,
-        "avg_adverse_mae_pct": round(sum(_num(x.get("adverse_mae_pct")) for x in rows) / total, 6) if total else 0.0,
-        "adverse_0_50_rate": rate(adverse05),
+        "avg_favorable_mfe_pct": round(
+            sum(_finite_num(x.get("favorable_mfe_pct")) for x in valid_mfe_rows)
+            / len(valid_mfe_rows), 6
+        ) if valid_mfe_rows else None,
+        "avg_adverse_mae_pct": round(
+            sum(_finite_num(x.get("adverse_mae_pct")) for x in valid_mae_rows)
+            / len(valid_mae_rows), 6
+        ) if valid_mae_rows else None,
+        "adverse_0_50_rate": round(
+            adverse05 / len(valid_mae_rows), 6
+        ) if valid_mae_rows else 0.0,
         "direction_correct_but_below_usd4": rate(magnitude_limited),
         "positive_move_lost_to_cost_rate": rate(cost_limited),
-        "mfe_reached_usd4_but_horizon_end_missed_rate": rate(positive_mfe_but_missed4),
+        "mfe_reached_usd4_but_horizon_end_missed_rate": round(
+            positive_mfe_but_missed4 / len(valid_mfe_rows), 6
+        ) if valid_mfe_rows else 0.0,
         "late_entry_proxy_rate": rate(late_proxy),
         "confidence_buckets": bucket_out,
         "thresholds": {
@@ -142,7 +183,7 @@ def diagnose_economic_edge(
         "diagnostic_hypotheses": _hypotheses(
             total, correct_direction, target4, target10,
             magnitude_limited, cost_limited, positive_mfe_but_missed4,
-            late_proxy, bucket_out
+            len(valid_mfe_rows), late_proxy, bucket_out
         ),
         "research_only": True,
         "live_orders": False,
@@ -150,7 +191,7 @@ def diagnose_economic_edge(
 
 
 def _hypotheses(total, correct, target4, target10, magnitude_limited,
-                cost_limited, mfe_missed, late_proxy, buckets):
+                cost_limited, mfe_missed, mfe_samples, late_proxy, buckets):
     if not total:
         return ["insufficient_directional_oos_rows"]
 
@@ -161,7 +202,7 @@ def _hypotheses(total, correct, target4, target10, magnitude_limited,
         h.append("direction_correct_but_move_too_small_for_usd4")
     if cost_limited / total >= 0.05:
         h.append("some_positive_moves_are_consumed_by_costs")
-    if mfe_missed / total >= 0.10:
+    if mfe_samples > 0 and mfe_missed / mfe_samples >= 0.10:
         h.append("path_reached_usd4_but_horizon_end_did_not_hold_it")
     if late_proxy / total >= 0.20:
         h.append("possible_late_entry_timing_issue")
