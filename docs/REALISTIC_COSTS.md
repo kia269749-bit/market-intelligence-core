@@ -36,3 +36,12 @@ These are modeling assumptions, not claims about any specific exchange's current
 ## Next step
 
 The next validation stage will add chronological train/test and walk-forward/OOS evaluation. Cost assumptions must be fixed from the training specification and applied unchanged to the corresponding OOS period unless a documented scenario test is being run.
+
+
+## Relationship to the locked v4 policy
+
+The 11 bps default above is an itemized research scenario (5+2+3+1 bps).
+It is **not** the locked v4 flat round-trip policy. The v4 evaluator uses
+0.15% base and 0.45% strict round-trip scenarios from `mi_core.cost_policy`.
+Never add the itemized 11 bps estimate to either fixed v4 rate. Do not describe
+the generic bps defaults as verified Hyperliquid account fees or actual fills.
