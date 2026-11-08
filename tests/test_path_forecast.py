@@ -55,9 +55,20 @@ class TestPathForecast(unittest.TestCase):
         result = path_to_economic_opportunity(p, capital_usd=500.0)
         self.assertIn("best", result)
         self.assertEqual(result["capital_usd"], 500.0)
+        self.assertEqual(result["round_trip_cost_pct"], 0.15)
         self.assertTrue(result["research_only"])
         self.assertFalse(result["live_orders"])
         self.assertTrue(all(r["tier"] in {"STRONG", "VIABLE", "WATCH", "REJECT"} for r in result["horizons"]))
+
+    def test_strict_cost_mode_uses_central_policy(self):
+        p = forecast_path(self._bars())
+        result = path_to_economic_opportunity(p, cost_mode="strict")
+        self.assertEqual(result["round_trip_cost_pct"], 0.45)
+
+    def test_explicit_cost_override_remains_available(self):
+        p = forecast_path(self._bars())
+        result = path_to_economic_opportunity(p, round_trip_cost_pct=0.35)
+        self.assertEqual(result["round_trip_cost_pct"], 0.35)
 
 
 if __name__ == "__main__":
