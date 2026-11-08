@@ -1,5 +1,5 @@
 import unittest
-from mi_core.kronos_adapter import KronosConfig, validate_ohlcv_bars, summarize_scenarios
+from mi_core.kronos_adapter import KronosConfig, validate_ohlcv_bars, validate_bar_interval, summarize_scenarios
 from mi_core.models import MarketBar
 
 
@@ -39,6 +39,15 @@ class KronosAdapterTests(unittest.TestCase):
                              open=111.5, high=113.0, low=111.0)
         with self.assertRaisesRegex(ValueError, "timestamps_not_strictly_increasing"):
             validate_ohlcv_bars(rows)
+
+    def test_irregular_bar_intervals_are_rejected(self):
+        rows = self._bars()
+        with self.assertRaisesRegex(ValueError, "irregular_bar_interval"):
+            validate_bar_interval(rows, 60)
+
+    def test_expected_bar_interval_is_accepted(self):
+        rows = self._bars()
+        validate_bar_interval(rows, 60)
 
     def test_inconsistent_ohlc_is_rejected(self):
         rows = self._bars()
