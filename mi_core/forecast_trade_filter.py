@@ -13,7 +13,7 @@ def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
                       preferred_profit_usd=10.0, min_confidence=None,
                       exchange="hyperliquid_perps", order_type="taker",
                       regime="UNKNOWN", quality_score=1.0, agreement=1.0,
-                      leader_follower=False):
+                      leader_follower=False, cost_mode="base"):
     if not forecast.get("available"):
         return {"approved": False, "status": "NO_TRADE", "reason": "forecast_unavailable",
                 "research_only": True, "live_orders": False}
@@ -39,7 +39,7 @@ def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
     economics = evaluate_capital_target(
         signed_move, capital_usd=capital_usd, min_profit_usd=min_profit_usd,
         preferred_profit_usd=preferred_profit_usd, exchange=exchange,
-        order_type=order_type)
+        order_type=order_type, cost_mode=cost_mode)
     status = "NO_TRADE"
     if economics.approved:
         status = "STRONG" if policy["status"] == "STRONG" and economics.tier == "STRONG" else "WATCH"
@@ -53,6 +53,7 @@ def evaluate_forecast(forecast, capital_usd=500.0, min_profit_usd=4.0,
         "modeled_profit_usd": economics.modeled_profit_usd,
         "net_move_pct": economics.net_move_pct,
         "round_trip_cost_pct": economics.round_trip_cost_pct,
+        "cost_mode": cost_mode,
         "required_move_pct": economics.required_move_pct,
         "preferred_required_move_pct": economics.preferred_required_move_pct,
         "reason": economics.reason,
