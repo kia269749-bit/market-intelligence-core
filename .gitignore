@@ -3,3 +3,13 @@ __pycache__/
 .venv/
 data/
 reports/
+
+# Local secrets and private credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.keystore
+*.jks
