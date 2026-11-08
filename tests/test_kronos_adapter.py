@@ -42,6 +42,8 @@ class KronosAdapterTests(unittest.TestCase):
 
     def test_irregular_bar_intervals_are_rejected(self):
         rows = self._bars()
+        rows[12] = MarketBar(ts=rows[11].ts + 1800, symbol="BTC", price=112.0,
+                            open=111.5, high=113.0, low=111.0)
         with self.assertRaisesRegex(ValueError, "irregular_bar_interval"):
             validate_bar_interval(rows, 60)
 
