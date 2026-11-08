@@ -2,6 +2,21 @@
 from __future__ import annotations
 import math, statistics
 from .models import MarketBar
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
+
+
+def _data_coverage(bars):
+    total = len(bars)
+    if not total:
+        return {"samples": 0, "oi": {"present": 0, "coverage": 0.0},
+                "funding": {"present": 0, "coverage": 0.0}}
+    oi_present = sum(b.oi is not None for b in bars)
+    funding_present = sum(b.funding is not None for b in bars)
+    return {
+        "samples": total,
+        "oi": {"present": oi_present, "coverage": round(oi_present / total, 6)},
+        "funding": {"present": funding_present, "coverage": round(funding_present / total, 6)},
+    }
 
 
 def _ret(a, b):
@@ -19,9 +34,10 @@ def _feat(bars, i):
         sell = float(b.sell_volume or 0)
         den = buy + sell
         flow.append((buy - sell) / den if den else 0)
-    oi = 0
-    if bars[i].oi is not None and bars[i - 1].oi not in (None, 0):
-        oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1
+    oi_available = bars[i].oi is not None and bars[i - 1].oi not in (None, 0)
+    oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1 if oi_available else 0.0
+    funding_available = bars[i].funding is not None
+    funding = float(bars[i].funding) if funding_available else 0.0
     return [
         sum(rs[-5:]) / vol,
         sum(rs[-10:]) / (vol * 2 ** .5),
@@ -29,8 +45,10 @@ def _feat(bars, i):
         sum(flow[-5:]) / 5,
         sum(flow[-20:]) / 20,
         oi * 100,
-        float(bars[i].funding or 0) * 10000,
+        funding * 10000,
         vol,
+        float(oi_available),
+        float(funding_available),
     ]
 
 
@@ -83,19 +101,22 @@ def _feature_cache(bars):
             start = max(0, i - window + 1)
             return prefix_f[i + 1] - prefix_f[start]
 
-        oi = 0.0
-        if bars[i].oi is not None and bars[i - 1].oi not in (None, 0):
-            oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1
+        oi_available = bars[i].oi is not None and bars[i - 1].oi not in (None, 0)
+        oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1 if oi_available else 0.0
+        funding_available = bars[i].funding is not None
+        funding = float(bars[i].funding) if funding_available else 0.0
 
         out[i] = [
             rsum(5) / vol,
             rsum(10) / (vol * 2 ** .5),
-            rsum(20) / (vol * 4),
+            rsum(20) / 20,
             fsum(5) / 5,
             fsum(20) / 20,
             oi * 100,
-            float(bars[i].funding or 0) * 10000,
+            funding * 10000,
             vol,
+            float(oi_available),
+            float(funding_available),
         ]
     return out
 
@@ -221,6 +242,7 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         "accuracy": round(correct / resolved, 6) if resolved else 0,
         "predictions": preds,
         "model_version": "wf-logit-v3-no-leak",
+        "feature_data_coverage": _data_coverage(bars),
         "research_only": True,
         "live_orders": False,
     }
@@ -267,6 +289,7 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
         "breakout_probability": round(breakout, 4),
         "current_move_pct": round(current_move_pct, 4),
         "model_version": "wf-logit-v2",
+        "feature_data_coverage": _data_coverage(bars),
         "research_only": True,
         "live_orders": False,
     }
@@ -333,8 +356,23 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
     }
 
 
-def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
-    """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
+def score_capital_targets(
+    result,
+    capital_usd=500.0,
+    min_profit_usd=4.0,
+    preferred_profit_usd=10.0,
+    *,
+    cost_mode="base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
+    round_trip_cost_pct=None,
+):
+    """Score OOS outcomes against net targets using the shared v4 cost policy.
+
+    round_trip_cost_pct is an explicit sensitivity override only.
+    """
+    round_trip_cost_pct = resolve_round_trip_cost_pct(
+        cost_mode, cost_policy, override=round_trip_cost_pct
+    )
     rows = [
         x for x in result.get("predictions", [])
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
