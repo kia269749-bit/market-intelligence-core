@@ -21,6 +21,24 @@ Kronos requires explicit, completed OHLC bars. Project60 price-only snapshots ar
 3. Download model weights only after choosing a checkpoint and checking storage/RAM.
 4. Configure `KronosConfig(repo_path=...)` with the local upstream checkout path.
 
+## Optional Market Brain invocation
+
+After the upstream checkout and optional dependencies are installed, enable the evidence-only integration explicitly:
+
+```bash
+KRONOS_REPO_PATH="$HOME/Kronos" python -m mi_core.cli live-all \
+  --project60-file data/project60.jsonl \
+  --kronos-enabled \
+  --kronos-model NeoQuasar/Kronos-mini \
+  --kronos-scenarios 20 \
+  --kronos-batch-size 2 \
+  --kronos-pred-len 24 \
+  --kronos-interval-minutes 60
+```
+
+The CLI defaults to Kronos disabled. If the Project60 file contains only snapshot prices and lacks explicit open/high/low/close fields, the adapter reports unavailable and does not invent candle values. The current Market Brain displays Kronos output separately; it does not use it to make the system actionable.
+
+
 Do not install PyTorch into the user's existing Termux environment as part of this code change. Benchmark on a disposable environment first; CPU inference may be slow and Android/PyTorch wheel support varies.
 
 ## Brain integration boundary
