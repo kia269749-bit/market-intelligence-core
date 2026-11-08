@@ -295,11 +295,38 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
     }
 
 
+def non_overlapping_predictions(result, require_actual=False):
+    """Select one forecast every horizon bars to reduce overlapping outcomes."""
+    rows = [
+        row for row in result.get("predictions", [])
+        if row.get("actual") is not None or row.get("actual_return_pct") is not None
+    ]
+    rows.sort(key=lambda row: row.get("ts", 0))
+    horizon = max(1, int(result.get("horizon_bars", 1) or 1))
+    sampled = rows[::horizon]
+    return [
+        row for row in sampled if row.get("actual") is not None
+    ] if require_actual else sampled
+
+
 def score_predictions(result):
-    """Compute OOS accuracy, per-class precision/recall and confidence calibration."""
-    rows = [x for x in result.get("predictions", []) if x.get("actual") is not None]
+    """Score non-overlapping OOS forecasts; expose all-bar accuracy diagnostically."""
+    all_rows = [
+        row for row in result.get("predictions", [])
+        if row.get("actual") is not None
+    ]
+    rows = non_overlapping_predictions(result, require_actual=True)
     if not rows:
-        return {"resolved": 0, "accuracy": 0.0, "precision": {}, "recall": {}, "high_conf_accuracy": 0.0}
+        return {
+            "resolved": 0,
+            "all_forecasts": len(all_rows),
+            "accuracy": 0.0,
+            "all_forecast_accuracy": 0.0,
+            "precision": {},
+            "recall": {},
+            "high_conf_samples": 0,
+            "high_conf_accuracy": 0.0,
+        }
     metrics = {}
     for c in (-1, 0, 1):
         tp = sum(x["pred"] == c and x["actual"] == c for x in rows)
@@ -310,11 +337,17 @@ def score_predictions(result):
             "recall": round(tp / (tp + fn), 6) if tp + fn else 0.0,
         }
     correct = sum(x["pred"] == x["actual"] for x in rows)
-    high = [x for x in rows if max(x["p_up"], x["p_flat"], x["p_down"]) >= .70]
+    high = [
+        x for x in rows
+        if max(x["p_up"], x["p_flat"], x["p_down"]) >= .70
+    ]
     high_correct = sum(x["pred"] == x["actual"] for x in high)
+    all_correct = sum(x["pred"] == x["actual"] for x in all_rows)
     return {
         "resolved": len(rows),
+        "all_forecasts": len(all_rows),
         "accuracy": round(correct / len(rows), 6),
+        "all_forecast_accuracy": round(all_correct / len(all_rows), 6) if all_rows else 0.0,
         "precision": {k: v["precision"] for k, v in metrics.items()},
         "recall": {k: v["recall"] for k, v in metrics.items()},
         "high_conf_samples": len(high),
@@ -374,7 +407,7 @@ def score_capital_targets(
         cost_mode, cost_policy, override=round_trip_cost_pct
     )
     rows = [
-        x for x in result.get("predictions", [])
+        x for x in non_overlapping_predictions(result)
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
     ]
     min_move = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
@@ -388,6 +421,7 @@ def score_capital_targets(
         preferred_hits += favorable >= preferred_move
     return {
         "resolved_directional": directional,
+        "all_forecasts": len(result.get("predictions", [])),
         "min_profit_usd": min_profit_usd,
         "preferred_profit_usd": preferred_profit_usd,
         "round_trip_cost_pct": round_trip_cost_pct,
