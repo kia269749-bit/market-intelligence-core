@@ -12,6 +12,7 @@ import math
 import os
 from pathlib import Path
 import sys
+import statistics
 from typing import Iterable, Sequence
 
 from .models import MarketBar
@@ -252,7 +253,7 @@ def forecast_kronos(
         "scenario_count": len(paths),
         "scenario_up_fraction": round(up_fraction, 4),
         "scenario_return_p10_pct": round(sorted(returns)[max(0, math.floor((len(returns)-1)*0.10))], 4),
-        "scenario_return_median_pct": round(sorted(returns)[(len(returns)-1)//2], 4),
+        "scenario_return_median_pct": round(statistics.median(returns), 4),
         "scenario_return_p90_pct": round(sorted(returns)[min(len(returns)-1, math.ceil((len(returns)-1)*0.90))], 4),
         "paths": paths,
         "summary": summary["summary"],
