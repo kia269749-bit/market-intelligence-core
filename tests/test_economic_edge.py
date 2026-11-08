@@ -37,6 +37,27 @@ class EconomicEdgeTests(unittest.TestCase):
         self.assertIn("0.60-0.69", result["confidence_buckets"])
         self.assertGreater(result["confidence_buckets"]["0.80+"]["net_profit_usd"], 0.0)
 
+    def test_economic_edge_uses_non_overlapping_horizon_rows(self):
+        predictions = [
+            {
+                "ts": i,
+                "pred": 1,
+                "actual_return_pct": 1.0,
+                "favorable_mfe_pct": 1.0,
+                "adverse_mae_pct": 0.1,
+                "p_up": 0.8,
+                "p_flat": 0.1,
+                "p_down": 0.1,
+            }
+            for i in range(10)
+        ]
+        result = diagnose_economic_edge({
+            "horizon_bars": 5,
+            "predictions": predictions,
+        })
+        self.assertEqual(result["samples"], 2)
+        self.assertEqual(result["all_forecasts"], 10)
+
     def test_strict_cost_mode_is_reflected_in_thresholds(self):
         result = diagnose_economic_edge({"predictions": []}, cost_mode="strict")
         self.assertEqual(result["thresholds"]["round_trip_cost_pct"], 0.45)
