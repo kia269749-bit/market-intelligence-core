@@ -59,6 +59,3 @@ class KronosAdapterTests(unittest.TestCase):
         self.assertEqual(result["summary"][0]["close_p10"], 102.0)
         self.assertEqual(result["summary"][0]["close_p90"], 118.0)
 
-
-if __ ():
-    pass
