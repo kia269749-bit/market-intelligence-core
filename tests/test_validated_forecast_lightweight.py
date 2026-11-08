@@ -40,7 +40,7 @@ def test_walk_forward_uses_cached_features_and_stays_research_only():
     result = walk_forward_forecast(
         _bars(),
         horizon=5,
-        train_window=60,
+        train_window=100,
         min_train=60,
         fit_every=10,
     )
