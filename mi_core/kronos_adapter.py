@@ -137,7 +137,10 @@ def load_project60_ohlc(path: str, asset: str = "BTC", max_rows: int = 800) -> l
                 coins = {str(item.get("coin")): item for item in coins if isinstance(item, dict)}
             item = coins.get(asset) or coins.get(asset.upper())
             if not isinstance(item, dict):
-                continue
+                record_symbol = str(record.get("symbol") or record.get("coin") or "").upper()
+                if record_symbol and record_symbol not in (asset.upper(), asset.upper() + "USDT"):
+                    continue
+                item = record
             candle = item.get("ohlcv") or item.get("ohlc") or item.get("candle") or item
             if not isinstance(candle, dict):
                 continue
@@ -150,7 +153,7 @@ def load_project60_ohlc(path: str, asset: str = "BTC", max_rows: int = 800) -> l
                     close = item.get("price")
             if any(candle.get(key) is None for key in ("open", "high", "low")) or close is None:
                 continue
-            timestamp = record.get("timestamp", item.get("timestamp", item.get("ts")))
+            timestamp = record.get("timestamp", record.get("ts", item.get("timestamp", item.get("ts"))))
             if timestamp is None:
                 continue
             trades = item.get("trades") or {}
