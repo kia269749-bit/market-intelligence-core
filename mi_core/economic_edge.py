@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
+
 
 def _num(v, default=0.0):
     try:
@@ -38,12 +40,22 @@ def _bucket(confidence):
 def diagnose_economic_edge(
     result,
     capital_usd=500.0,
-    round_trip_cost_pct=0.35,
+    round_trip_cost_pct=None,
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     late_move_threshold_pct=0.50,
+    *,
+    cost_mode="base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
 ):
-    """Explain where OOS economics succeed or fail."""
+    """Explain OOS economics under the centralized cost policy.
+
+    An explicit round_trip_cost_pct is retained for clearly labeled sensitivity
+    scenarios; otherwise base (0.15%) or strict (0.45%) is resolved centrally.
+    """
+    round_trip_cost_pct = resolve_round_trip_cost_pct(
+        cost_mode, cost_policy, override=round_trip_cost_pct
+    )
     rows = _directional_rows(result)
     min_required = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
     preferred_required = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
@@ -135,6 +147,8 @@ def diagnose_economic_edge(
         "thresholds": {
             "capital_usd": capital_usd,
             "round_trip_cost_pct": round_trip_cost_pct,
+            "cost_mode": cost_mode,
+            "cost_policy_version": cost_policy.version,
             "usd4_required_move_pct": round(min_required, 4),
             "usd10_required_move_pct": round(preferred_required, 4),
             "late_move_threshold_pct": late_move_threshold_pct,
