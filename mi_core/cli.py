@@ -1,4 +1,4 @@
-import argparse,json,math,time
+import argparse,json,math,time,os
 from pathlib import Path
 from .models import MarketBar
 from .storage import append_jsonl,load_bars
@@ -24,6 +24,7 @@ from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
 from .cost_policy import DEFAULT_COST_POLICY
+from .kronos_adapter import KronosConfig, forecast_kronos, load_project60_ohlc
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -220,7 +221,7 @@ def main():
     pv=sp.add_parser("forecast-project60"); pv.add_argument("--input",required=True); pv.add_argument("--asset",default="BTC"); pv.add_argument("--horizon",type=int,default=60); pv.add_argument("--max-rows",type=int,default=800); pv.add_argument("--cost-mode",choices=("base","strict"),default="base"); pv.add_argument("--out")
     ms=sp.add_parser("forecast-scan"); ms.add_argument("--input",required=True); ms.add_argument("--top",type=int,default=5); ms.add_argument("--horizon",type=int,default=60); ms.add_argument("--max-rows",type=int,default=800); ms.add_argument("--cost-mode",choices=("base","strict"),default="base"); ms.add_argument("--out")
     sr=sp.add_parser("shadow-report"); sr.add_argument("--journal",required=True)
-    z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default="")
+    z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default=""); z.add_argument("--kronos-enabled",action="store_true",help="run optional Kronos OHLCV model as evidence only"); z.add_argument("--kronos-repo-path",default=os.environ.get("KRONOS_REPO_PATH","")); z.add_argument("--kronos-model",default="NeoQuasar/Kronos-mini"); z.add_argument("--kronos-tokenizer",default=""); z.add_argument("--kronos-pred-len",type=int,default=24); z.add_argument("--kronos-interval-minutes",type=int,default=60); z.add_argument("--kronos-scenarios",type=int,default=20); z.add_argument("--kronos-batch-size",type=int,default=4); z.add_argument("--kronos-device",default="cpu")
     x=ap.parse_args()
     if x.cmd=="demo": demo(x.out)
     elif x.cmd=="shadow-report": print(json.dumps(summarize_performance(x.journal),indent=2,ensure_ascii=False))
@@ -270,7 +271,27 @@ def main():
                     mtf=fetch_multi_timeframe("BTCUSDT")
                 except Exception as exc:
                     mtf={"available":False,"reason":"multi_timeframe_error:"+str(exc)[:120],"research_only":True,"live_orders":False}
-            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context,mtf)
+                        kronos=None
+            if x.kronos_enabled:
+                try:
+                    if not x.project60_file:
+                        raise ValueError("project60_file_required")
+                    model_name=x.kronos_model
+                    is_mini=model_name.endswith("-mini")
+                    tokenizer_name=x.kronos_tokenizer or ("NeoQuasar/Kronos-Tokenizer-2k" if is_mini else "NeoQuasar/Kronos-Tokenizer-base")
+                    max_context=2048 if is_mini else 512
+                    kronos_bars=load_project60_ohlc(x.project60_file,"BTC",max_rows=800)
+                    kronos_config=KronosConfig(
+                        repo_path=x.kronos_repo_path, model_name=model_name,
+                        tokenizer_name=tokenizer_name, max_context=max_context,
+                        pred_len=x.kronos_pred_len, interval_minutes=x.kronos_interval_minutes,
+                        scenario_count=x.kronos_scenarios, batch_size=x.kronos_batch_size,
+                        device=x.kronos_device)
+                    kronos=forecast_kronos(kronos_bars,kronos_config)
+                except Exception as exc:
+                    kronos={"available":False,"reason":"{}:{}".format(type(exc).__name__,str(exc)[:180]),
+                            "research_only":True,"live_orders":False}
+            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context,mtf,kronos_forecast=kronos)
             if x.outcome_journal:
                 fc=snap.get("evidence",{}).get("forecast",{})
                 selected=fc.get("selected") if isinstance(fc,dict) else {}
