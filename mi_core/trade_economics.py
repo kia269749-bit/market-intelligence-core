@@ -1,5 +1,14 @@
-"""Capital-aware exchange economics for research signals."""
+"""Capital-aware exchange economics for research signals.
+
+The default uses the centralized v4 fixed round-trip cost policy. The older
+venue-component estimate remains available only via cost_mode='exchange_profile'
+as an explicitly named sensitivity scenario.
+"""
 from dataclasses import dataclass
+import math
+
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
+
 
 @dataclass(frozen=True)
 class ExchangeProfile:
@@ -9,10 +18,12 @@ class ExchangeProfile:
     spread_bps: float = 5.0
     slippage_bps: float = 8.0
 
+
 PROFILES = {
     "hyperliquid_perps": ExchangeProfile("hyperliquid_perps", 4.5, 1.5),
     "binance_spot_regular": ExchangeProfile("binance_spot_regular", 10.0, 10.0),
 }
+
 
 @dataclass(frozen=True)
 class CapitalTarget:
@@ -29,30 +40,75 @@ class CapitalTarget:
     preferred_required_move_pct: float
     reason: str
 
-def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
-                            min_profit_usd=4.0, preferred_profit_usd=10.0,
-                            exchange="hyperliquid_perps", order_type="taker",
-                            spread_bps=None, slippage_bps=None):
-    if capital_usd <= 0 or min_profit_usd <= 0 or preferred_profit_usd < min_profit_usd:
-        return CapitalTarget(False, "REJECT", capital_usd, min_profit_usd, preferred_profit_usd,
-                             expected_move_pct, 0, 0, 0, 0, 0, "invalid_policy")
-    p = PROFILES[exchange]
-    fee = p.maker_fee_bps if str(order_type).lower() == "maker" else p.taker_fee_bps
-    spread = p.spread_bps if spread_bps is None else float(spread_bps)
-    slip = p.slippage_bps if slippage_bps is None else float(slippage_bps)
-    cost = 2.0 * (fee + spread + slip) / 100.0
-    net = float(expected_move_pct) - cost
-    min_net_pct = min_profit_usd / capital_usd * 100.0
-    preferred_net_pct = preferred_profit_usd / capital_usd * 100.0
+
+def evaluate_capital_target(
+    expected_move_pct,
+    capital_usd=500.0,
+    min_profit_usd=4.0,
+    preferred_profit_usd=10.0,
+    exchange="hyperliquid_perps",
+    order_type="taker",
+    spread_bps=None,
+    slippage_bps=None,
+    *,
+    cost_mode="base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
+    round_trip_cost_pct=None,
+):
+    """Evaluate net capital targets under one explicit cost scenario.
+
+    cost_mode='base' (default) and 'strict' use the shared v4 policy.
+    cost_mode='exchange_profile' opts into the legacy fee/spread/slippage
+    estimate. round_trip_cost_pct is an explicit scenario override.
+    """
+    try:
+        capital = float(capital_usd)
+        minimum = float(min_profit_usd)
+        preferred = float(preferred_profit_usd)
+        expected = float(expected_move_pct)
+    except (TypeError, ValueError):
+        capital = minimum = preferred = expected = float("nan")
+
+    if (
+        not all(math.isfinite(x) for x in (capital, minimum, preferred, expected))
+        or capital <= 0 or minimum <= 0 or preferred < minimum
+    ):
+        return CapitalTarget(
+            False, "REJECT", capital_usd, min_profit_usd, preferred_profit_usd,
+            expected_move_pct, 0, 0, 0, 0, 0, "invalid_policy_or_forecast",
+        )
+
+    if round_trip_cost_pct is not None:
+        cost = resolve_round_trip_cost_pct(cost_mode, cost_policy, round_trip_cost_pct)
+    elif cost_mode in ("base", "strict"):
+        cost = resolve_round_trip_cost_pct(cost_mode, cost_policy)
+    elif cost_mode == "exchange_profile":
+        if exchange not in PROFILES:
+            raise ValueError(f"unknown exchange profile: {exchange}")
+        profile = PROFILES[exchange]
+        fee = profile.maker_fee_bps if str(order_type).lower() == "maker" else profile.taker_fee_bps
+        spread = profile.spread_bps if spread_bps is None else float(spread_bps)
+        slip = profile.slippage_bps if slippage_bps is None else float(slippage_bps)
+        if not all(math.isfinite(x) and x >= 0 for x in (fee, spread, slip)):
+            raise ValueError("exchange cost components must be finite and non-negative")
+        cost = 2.0 * (fee + spread + slip) / 100.0
+    else:
+        raise ValueError("cost_mode must be 'base', 'strict', or 'exchange_profile'")
+
+    net = expected - cost
+    min_net_pct = minimum / capital * 100.0
+    preferred_net_pct = preferred / capital * 100.0
     required = min_net_pct + cost
     preferred_required = preferred_net_pct + cost
-    profit = capital_usd * net / 100.0
+    profit = capital * net / 100.0
     if net >= preferred_net_pct:
         tier, approved, reason = "STRONG", True, "preferred_usd10_target_passed"
     elif net >= min_net_pct:
         tier, approved, reason = "WATCH", True, "minimum_usd4_target_passed"
     else:
         tier, approved, reason = "REJECT", False, "expected_move_below_usd4_after_costs"
-    return CapitalTarget(approved, tier, capital_usd, min_profit_usd, preferred_profit_usd,
-                         float(expected_move_pct), round(cost, 4), round(net, 4),
-                         round(profit, 2), round(required, 4), round(preferred_required, 4), reason)
+    return CapitalTarget(
+        approved, tier, capital, minimum, preferred, expected, round(cost, 4),
+        round(net, 4), round(profit, 2), round(required, 4),
+        round(preferred_required, 4), reason,
+    )

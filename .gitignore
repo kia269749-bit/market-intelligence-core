@@ -3,3 +3,21 @@ __pycache__/
 .venv/
 data/
 reports/
+
+# Local secrets, credentials, and private backups
+.env
+.env.*
+!.env.example
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.tgz
+*.tar.gz
+*.sqlite
+*.sqlite3
+*.db

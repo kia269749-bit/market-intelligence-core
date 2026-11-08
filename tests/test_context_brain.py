@@ -12,7 +12,10 @@ def _bars(symbol, prices, start=1_700_000_000_000):
 def test_context_detects_positive_negative_relationships_and_breadth():
     btc = [100 + i for i in range(30)]
     eth = [50 + 2 * i for i in range(30)]
-    xrp = [100 - i for i in range(30)]
+    xrp = [100.0]
+    for i in range(29):
+        btc_return = (100 + i + 1) / (100 + i)
+        xrp.append(xrp[-1] / btc_return)
     doge = [20 + (i if i % 2 else -i * 0.1) for i in range(30)]
     out = analyze_market_context(
         {"BTC": _bars("BTC", btc), "ETH": _bars("ETH", eth),

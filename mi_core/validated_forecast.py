@@ -2,6 +2,45 @@
 from __future__ import annotations
 import math, statistics
 from .models import MarketBar
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
+
+
+def _coverage_status(coverage):
+    if coverage <= 0:
+        return "MISSING"
+    if coverage >= 0.95:
+        return "AVAILABLE"
+    return "PARTIAL"
+
+
+def _data_coverage(bars):
+    total = len(bars)
+    if not total:
+        return {
+            "samples": 0,
+            "oi": {"present": 0, "coverage": 0.0, "status": "MISSING"},
+            "funding": {"present": 0, "coverage": 0.0, "status": "MISSING"},
+        }
+    oi_present = sum(
+        i > 0 and bar.oi is not None and bars[i - 1].oi not in (None, 0)
+        for i, bar in enumerate(bars)
+    )
+    funding_present = sum(bar.funding is not None for bar in bars)
+    oi_coverage = oi_present / total
+    funding_coverage = funding_present / total
+    return {
+        "samples": total,
+        "oi": {
+            "present": oi_present,
+            "coverage": round(oi_coverage, 6),
+            "status": _coverage_status(oi_coverage),
+        },
+        "funding": {
+            "present": funding_present,
+            "coverage": round(funding_coverage, 6),
+            "status": _coverage_status(funding_coverage),
+        },
+    }
 
 
 def _ret(a, b):
@@ -19,9 +58,10 @@ def _feat(bars, i):
         sell = float(b.sell_volume or 0)
         den = buy + sell
         flow.append((buy - sell) / den if den else 0)
-    oi = 0
-    if bars[i].oi is not None and bars[i - 1].oi not in (None, 0):
-        oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1
+    oi_available = bars[i].oi is not None and bars[i - 1].oi not in (None, 0)
+    oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1 if oi_available else 0.0
+    funding_available = bars[i].funding is not None
+    funding = float(bars[i].funding) if funding_available else 0.0
     return [
         sum(rs[-5:]) / vol,
         sum(rs[-10:]) / (vol * 2 ** .5),
@@ -29,8 +69,10 @@ def _feat(bars, i):
         sum(flow[-5:]) / 5,
         sum(flow[-20:]) / 20,
         oi * 100,
-        float(bars[i].funding or 0) * 10000,
+        funding * 10000,
         vol,
+        float(oi_available),
+        float(funding_available),
     ]
 
 
@@ -83,9 +125,10 @@ def _feature_cache(bars):
             start = max(0, i - window + 1)
             return prefix_f[i + 1] - prefix_f[start]
 
-        oi = 0.0
-        if bars[i].oi is not None and bars[i - 1].oi not in (None, 0):
-            oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1
+        oi_available = bars[i].oi is not None and bars[i - 1].oi not in (None, 0)
+        oi = float(bars[i].oi) / float(bars[i - 1].oi) - 1 if oi_available else 0.0
+        funding_available = bars[i].funding is not None
+        funding = float(bars[i].funding) if funding_available else 0.0
 
         out[i] = [
             rsum(5) / vol,
@@ -94,8 +137,10 @@ def _feature_cache(bars):
             fsum(5) / 5,
             fsum(20) / 20,
             oi * 100,
-            float(bars[i].funding or 0) * 10000,
+            funding * 10000,
             vol,
+            float(oi_available),
+            float(funding_available),
         ]
     return out
 
@@ -154,7 +199,7 @@ def _predict(m, x):
 
 def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_band=.0015, fit_every=1):
     if len(bars) < min_train + 25 + horizon:
-        return {"available": False, "reason": "insufficient_history", "samples": len(bars)}
+        return {"available": False, "reason": "insufficient_history", "samples": len(bars), "feature_data_coverage": _data_coverage(bars)}
 
     feature_cache = _feature_cache(bars)
     label_cache = _labels_cache(bars, horizon, flat_band)
@@ -221,6 +266,7 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         "accuracy": round(correct / resolved, 6) if resolved else 0,
         "predictions": preds,
         "model_version": "wf-logit-v3-no-leak",
+        "feature_data_coverage": _data_coverage(bars),
         "research_only": True,
         "live_orders": False,
     }
@@ -239,7 +285,7 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
             X.append(f)
             y.append(lab)
     if len(X) < 60:
-        return {"available": False, "reason": "insufficient_training_samples", "samples": len(X)}
+        return {"available": False, "reason": "insufficient_training_samples", "samples": len(X), "feature_data_coverage": _data_coverage(bars)}
     p = _predict(_fit(X, y), _feat(bars, i))
     direction = {1: "UP", 0: "FLAT", -1: "DOWN"}[max(p, key=p.get)]
     rs = [_ret(bars[k].price, bars[k - 1].price) for k in range(max(1, i - 19), i + 1)]
@@ -267,16 +313,44 @@ def forecast_now(bars, horizon=5, train_window=300, flat_band=.0015):
         "breakout_probability": round(breakout, 4),
         "current_move_pct": round(current_move_pct, 4),
         "model_version": "wf-logit-v2",
+        "feature_data_coverage": _data_coverage(bars),
         "research_only": True,
         "live_orders": False,
     }
 
 
+def non_overlapping_predictions(result, require_actual=False):
+    """Select one forecast every horizon bars to reduce overlapping outcomes."""
+    rows = [
+        row for row in result.get("predictions", [])
+        if row.get("actual") is not None or row.get("actual_return_pct") is not None
+    ]
+    rows.sort(key=lambda row: row.get("ts", 0))
+    horizon = max(1, int(result.get("horizon_bars", 1) or 1))
+    sampled = rows[::horizon]
+    return [
+        row for row in sampled if row.get("actual") is not None
+    ] if require_actual else sampled
+
+
 def score_predictions(result):
-    """Compute OOS accuracy, per-class precision/recall and confidence calibration."""
-    rows = [x for x in result.get("predictions", []) if x.get("actual") is not None]
+    """Score non-overlapping OOS forecasts; expose all-bar accuracy diagnostically."""
+    all_rows = [
+        row for row in result.get("predictions", [])
+        if row.get("actual") is not None
+    ]
+    rows = non_overlapping_predictions(result, require_actual=True)
     if not rows:
-        return {"resolved": 0, "accuracy": 0.0, "precision": {}, "recall": {}, "high_conf_accuracy": 0.0}
+        return {
+            "resolved": 0,
+            "all_forecasts": len(all_rows),
+            "accuracy": 0.0,
+            "all_forecast_accuracy": 0.0,
+            "precision": {},
+            "recall": {},
+            "high_conf_samples": 0,
+            "high_conf_accuracy": 0.0,
+        }
     metrics = {}
     for c in (-1, 0, 1):
         tp = sum(x["pred"] == c and x["actual"] == c for x in rows)
@@ -287,11 +361,17 @@ def score_predictions(result):
             "recall": round(tp / (tp + fn), 6) if tp + fn else 0.0,
         }
     correct = sum(x["pred"] == x["actual"] for x in rows)
-    high = [x for x in rows if max(x["p_up"], x["p_flat"], x["p_down"]) >= .70]
+    high = [
+        x for x in rows
+        if max(x["p_up"], x["p_flat"], x["p_down"]) >= .70
+    ]
     high_correct = sum(x["pred"] == x["actual"] for x in high)
+    all_correct = sum(x["pred"] == x["actual"] for x in all_rows)
     return {
         "resolved": len(rows),
+        "all_forecasts": len(all_rows),
         "accuracy": round(correct / len(rows), 6),
+        "all_forecast_accuracy": round(all_correct / len(all_rows), 6) if all_rows else 0.0,
         "precision": {k: v["precision"] for k, v in metrics.items()},
         "recall": {k: v["recall"] for k, v in metrics.items()},
         "high_conf_samples": len(high),
@@ -333,10 +413,25 @@ def forecast_acceptance_gate(metrics, capital_metrics, min_oos_samples=100, min_
     }
 
 
-def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0, round_trip_cost_pct=0.35):
-    """Score OOS directional predictions against $4 minimum / $10 preferred net targets."""
+def score_capital_targets(
+    result,
+    capital_usd=500.0,
+    min_profit_usd=4.0,
+    preferred_profit_usd=10.0,
+    *,
+    cost_mode="base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
+    round_trip_cost_pct=None,
+):
+    """Score OOS outcomes against net targets using the shared v4 cost policy.
+
+    round_trip_cost_pct is an explicit sensitivity override only.
+    """
+    round_trip_cost_pct = resolve_round_trip_cost_pct(
+        cost_mode, cost_policy, override=round_trip_cost_pct
+    )
     rows = [
-        x for x in result.get("predictions", [])
+        x for x in non_overlapping_predictions(result)
         if x.get("actual_return_pct") is not None and x.get("pred") in (-1, 1)
     ]
     min_move = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
@@ -350,8 +445,12 @@ def score_capital_targets(result, capital_usd=500.0, min_profit_usd=4.0, preferr
         preferred_hits += favorable >= preferred_move
     return {
         "resolved_directional": directional,
+        "all_forecasts": len(result.get("predictions", [])),
         "min_profit_usd": min_profit_usd,
         "preferred_profit_usd": preferred_profit_usd,
+        "round_trip_cost_pct": round_trip_cost_pct,
+        "cost_mode": cost_mode,
+        "cost_policy_version": cost_policy.version,
         "min_required_move_pct": round(min_move, 4),
         "preferred_required_move_pct": round(preferred_move, 4),
         "min_target_hit_rate": round(min_hits / directional, 6) if directional else 0.0,

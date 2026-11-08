@@ -13,5 +13,5 @@ def test_oos_monte_carlo_validation_is_research_only():
     )
     assert result["research_only"] is True
     assert result["live_orders"] is False
-    assert result["monte_carlo"]["simulations"] == 100
+    assert result["monte_carlo"].simulations == 100
     assert 0 <= result["anti_overfitting"]["score"] <= 1

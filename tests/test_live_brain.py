@@ -159,8 +159,8 @@ class LiveBrainTests(unittest.TestCase):
         with patch("mi_core.live_brain.fetch_snapshot", return_value=market), patch("mi_core.live_brain.scan_boosted", return_value={"candidates":[]}), patch("mi_core.live_brain.evaluate_capital_target", wraps=__import__("mi_core.trade_economics", fromlist=["evaluate_capital_target"]).evaluate_capital_target):
             snap=run_once(project60={"bias":"NEUTRAL","confidence":0.5}, forecast=forecast)
         self.assertTrue(snap["capital_economics"]["available"])
-        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 1.15, places=2)
-        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.35, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["required_move_pct"], 0.95, places=2)
+        self.assertAlmostEqual(snap["capital_economics"]["preferred_required_move_pct"], 2.15, places=2)
 
     def test_timing_consumption_is_capped_for_display(self):
         timing=evaluate_entry_timing(expected_move_pct=0.14, current_move_pct=0.266, required_move_pct=1.15)
