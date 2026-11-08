@@ -18,6 +18,7 @@ def evaluate_project60_multihorizon(
     min_profit_usd=4.0,
     preferred_profit_usd=10.0,
     cost_mode="base",
+    fit_every=1,
 ):
     out = {
         "available": bool(bars),
@@ -31,7 +32,7 @@ def evaluate_project60_multihorizon(
         h = int(horizon)
         window = min(int(train_window), max(60, len(bars) - h - 1))
         result = walk_forward_forecast(
-            bars, horizon=h, train_window=window, min_train=60
+            bars, horizon=h, train_window=window, min_train=60, fit_every=fit_every
         )
         metrics = score_predictions(result)
         capital = score_capital_targets(
@@ -44,6 +45,7 @@ def evaluate_project60_multihorizon(
         gate = forecast_acceptance_gate(metrics, capital)
         out["horizons"][str(h)] = {
             "train_window": window,
+            "fit_every": fit_every,
             "resolved": result.get("resolved", 0),
             "accuracy": metrics.get("accuracy", 0.0),
             "high_conf_samples": metrics.get("high_conf_samples", 0),
