@@ -12,7 +12,7 @@ Project60 uses the official upstream Kronos implementation as an optional OHLCV 
 
 ## Data contract
 
-Kronos requires explicit, completed OHLC bars. Project60 price-only snapshots are not converted into fake OHLC bars. Missing open/high/low values cause a closed failure with `missing_ohlc`. Timestamps must be strictly increasing. Use a consistent bar interval and UTC timestamps.
+Kronos requires explicit, completed OHLC bars. Project60 price-only snapshots are not converted into fake OHLC bars. Missing open/high/low values cause a closed failure with `missing_ohlc`. Timestamps must be strictly increasing and every bar interval must exactly match the configured interval. Gaps or irregular bars are rejected. Use UTC timestamps.
 
 ## Optional dependencies and upstream checkout
 
