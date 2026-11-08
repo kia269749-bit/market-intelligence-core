@@ -9,7 +9,7 @@ class MultiHorizonOOSTests(unittest.TestCase):
         for i in range(520):
             price*=1.0002
             bars.append(MarketBar(i,"BTC",price,oi=1000+i,funding=0.00001,buy_volume=60,sell_volume=40))
-        r=evaluate_project60_multihorizon(bars,horizons=(5,15,60))
+        r=evaluate_project60_multihorizon(bars,horizons=(5,15,60),fit_every=10)
         self.assertTrue(r["research_only"]); self.assertFalse(r["live_orders"])
         self.assertEqual(r["cost_mode"], "base")
         self.assertGreater(r["feature_data_coverage"]["oi"]["coverage"], 0.99)
@@ -45,8 +45,8 @@ class MultiHorizonOOSTests(unittest.TestCase):
         for i in range(520):
             price *= 1.0002
             bars.append(MarketBar(i, "BTC", price, oi=1000+i, funding=0.00001, buy_volume=60, sell_volume=40))
-        base = evaluate_project60_multihorizon(bars, horizons=(5,), cost_mode="base")
-        strict = evaluate_project60_multihorizon(bars, horizons=(5,), cost_mode="strict")
+        base = evaluate_project60_multihorizon(bars, horizons=(5,), cost_mode="base", fit_every=10)
+        strict = evaluate_project60_multihorizon(bars, horizons=(5,), cost_mode="strict", fit_every=10)
         self.assertEqual(base["horizons"]["5"]["required_move_pct"], 0.95)
         self.assertEqual(strict["horizons"]["5"]["required_move_pct"], 1.25)
 
