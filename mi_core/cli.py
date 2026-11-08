@@ -271,7 +271,7 @@ def main():
                     mtf=fetch_multi_timeframe("BTCUSDT")
                 except Exception as exc:
                     mtf={"available":False,"reason":"multi_timeframe_error:"+str(exc)[:120],"research_only":True,"live_orders":False}
-                        kronos=None
+            kronos=None
             if x.kronos_enabled:
                 try:
                     if not x.project60_file:
