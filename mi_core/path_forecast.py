@@ -13,6 +13,7 @@ import statistics
 from typing import Iterable, Sequence
 
 from .models import MarketBar
+from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
 
 
 HORIZONS = (5, 10, 20, 50)
@@ -196,11 +197,22 @@ def forecast_path(
 def path_to_economic_opportunity(
     path: PathForecast,
     capital_usd: float = 500.0,
-    round_trip_cost_pct: float = 0.35,
+    round_trip_cost_pct: float | None = None,
     min_profit_usd: float = 4.0,
     preferred_profit_usd: float = 10.0,
+    *,
+    cost_mode: str = "base",
+    cost_policy: CostPolicy = DEFAULT_COST_POLICY,
 ) -> dict:
-    """Translate forecast paths into economic opportunity, without forcing a trade."""
+    """Translate forecast paths into economic opportunity, without forcing a trade.
+
+    By default, use the centralized v4 cost policy. An explicit
+    round_trip_cost_pct remains available for clearly labeled scenario overrides.
+    """
+    resolved_cost_pct = resolve_round_trip_cost_pct(
+        cost_mode, cost_policy, override=round_trip_cost_pct
+    )
+    round_trip_cost_pct = resolved_cost_pct
     min_move = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
     preferred_move = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
 
