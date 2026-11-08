@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from .cost_policy import DEFAULT_COST_POLICY, CostPolicy, resolve_round_trip_cost_pct
+from .validated_forecast import non_overlapping_predictions
 
 
 def _num(v, default=0.0):
@@ -20,7 +21,7 @@ def _num(v, default=0.0):
 
 def _directional_rows(result):
     return [
-        x for x in result.get("predictions", [])
+        x for x in non_overlapping_predictions(result)
         if x.get("pred") in (-1, 1)
         and x.get("actual_return_pct") is not None
     ]
@@ -130,6 +131,7 @@ def diagnose_economic_edge(
     return {
         "available": bool(rows),
         "samples": total,
+        "all_forecasts": len(result.get("predictions", [])),
         "direction_correct_rate": rate(correct_direction),
         "usd4_hit_rate": rate(target4),
         "usd10_hit_rate": rate(target10),
