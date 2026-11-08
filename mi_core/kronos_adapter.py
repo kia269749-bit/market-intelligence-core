@@ -76,6 +76,19 @@ def validate_ohlcv_bars(bars: Sequence[MarketBar], min_bars: int = 32) -> list[M
     return rows
 
 
+def validate_bar_interval(bars: Sequence[MarketBar], interval_minutes: int) -> None:
+    """Reject missing/irregular candles instead of silently forecasting across gaps."""
+    if interval_minutes <= 0:
+        raise ValueError("interval_minutes must be positive")
+    if len(bars) < 2:
+        raise ValueError("insufficient_history_for_interval_check")
+    unit = 1000 if abs(int(bars[-1].ts)) >= 100_000_000_000 else 1
+    expected = int(interval_minutes) * 60 * unit
+    for index in range(1, len(bars)):
+        if int(bars[index].ts) - int(bars[index - 1].ts) != expected:
+            raise ValueError(f"irregular_bar_interval:{index}")
+
+
 def summarize_scenarios(paths: Sequence[Sequence[dict]]) -> dict:
     """Summarize independent paths without treating scenario frequency as calibrated probability."""
     if not paths:
@@ -187,6 +200,7 @@ def forecast_kronos(
 
     rows = validate_ohlcv_bars(bars)
     context = rows[-config.max_context:]
+    validate_bar_interval(context, config.interval_minutes)
     last_ts = int(context[-1].ts)
     timestamp_unit = "ms" if abs(last_ts) >= 100_000_000_000 else "s"
     x_timestamps = pd.to_datetime([bar.ts for bar in context], unit=timestamp_unit, utc=True)
