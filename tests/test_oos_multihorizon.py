@@ -1,6 +1,7 @@
 import unittest
 from mi_core.models import MarketBar
 from mi_core.oos_multihorizon import evaluate_project60_multihorizon
+from mi_core.validated_forecast import score_capital_targets, score_predictions
 
 class MultiHorizonOOSTests(unittest.TestCase):
     def test_is_research_only_and_leakage_safe(self):
@@ -16,6 +17,27 @@ class MultiHorizonOOSTests(unittest.TestCase):
         self.assertEqual(set(r["horizons"]),{"5","15","60"})
         for row in r["horizons"].values():
             self.assertEqual(row["model_version"],"wf-logit-v3-no-leak")
+
+    def test_metrics_and_economics_use_non_overlapping_horizon_samples(self):
+        predictions = [
+            {
+                "ts": i,
+                "pred": 1,
+                "actual": 1,
+                "actual_return_pct": 1.0,
+                "p_up": 0.8,
+                "p_flat": 0.1,
+                "p_down": 0.1,
+            }
+            for i in range(10)
+        ]
+        result = {"horizon_bars": 5, "predictions": predictions}
+        metrics = score_predictions(result)
+        capital = score_capital_targets(result)
+        self.assertEqual(metrics["resolved"], 2)
+        self.assertEqual(metrics["all_forecasts"], 10)
+        self.assertEqual(capital["resolved_directional"], 2)
+        self.assertEqual(capital["all_forecasts"], 10)
 
     def test_strict_cost_scenario_changes_required_move(self):
         price = 100.0
