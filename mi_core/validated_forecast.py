@@ -109,7 +109,7 @@ def _feature_cache(bars):
         out[i] = [
             rsum(5) / vol,
             rsum(10) / (vol * 2 ** .5),
-            rsum(20) / 20,
+            rsum(20) / (vol * 4),
             fsum(5) / 5,
             fsum(20) / 20,
             oi * 100,
