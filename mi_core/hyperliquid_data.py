@@ -159,6 +159,20 @@ def fetch_funding_history(
     return [by_time[k] for k in sorted(by_time)]
 
 
+def funding_rates_at_candle_close(candles: list[PerpCandle], events: list[FundingEvent]) -> list[float | None]:
+    """Model-only alignment: latest fetched event with timestamp <= candle close."""
+    ordered = sorted(events, key=lambda item: item.timestamp_ms)
+    j = 0
+    latest: FundingEvent | None = None
+    out: list[float | None] = []
+    for candle in sorted(candles, key=lambda item: item.timestamp_ms):
+        while j < len(ordered) and ordered[j].timestamp_ms <= candle.close_time_ms:
+            latest = ordered[j]
+            j += 1
+        out.append(latest.rate if latest is not None else None)
+    return out
+
+
 def join_funding_feature(candles: list[PerpCandle], events: list[FundingEvent]) -> list[float | None]:
     """Carry the last known rate for display only; not a cashflow calculation."""
     ordered = sorted(events, key=lambda item: item.timestamp_ms)

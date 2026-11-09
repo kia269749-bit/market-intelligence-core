@@ -1,6 +1,8 @@
 import unittest
 from mi_core.models import MarketBar
 from mi_core.validated_forecast import forecast_now, walk_forward_forecast, _feat, _feature_cache, score_capital_targets
+import mi_core.validated_forecast as vf
+from unittest.mock import patch
 
 
 class TestValidatedForecast(unittest.TestCase):
@@ -45,6 +47,35 @@ class TestValidatedForecast(unittest.TestCase):
         self.assertEqual(scored["funding_data_status"], "partial_unverified_excluded")
         self.assertEqual(scored["funding_cost_unverified_samples"], 1)
         self.assertEqual(scored["min_profit_rate"], 0.0)
+
+    def test_funding_disabled_is_exact_v4_path_on_fixed_fixture(self):
+        bars = self._bars(150)
+        baseline = walk_forward_forecast(bars, horizon=5, min_train=60)
+        disabled = walk_forward_forecast(
+            bars, horizon=5, min_train=60,
+            funding_features=[0.001] * len(bars), funding_enabled=False,
+        )
+        self.assertEqual(disabled, baseline)
+
+    def test_funding_enabled_uses_seventh_column_and_changes_prediction(self):
+        bars = self._bars(150)
+        rates = [((i % 7) - 3) * 100.0 for i in range(len(bars))]
+        original_fit = vf._fit
+        widths = []
+        def recording_fit(X, y, **kwargs):
+            widths.append(len(X[0]))
+            return original_fit(X, y, **kwargs)
+        with patch.object(vf, "_fit", side_effect=recording_fit):
+            enabled = walk_forward_forecast(
+                bars, horizon=5, min_train=60,
+                funding_features=rates, funding_enabled=True,
+            )
+        disabled = walk_forward_forecast(bars, horizon=5, min_train=60)
+        self.assertTrue(widths)
+        self.assertEqual(set(widths), {7})
+        self.assertEqual(enabled["feature_count"], 7)
+        self.assertTrue(enabled["funding_feature_enabled"])
+        self.assertNotEqual(enabled["predictions"], disabled["predictions"])
 
     def test_walk_forward_is_oos_only(self):
         r=walk_forward_forecast(self._bars(), horizon=5, min_train=60)

@@ -8,6 +8,7 @@ from mi_core.hyperliquid_data import (
     download_project60,
     fetch_candles,
     fetch_funding_history,
+    funding_rates_at_candle_close,
     join_funding_feature,
     project60_rows,
     PerpCandle,
@@ -42,6 +43,13 @@ class HyperliquidProject60Tests(unittest.TestCase):
         self.assertEqual(len(calls), 3)
         self.assertEqual(len(rows), 3)
         self.assertEqual([x.timestamp_ms for x in rows], sorted(x.timestamp_ms for x in rows))
+
+    def test_model_funding_alignment_includes_exact_close_but_not_one_ms_after(self):
+        candles = [PerpCandle("BTC", 0, 1000, 100, 102, 99, 101, 10, 5)]
+        self.assertEqual(funding_rates_at_candle_close(
+            candles, [FundingEvent("BTC", 1000, 0.0002)]), [0.0002])
+        self.assertEqual(funding_rates_at_candle_close(
+            candles, [FundingEvent("BTC", 1001, 0.0003)]), [None])
 
     def test_project60_funding_join_is_strictly_backward(self):
         candles = [

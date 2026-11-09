@@ -137,11 +137,21 @@ def _predict(m, x):
     return {cls[k]: p[k] for k in range(3)}
 
 
-def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_band=.0015, fit_every=1):
+def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_band=.0015, fit_every=1, *, funding_features=None, funding_enabled=False):
     if len(bars) < min_train + 25 + horizon:
         return {"available": False, "reason": "insufficient_history", "samples": len(bars)}
 
     feature_cache = _feature_cache(bars)
+    if funding_enabled:
+        if funding_features is None or len(funding_features) != len(bars):
+            raise ValueError("funding_features must align one-to-one with bars when enabled")
+        feature_cache = [
+            (row + [float(funding_features[i]) if funding_features[i] is not None else 0.0])
+            if row is not None else None
+            for i, row in enumerate(feature_cache)
+        ]
+    elif funding_features is not None and len(funding_features) != len(bars):
+        raise ValueError("funding_features length must match bars")
     label_cache = _labels_cache(bars, horizon, flat_band)
     preds = []
     correct = resolved = 0
@@ -207,7 +217,9 @@ def walk_forward_forecast(bars, horizon=5, train_window=300, min_train=60, flat_
         "resolved": resolved,
         "accuracy": round(correct / resolved, 6) if resolved else 0,
         "predictions": preds,
-        "model_version": "wf-logit-v4-price-flow-only",
+        "model_version": "wf-logit-v4-price-flow-funding" if funding_enabled else "wf-logit-v4-price-flow-only",
+        "funding_feature_enabled": bool(funding_enabled),
+        "feature_count": 7 if funding_enabled else 6,
         "research_only": True,
         "live_orders": False,
     }
