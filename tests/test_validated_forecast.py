@@ -3,7 +3,7 @@ from mi_core.models import MarketBar
 from mi_core.validated_forecast import forecast_now, walk_forward_forecast, _feat, _feature_cache, score_capital_targets
 import mi_core.validated_forecast as vf
 from unittest.mock import patch
-from tests.fixtures.v4_walk_forward_reference import walk_forward_forecast as v4_reference
+from fixtures.v4_walk_forward_reference import walk_forward_forecast as v4_reference
 
 
 class TestValidatedForecast(unittest.TestCase):
