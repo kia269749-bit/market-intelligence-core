@@ -47,6 +47,7 @@ class TestFundingStatistics(unittest.TestCase):
         self.assertEqual(result["status"], "FAIL")
         self.assertFalse(result["checks"]["1_min_300_trades_and_3_assets"])
         self.assertTrue(result["research_project_closed"])
+        self.assertTrue(result["checks"]["6_any_failure_closes_research_project"])
 
     def test_gate_passes_all_five_evaluable_conditions(self):
         result = funding.evaluate_funding_gate(
@@ -54,7 +55,8 @@ class TestFundingStatistics(unittest.TestCase):
             [0.1] * 30, first_complete_run=True,
         )
         self.assertEqual(result["status"], "PASS")
-        self.assertTrue(all(result["checks"].values()))
+        self.assertTrue(all(result["checks"][k] for k in list(result["checks"])[:5]))
+        self.assertFalse(result["checks"]["6_any_failure_closes_research_project"])
         self.assertFalse(result["research_project_closed"])
 
 

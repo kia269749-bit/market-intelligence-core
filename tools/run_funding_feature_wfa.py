@@ -174,6 +174,7 @@ def evaluate_funding_gate(
         "5_first_complete_run_is_authoritative": bool(first_complete_run),
     }
     passed = all(checks.values())
+    checks["6_any_failure_closes_research_project"] = not passed
     return {
         "status": "PASS" if passed else "FAIL",
         "checks": checks,
