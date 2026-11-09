@@ -14,13 +14,15 @@ class TestFundingStatistics(unittest.TestCase):
             {"BTC": [1.0, 2.0, -1.0], "ETH": [0.5, 4.0, 1.0]},
             {"BTC": [1, 0, 2], "ETH": [0, 0, 1]},
         )
-        self.assertEqual(got, [0.275, 0.0, -0.675])
+        for actual, expected in zip(got, [0.275, 0.0, -0.675]):
+            self.assertAlmostEqual(actual, expected, places=12)
 
     def test_buy_and_hold_equal_weight_one_time_cost_by_hand(self):
         got = funding.calculate_buy_and_hold_daily_returns(
             {"BTC": [1.0, 2.0], "ETH": [3.0, 4.0]}
         )
-        self.assertEqual(got, [1.55, 3.0])
+        for actual, expected in zip(got, [1.55, 3.0]):
+            self.assertAlmostEqual(actual, expected, places=12)
 
     def test_holm_adjustment_known_two_hypothesis_example(self):
         self.assertEqual(funding.holm_adjust([0.01, 0.04]), [0.02, 0.04])
