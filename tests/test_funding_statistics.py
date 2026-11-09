@@ -49,7 +49,7 @@ class TestFundingStatistics(unittest.TestCase):
         self.assertTrue(result["research_project_closed"])
         self.assertTrue(result["checks"]["6_any_failure_closes_research_project"])
 
-    def test_gate_passes_all_five_evaluable_conditions(self):
+    def test_gate_passes_all_six_gate_clauses(self):
         result = funding.evaluate_funding_gate(
             {"BTC": 100, "ETH": 100, "SOL": 100}, 1.0, 0.001, 0.002,
             [0.1] * 30, first_complete_run=True,
