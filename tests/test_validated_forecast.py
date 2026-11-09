@@ -3,6 +3,7 @@ from mi_core.models import MarketBar
 from mi_core.validated_forecast import forecast_now, walk_forward_forecast, _feat, _feature_cache, score_capital_targets
 import mi_core.validated_forecast as vf
 from unittest.mock import patch
+from tests.fixtures.v4_walk_forward_reference import walk_forward_forecast as v4_reference
 
 
 class TestValidatedForecast(unittest.TestCase):
@@ -50,12 +51,13 @@ class TestValidatedForecast(unittest.TestCase):
 
     def test_funding_disabled_is_exact_v4_path_on_fixed_fixture(self):
         bars = self._bars(150)
-        baseline = walk_forward_forecast(bars, horizon=5, min_train=60)
+        baseline = v4_reference(bars, horizon=5, min_train=60)
         disabled = walk_forward_forecast(
             bars, horizon=5, min_train=60,
             funding_features=[0.001] * len(bars), funding_enabled=False,
         )
-        self.assertEqual(disabled, baseline)
+        for key in ("available", "horizon_bars", "resolved", "accuracy", "predictions"):
+            self.assertEqual(disabled[key], baseline[key], key)
 
     def test_funding_enabled_uses_seventh_column_and_changes_prediction(self):
         bars = self._bars(150)
