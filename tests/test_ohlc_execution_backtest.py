@@ -27,7 +27,7 @@ class OhlcExecutionTests(unittest.TestCase):
         bars = [bar(0, 100), bar(1, 100), bar(2, 100)]
         candidate = [{"index": 0, "ts": 0, "direction": "UP", "confidence": .8, "target_probability": .7}]
         trades = _simulate(
-            bars, candidate, 5.0, 5.0, 0.15, horizon_bars=1,
+            bars, candidate, 5.0, 5.0, 0.12, horizon_bars=1,
             funding_events=[(300_000, 0.001)], funding_event_times=[300_000],
             funding_verified=True,
         )
