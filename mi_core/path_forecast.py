@@ -13,6 +13,7 @@ import statistics
 from typing import Iterable, Sequence
 
 from .models import MarketBar
+from .cost_policy import resolve_round_trip_cost_pct
 
 
 HORIZONS = (5, 10, 20, 50)
@@ -196,17 +197,18 @@ def forecast_path(
 def path_to_economic_opportunity(
     path: PathForecast,
     capital_usd: float = 500.0,
-    round_trip_cost_pct: float = 0.35,
+    round_trip_cost_pct: float | None = None,
     min_profit_usd: float = 4.0,
     preferred_profit_usd: float = 10.0,
 ) -> dict:
-    """Translate forecast paths into economic opportunity, without forcing a trade."""
-    min_move = min_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
-    preferred_move = preferred_profit_usd / capital_usd * 100.0 + round_trip_cost_pct
+    """Translate forecast paths using the one configured Taker cost."""
+    resolved_cost_pct = resolve_round_trip_cost_pct(override=round_trip_cost_pct)
+    min_move = min_profit_usd / capital_usd * 100.0 + resolved_cost_pct
+    preferred_move = preferred_profit_usd / capital_usd * 100.0 + resolved_cost_pct
 
     rows = []
     for f in path.horizons:
-        expected_net = abs(f.expected_return_pct) - round_trip_cost_pct
+        expected_net = abs(f.expected_return_pct) - resolved_cost_pct
         modeled_profit = capital_usd * expected_net / 100.0
         if f.target_hit_probability >= 0.55 and abs(f.expected_return_pct) >= preferred_move:
             tier = "STRONG"
@@ -251,7 +253,7 @@ def path_to_economic_opportunity(
         "minimum_required_move_pct": round(min_move, 4),
         "preferred_required_move_pct": round(preferred_move, 4),
         "capital_usd": capital_usd,
-        "round_trip_cost_pct": round_trip_cost_pct,
+        "round_trip_cost_pct": resolved_cost_pct,
         "research_only": True,
         "live_orders": False,
     }

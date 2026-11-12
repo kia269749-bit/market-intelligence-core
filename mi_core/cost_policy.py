@@ -21,8 +21,8 @@ class CostPolicy:
     def __post_init__(self) -> None:
         base = float(self.base_round_trip_pct)
         strict = float(self.strict_round_trip_pct)
-        if not math.isfinite(base) or base < 0:
-            raise ValueError("base_round_trip_pct must be finite and non-negative")
+        if not math.isfinite(base) or base != 0.15:
+            raise ValueError("the project Taker round-trip cost is fixed at 0.15%")
         if not math.isfinite(strict) or strict != base:
             raise ValueError("strict_round_trip_pct is a compatibility alias and must equal base_round_trip_pct")
         if not self.version.strip():
@@ -69,6 +69,6 @@ def resolve_round_trip_cost_pct(
 ) -> float:
     """Resolve the single configured Taker rate; explicit overrides are scenario-only."""
     value = get_round_trip_cost_pct(mode, policy) if override is None else float(override)
-    if not math.isfinite(value) or value < 0:
-        raise ValueError("round_trip_cost_pct must be finite and non-negative")
+    if not math.isfinite(value) or value != policy.base_round_trip_pct:
+        raise ValueError("project round_trip_cost_pct is fixed at 0.15%; alternate rates are retired")
     return value

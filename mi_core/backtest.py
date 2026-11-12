@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from .models import Trade
+from .cost_policy import resolve_round_trip_cost_pct
 
 
 def _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, risk_fraction):
@@ -45,16 +46,16 @@ def run(
     bars,
     signals,
     initial=10000.0,
-    fee_bps=5.0,
-    slippage_bps=3.0,
     latency_bars=1,
     hold_bars=1,
     risk_fraction=.10,
+    round_trip_cost_pct=None,
 ):
-    """Backtest signals chronologically with fee, slippage and latency modeling."""
+    """Backtest signals with the centralized 0.15% round-trip cost."""
     if len(bars) != len(signals):
         raise ValueError("bars and signals must have equal length")
-    _validate_config(initial, fee_bps, slippage_bps, latency_bars, hold_bars, risk_fraction)
+    resolved_cost_pct = resolve_round_trip_cost_pct(override=round_trip_cost_pct)
+    _validate_config(initial, 0.0, 0.0, latency_bars, hold_bars, risk_fraction)
 
     equity = initial
     peak = initial
@@ -74,12 +75,11 @@ def run(
             break
 
         direction = 1 if s.side == "LONG" else -1
-        slip = slippage_bps / 10000.0
-        entry = bars[entry_i].price * (1 + direction * slip)
-        exitp = bars[exit_i].price * (1 - direction * slip)
+        entry = bars[entry_i].price
+        exitp = bars[exit_i].price
         qty = equity * risk_fraction / max(entry, 1e-12)
         gross = direction * (exitp - entry) * qty
-        cost = (abs(entry * qty) + abs(exitp * qty)) * fee_bps / 10000.0
+        cost = abs(entry * qty) * resolved_cost_pct / 100.0
         pnl = gross - cost
         equity += pnl
 

@@ -46,7 +46,7 @@ class TestPathForecast(unittest.TestCase):
             ),
             regime="TREND",trend_score=1.5,data_samples=300,
         )
-        result=path_to_economic_opportunity(path,capital_usd=500.0,round_trip_cost_pct=0.35)
+        result=path_to_economic_opportunity(path,capital_usd=500.0,round_trip_cost_pct=0.15)
         self.assertEqual(result["best"]["horizon"],20)
         self.assertEqual(result["best"]["tier"],"VIABLE")
 

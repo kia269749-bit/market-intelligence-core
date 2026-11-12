@@ -27,10 +27,10 @@ class RealValidationTests(unittest.TestCase):
                 {"pred": 1, "actual_return_pct": -1.0},
             ]},
             capital_usd=500.0,
-            round_trip_cost_pct=0.35,
+            round_trip_cost_pct=0.15,
         )
         self.assertEqual(result["directional_predictions"], 3)
-        self.assertAlmostEqual(result["net_profit_usd"], -7.75, places=4)
+        self.assertAlmostEqual(result["net_profit_usd"], -4.75, places=4)
         self.assertLess(result["expectancy_usd"], 0.0)
         self.assertEqual(result["positive_net_outcomes"], 1)
 
@@ -211,7 +211,7 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(aggregate["directional_predictions"], 0)
         self.assertFalse(aggregate["portfolio_metrics_available"])
 
-    def test_validation_exposes_base_and_strict_cost_modes(self):
+    def test_validation_legacy_modes_resolve_to_single_cost(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "market.jsonl"
             path.write_text("", encoding="utf-8")
@@ -221,7 +221,7 @@ class RealValidationTests(unittest.TestCase):
                     strict = validate_project60(str(path), cost_mode="strict")
         self.assertEqual(base["policy"]["round_trip_cost_pct"], 0.15)
         self.assertEqual(base["policy"]["cost_mode"], "base")
-        self.assertEqual(strict["policy"]["round_trip_cost_pct"], 0.45)
+        self.assertEqual(strict["policy"]["round_trip_cost_pct"], 0.15)
         self.assertEqual(strict["policy"]["cost_mode"], "strict")
 
     def test_short_horizon_is_diagnostic_only(self):

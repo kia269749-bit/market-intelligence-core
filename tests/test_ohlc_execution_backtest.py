@@ -66,7 +66,7 @@ class OhlcExecutionTests(unittest.TestCase):
         strict = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4,
                           cost_mode="strict")
         self.assertAlmostEqual(base["cost_round_trip_pct"], 0.15)
-        self.assertAlmostEqual(strict["cost_round_trip_pct"], 0.45)
+        self.assertAlmostEqual(strict["cost_round_trip_pct"], 0.15)
         self.assertEqual([x["target_pct"] for x in base["results"][:2]], [0.95, 0.95])
         self.assertEqual(base["cost_mode"], "base")
         self.assertEqual(strict["cost_mode"], "strict")

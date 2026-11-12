@@ -13,7 +13,7 @@ def test_backtest_reports_research_metrics_and_costs():
                score=0.8 if i == 0 else 0.0, regime="BULL")
         for i in range(len(bars))
     ]
-    result = run(bars, signals, fee_bps=5, slippage_bps=3, latency_bars=1, hold_bars=2)
+    result = run(bars, signals, latency_bars=1, hold_bars=2)
     assert result["research_only"] is True
     assert result["live_orders"] is False
     assert result["trades_count"] == 1
