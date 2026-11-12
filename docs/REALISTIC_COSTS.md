@@ -20,7 +20,7 @@ All values are expressed in basis points and are applied to trade notional. The 
 5. Backtests must report gross PnL and each cost component separately.
 6. Cost assumptions must be configurable rather than hidden constants.
 
-The component estimator is not an alternative cost path for capital/profitability decisions. Project60 scoring must use the centralized 0.15% Taker round-trip policy.
+The component estimator is not an alternative cost path for capital/profitability decisions. Project60 scoring must use the centralized 0.12% Taker round-trip policy.
 
 ## Default research assumptions
 
