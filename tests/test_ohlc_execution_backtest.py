@@ -18,10 +18,10 @@ class OhlcExecutionTests(unittest.TestCase):
     def test_stop_wins_when_target_and_stop_touch_same_bar(self):
         bars = [bar(0, 100), bar(1, 100), bar(2, 100, high=102, low=99)]
         candidate = [{"index": 0, "ts": 0, "direction": "UP", "confidence": .8, "target_probability": .7}]
-        trades = _simulate(bars, candidate, 1.0, .5, .35, horizon_bars=2)
+        trades = _simulate(bars, candidate, 1.0, .5, .15, horizon_bars=2)
         self.assertEqual(trades[0]["exit_reason"], "STOP")
         self.assertAlmostEqual(trades[0]["exit_price"], 99.5)
-        self.assertAlmostEqual(trades[0]["net_return_pct"], -0.85)
+        self.assertAlmostEqual(trades[0]["net_return_pct"], -0.65)
 
     def test_simulator_applies_directional_funding_cashflow(self):
         bars = [bar(0, 100), bar(1, 100), bar(2, 100)]
