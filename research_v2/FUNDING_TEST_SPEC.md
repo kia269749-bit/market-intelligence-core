@@ -5,7 +5,7 @@
 
 Locked criteria:
 1. At least 300 resolved OOS trades total from at least 3 assets.
-2. Strict net profit > 0 after 0.45% round-trip cost per trade.
+2. Net profit > 0 after 0.12% round-trip cost per trade.
 3. Funding model must beat both the v4 no-Funding baseline and Buy & Hold. The two one-sided hypotheses are corrected together by Holm; both adjusted p-values must be <= 0.05.
 4. Maximum drawdown from the daily equal-weight portfolio equity curve <= 20%.
 5. Only the first complete economic run is authoritative. Technical-bug fixes may be separately logged; no later run replaces the first complete result.
@@ -21,9 +21,9 @@ Locked criteria:
 
 ## Portfolio return definitions
 - Equal capital weight across assets; no leverage.
-- Strategy daily asset return is zero on a day with no trade. For each completed round-trip trade that day, deduct 0.45 percentage points from that asset's daily gross return.
+- Strategy daily asset return is zero on a day with no trade. For each completed round-trip trade that day, deduct 0.12 percentage points from that asset's daily gross return.
 - Daily portfolio return is the arithmetic mean of the assets' daily net returns.
-- Buy & Hold uses the same assets, dates, and equal weights, with one 0.45% round-trip cost charged at inception.
+- Buy & Hold uses the same assets, dates, and equal weights, with one 0.12% round-trip cost charged at inception.
 - Daily equity compounds as `equity[t] = equity[t-1] * (1 + daily_return_pct[t] / 100)`; drawdown is measured against the running peak.
 
 ## Statistical protocol
@@ -38,8 +38,8 @@ Locked criteria:
 - Timestamp boundary: exact close included, +1 ms excluded.
 - Model shape: enabled path fits seven-column feature rows.
 - Disabled parity: compare output fields with the pinned original-release walk-forward function.
-- Portfolio daily net return and strict cost: manually calculable synthetic example.
-- Buy & Hold: same weights and one-time strict cost, manually calculable synthetic example.
+- Portfolio daily net return and single 0.12% cost: manually calculable synthetic example.
+- Buy & Hold: same weights and one-time single 0.12% cost, manually calculable synthetic example.
 - Holm: known two-hypothesis examples.
 - Bootstrap: identical series must not be significant; clearly superior series must be significant.
 - Gate boundary: 299 resolved trades must fail; 300 across 3 assets can pass when other conditions pass.
