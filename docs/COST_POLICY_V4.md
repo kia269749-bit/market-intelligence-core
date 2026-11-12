@@ -1,10 +1,10 @@
-# v5 Research Cost and Data Policy
+# v6 Research Cost and Data Policy
 
 ## Cost convention
 
 All policy rates are round-trip percentage points of notional. They are not decimal fractions.
 
-- One Taker assumption: **0.15% round trip** (entry + exit combined).
+- One Taker assumption: **0.12% round trip** (entry + exit combined).
 - Maker pricing is not used by the project policy.
 - The old `base` and `strict` names remain compatibility aliases; both resolve to 0.15%.
 - The source of truth is `mi_core/cost_policy.py`.
