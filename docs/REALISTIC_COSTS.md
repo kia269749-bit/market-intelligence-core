@@ -1,6 +1,6 @@
 # Execution-Cost Diagnostics
 
-The validation pipeline must not treat raw price movement as tradable profit. Project60 economic scoring uses the centralized 0.15% Taker round-trip policy in `mi_core/cost_policy.py`.
+The validation pipeline must not treat raw price movement as tradable profit. Project60 economic scoring uses the centralized 0.12% Taker round-trip policy in `mi_core/cost_policy.py`.
 
 mi_core.costs separates the main execution-cost assumptions:
 
