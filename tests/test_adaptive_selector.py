@@ -28,7 +28,7 @@ class AdaptiveSelectorTests(unittest.TestCase):
 
     def test_selector_returns_candidates_and_walk_forward_metrics(self):
         result = evaluate_adaptive_selection(
-            self._bars(), horizon=10, cost_pct=0.15,
+            self._bars(), horizon=10, cost_pct=0.12,
             train_window=120, min_train_trades=4, min_oos_trades=3,
         )
         self.assertTrue(result["available"])
@@ -36,7 +36,7 @@ class AdaptiveSelectorTests(unittest.TestCase):
         strategies = {row["strategy"] for row in result["candidates"]}
         self.assertNotIn("oi_funding_5", strategies)
         self.assertNotIn("funding_crowding", strategies)
-        self.assertAlmostEqual(result["cost_pct"], 0.15)
+        self.assertAlmostEqual(result["cost_pct"], 0.12)
         self.assertEqual(result["status"], "DIAGNOSTIC_ONLY")
         self.assertFalse(result["signal_eligible"])
         self.assertIn("walk_forward_oos", result)
@@ -61,21 +61,21 @@ class AdaptiveSelectorTests(unittest.TestCase):
         self.assertEqual(_signal(bars, 99, "oi_funding_5"), 0)
         self.assertEqual(_signal(bars, 99, "funding_crowding"), 0)
 
-    def test_central_base_and_strict_cost_modes(self):
+    def test_single_base_cost_mode_and_rejects_legacy_mode(self):
         base = evaluate_adaptive_selection(
             self._bars(), horizon=10, cost_mode="base",
             train_window=120, min_train_trades=4, min_oos_trades=3,
         )
-        strict = evaluate_adaptive_selection(
-            self._bars(), horizon=10, cost_mode="strict",
-            train_window=120, min_train_trades=4, min_oos_trades=3,
-        )
-        self.assertAlmostEqual(base["cost_pct"], 0.15)
-        self.assertAlmostEqual(strict["cost_pct"], 0.15)
+        self.assertAlmostEqual(base["cost_pct"], 0.12)
+        with self.assertRaises(ValueError):
+            evaluate_adaptive_selection(
+                self._bars(), horizon=10, cost_mode="strict",
+                train_window=120, min_train_trades=4, min_oos_trades=3,
+            )
 
     def test_flat_market_does_not_prove_a_profitable_edge(self):
         result = evaluate_adaptive_selection(
-            self._bars(flat=True), horizon=10, cost_pct=0.15,
+            self._bars(flat=True), horizon=10, cost_pct=0.12,
             train_window=120, min_train_trades=4, min_oos_trades=3,
         )
         self.assertFalse(result["accepted"])
