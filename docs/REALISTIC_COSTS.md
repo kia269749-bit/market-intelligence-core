@@ -1,6 +1,6 @@
-# Realistic Execution Cost Engine
+# Execution-Cost Diagnostics
 
-The validation pipeline must not treat raw price movement as tradable profit.
+The validation pipeline must not treat raw price movement as tradable profit. Project60 economic scoring uses the centralized 0.15% Taker round-trip policy in `mi_core/cost_policy.py`.
 
 mi_core.costs separates the main execution-cost assumptions:
 
@@ -20,11 +20,11 @@ All values are expressed in basis points and are applied to trade notional. The 
 5. Backtests must report gross PnL and each cost component separately.
 6. Cost assumptions must be configurable rather than hidden constants.
 
-The legacy backtest fee_bps remains supported as a compatibility override. Later validation stages can supply venue/symbol/regime-specific assumptions and stress them during out-of-sample testing.
+The component estimator is not an alternative cost path for capital/profitability decisions. Project60 scoring must use the centralized 0.15% Taker round-trip policy.
 
 ## Default research assumptions
 
-The default configuration is intentionally conservative for a generic crypto research backtest:
+These generic diagnostic defaults are not the active Project60 economic cost policy. They remain available only when explicitly analyzing component sensitivity:
 
 - taker fee: 5 bps
 - spread: 2 bps

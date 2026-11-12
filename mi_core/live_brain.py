@@ -229,11 +229,11 @@ def _path_forecast_from_project60(path, asset="BTC", max_rows=500):
         return {"available":False,"reason":"insufficient_history","samples":len(bars)}
     from .adaptive_selector import evaluate_adaptive_selection
     adaptive=evaluate_adaptive_selection(
-        bars, horizon=20, cost_pct=0.35,
+        bars, horizon=20, cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct,
         train_window=min(600,max(120,len(bars)//2)),
         min_train_trades=12, min_oos_trades=12)
     economics=path_to_economic_opportunity(path_result, capital_usd=500.0,
-                                           round_trip_cost_pct=0.35,
+                                           round_trip_cost_pct=DEFAULT_COST_POLICY.base_round_trip_pct,
                                            min_profit_usd=4.0, preferred_profit_usd=10.0)
     return {
         "available":True, "asset":asset, "samples":len(bars),

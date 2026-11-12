@@ -18,11 +18,12 @@ class CentralCostPolicyIntegrationTests(unittest.TestCase):
 
     def test_policy_rates_are_single_named_values(self):
         self.assertEqual(get_round_trip_cost_pct("base"), 0.15)
-        self.assertEqual(get_round_trip_cost_pct("strict"), 0.45)
-        self.assertEqual(DEFAULT_COST_POLICY.version, "v4")
+        self.assertEqual(get_round_trip_cost_pct("strict"), 0.15)
+        self.assertEqual(DEFAULT_COST_POLICY.version, "v5-taker-0.15")
 
-    def test_same_trade_uses_same_base_and_strict_cost_in_all_research_paths(self):
-        for mode, expected_cost, expected_net in (("base", 0.15, 4.25), ("strict", 0.45, 2.75)):
+    def test_same_trade_uses_one_taker_cost_in_all_research_paths(self):
+        for mode in ("base", "strict"):
+            expected_cost, expected_net = 0.15, 4.25
             capital = evaluate_capital_target(1.0, cost_mode=mode)
             gate = evaluate_setup(100.0, 99.0, 102.0, "BULLISH", 0.9, cost_mode=mode)
             directional = _directional_metrics(self.result, cost_mode=mode)
@@ -35,13 +36,9 @@ class CentralCostPolicyIntegrationTests(unittest.TestCase):
             self.assertAlmostEqual(edge["thresholds"]["round_trip_cost_pct"], expected_cost)
             self.assertAlmostEqual(scored["round_trip_cost_pct"], expected_cost)
 
-    def test_cost_models_are_alternatives_not_additive(self):
-        policy = evaluate_capital_target(1.0, cost_mode="strict")
-        components = evaluate_capital_target(1.0, cost_model="components")
-        self.assertAlmostEqual(policy.round_trip_cost_pct, 0.45)
-        self.assertAlmostEqual(components.round_trip_cost_pct, 0.35)
-        self.assertNotAlmostEqual(policy.round_trip_cost_pct + components.round_trip_cost_pct,
-                                  policy.round_trip_cost_pct)
+    def test_retired_component_mode_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "component cost mode is retired"):
+            evaluate_capital_target(1.0, cost_model="components")
 
 
 if __name__ == "__main__":

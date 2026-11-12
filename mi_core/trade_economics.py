@@ -47,10 +47,9 @@ def evaluate_capital_target(expected_move_pct, capital_usd=500.0,
     if cost_model == "policy":
         cost = resolve_round_trip_cost_pct(cost_mode, cost_policy)
     elif cost_model == "components":
-        # Explicit legacy/diagnostic alternative. Never add to the flat policy.
-        cost = 2.0 * (fee + spread + slip) / 100.0
+        raise ValueError("component cost mode is retired; use the single 0.15% Taker round-trip policy")
     else:
-        raise ValueError("cost_model must be 'policy' or 'components'")
+        raise ValueError("cost_model must be 'policy'")
     net = float(expected_move_pct) - cost
     min_net_pct = min_profit_usd / capital_usd * 100.0
     preferred_net_pct = preferred_profit_usd / capital_usd * 100.0

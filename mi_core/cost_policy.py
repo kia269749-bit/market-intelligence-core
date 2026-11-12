@@ -1,8 +1,8 @@
 """Single source of truth for research round-trip execution costs.
 
 Rates are percentage points of notional (0.15 means 0.15%, not 15%).
-The active v3 coordinator may explicitly retain its legacy component model;
-new v4 research/evaluation paths use this policy by default.
+The project research/evaluation paths use one Taker round-trip assumption.
+Legacy historical records remain unchanged.
 """
 from __future__ import annotations
 
@@ -23,8 +23,8 @@ class CostPolicy:
         strict = float(self.strict_round_trip_pct)
         if not math.isfinite(base) or base < 0:
             raise ValueError("base_round_trip_pct must be finite and non-negative")
-        if not math.isfinite(strict) or strict < base:
-            raise ValueError("strict_round_trip_pct must be finite and >= base_round_trip_pct")
+        if not math.isfinite(strict) or strict != base:
+            raise ValueError("strict_round_trip_pct is a compatibility alias and must equal base_round_trip_pct")
         if not self.version.strip():
             raise ValueError("version must be non-empty")
 
@@ -33,7 +33,7 @@ class CostPolicy:
         if selected == "base":
             return float(self.base_round_trip_pct)
         if selected == "strict":
-            return float(self.strict_round_trip_pct)
+            return float(self.base_round_trip_pct)
         raise ValueError("cost mode must be 'base' or 'strict'")
 
     def cost_usd(self, notional_usd: float, *, mode: str = "base") -> float:
@@ -67,7 +67,7 @@ def resolve_round_trip_cost_pct(
     policy: CostPolicy = DEFAULT_COST_POLICY,
     override: float | None = None,
 ) -> float:
-    """Resolve a policy rate, allowing an explicit legacy/scenario override."""
+    """Resolve the single configured Taker rate; explicit overrides are scenario-only."""
     value = get_round_trip_cost_pct(mode, policy) if override is None else float(override)
     if not math.isfinite(value) or value < 0:
         raise ValueError("round_trip_cost_pct must be finite and non-negative")
