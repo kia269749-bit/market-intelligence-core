@@ -51,7 +51,7 @@ def run(
     risk_fraction=.10,
     round_trip_cost_pct=None,
 ):
-    """Backtest signals with the centralized 0.15% round-trip cost."""
+    """Backtest signals with the centralized 0.12% round-trip cost."""
     if len(bars) != len(signals):
         raise ValueError("bars and signals must have equal length")
     resolved_cost_pct = resolve_round_trip_cost_pct(override=round_trip_cost_pct)
