@@ -14,9 +14,9 @@ import math
 class CostPolicy:
     """Versioned round-trip costs in percentage points."""
 
-    base_round_trip_pct: float = 0.15
-    strict_round_trip_pct: float = 0.45
-    version: str = "v4"
+    base_round_trip_pct: float = 0.12
+    strict_round_trip_pct: float = 0.12
+    version: str = "v5-taker-0.12"
 
     def __post_init__(self) -> None:
         base = float(self.base_round_trip_pct)
@@ -49,8 +49,8 @@ class CostPolicy:
         return round(gross - self.cost_usd(notional_usd, mode=mode), 10)
 
 
-BASE_ROUND_TRIP_COST_PCT = 0.15
-STRICT_ROUND_TRIP_COST_PCT = 0.45
+BASE_ROUND_TRIP_COST_PCT = 0.12
+STRICT_ROUND_TRIP_COST_PCT = 0.12
 DEFAULT_COST_POLICY = CostPolicy(
     base_round_trip_pct=BASE_ROUND_TRIP_COST_PCT,
     strict_round_trip_pct=STRICT_ROUND_TRIP_COST_PCT,
@@ -58,7 +58,7 @@ DEFAULT_COST_POLICY = CostPolicy(
 
 
 def get_round_trip_cost_pct(mode: str = "base", policy: CostPolicy = DEFAULT_COST_POLICY) -> float:
-    """Resolve the one configured round-trip rate for a named policy mode."""
+    """Resolve the single configured Taker round-trip rate for either mode."""
     return policy.round_trip_pct(mode)
 
 
