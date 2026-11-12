@@ -18,10 +18,10 @@ class OhlcExecutionTests(unittest.TestCase):
     def test_stop_wins_when_target_and_stop_touch_same_bar(self):
         bars = [bar(0, 100), bar(1, 100), bar(2, 100, high=102, low=99)]
         candidate = [{"index": 0, "ts": 0, "direction": "UP", "confidence": .8, "target_probability": .7}]
-        trades = _simulate(bars, candidate, 1.0, .5, .15, horizon_bars=2)
+        trades = _simulate(bars, candidate, 1.0, .5, .12, horizon_bars=2)
         self.assertEqual(trades[0]["exit_reason"], "STOP")
         self.assertAlmostEqual(trades[0]["exit_price"], 99.5)
-        self.assertAlmostEqual(trades[0]["net_return_pct"], -0.65)
+        self.assertAlmostEqual(trades[0]["net_return_pct"], -0.62)
 
     def test_simulator_applies_directional_funding_cashflow(self):
         bars = [bar(0, 100), bar(1, 100), bar(2, 100)]
@@ -33,12 +33,12 @@ class OhlcExecutionTests(unittest.TestCase):
         )
         self.assertEqual(trades[0]["funding_events_count"], 1)
         self.assertAlmostEqual(trades[0]["funding_cost_pct"], 0.1)
-        self.assertAlmostEqual(trades[0]["net_return_pct"], -0.25)
+        self.assertAlmostEqual(trades[0]["net_return_pct"], -0.22)
 
     def test_short_stop_gap_uses_worse_open(self):
         bars = [bar(0, 100), bar(1, 100), bar(2, 102, op=102, high=103, low=101)]
         candidate = [{"index": 0, "ts": 0, "direction": "DOWN", "confidence": .8, "target_probability": .7}]
-        trades = _simulate(bars, candidate, 1.0, .5, .35, horizon_bars=2)
+        trades = _simulate(bars, candidate, 1.0, .5, .12, horizon_bars=2)
         self.assertEqual(trades[0]["exit_reason"], "STOP")
         self.assertEqual(trades[0]["exit_price"], 102.0)
         self.assertLess(trades[0]["gross_return_pct"], 0)
@@ -60,16 +60,12 @@ class OhlcExecutionTests(unittest.TestCase):
         self.assertEqual(result["status"], "funding_unverified")
         self.assertTrue(all(x["full_walk_forward"]["trades"] == 0 for x in result["results"]))
 
-    def test_backtest_uses_central_base_and_strict_costs(self):
+    def test_backtest_uses_single_central_base_cost(self):
         bars = [bar(i, 100 + i * .01) for i in range(500)]
-        base = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4)
-        strict = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4,
-                          cost_mode="strict")
-        self.assertAlmostEqual(base["cost_round_trip_pct"], 0.15)
-        self.assertAlmostEqual(strict["cost_round_trip_pct"], 0.15)
-        self.assertEqual([x["target_pct"] for x in base["results"][:2]], [0.95, 0.95])
-        self.assertEqual(base["cost_mode"], "base")
-        self.assertEqual(strict["cost_mode"], "strict")
+        result = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4)
+        self.assertAlmostEqual(result["cost_round_trip_pct"], 0.12)
+        self.assertEqual([x["target_pct"] for x in result["results"][:2]], [0.92, 2.12])
+        self.assertEqual(result["cost_mode"], "base")
 
     def test_metrics_report_research_only_and_no_trade_ready(self):
         bars = [bar(i, 100 + i * .01) for i in range(500)]
