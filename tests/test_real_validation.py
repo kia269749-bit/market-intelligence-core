@@ -27,19 +27,19 @@ class RealValidationTests(unittest.TestCase):
                 {"pred": 1, "actual_return_pct": -1.0},
             ]},
             capital_usd=500.0,
-            round_trip_cost_pct=0.15,
+            round_trip_cost_pct=0.12,
         )
         self.assertEqual(result["directional_predictions"], 3)
-        self.assertAlmostEqual(result["net_profit_usd"], -4.75, places=4)
+        self.assertAlmostEqual(result["net_profit_usd"], -4.30, places=4)
         self.assertLess(result["expectancy_usd"], 0.0)
         self.assertEqual(result["positive_net_outcomes"], 1)
 
     def test_funding_carry_is_directional_and_reduces_net_profit(self):
         row = {"actual_return_pct": 1.0, "funding_rate_sum_pct": 0.5}
-        long_metrics = _performance_metrics([row], [1], 500.0, 0.15)
-        short_metrics = _performance_metrics([row], [-1], 500.0, 0.15)
-        self.assertAlmostEqual(long_metrics["net_profit_usd"], 1.75)
-        self.assertAlmostEqual(short_metrics["net_profit_usd"], -3.25)
+        long_metrics = _performance_metrics([row], [1], 500.0, 0.12)
+        short_metrics = _performance_metrics([row], [-1], 500.0, 0.12)
+        self.assertAlmostEqual(long_metrics["net_profit_usd"], 1.90)
+        self.assertAlmostEqual(short_metrics["net_profit_usd"], -3.10)
         self.assertAlmostEqual(long_metrics["funding_cost_total_usd"], 2.5)
         self.assertAlmostEqual(short_metrics["funding_cost_total_usd"], -2.5)
 
@@ -74,7 +74,7 @@ class RealValidationTests(unittest.TestCase):
         _attach_funding_holding_costs(result, bars, horizon=2)
         self.assertFalse(result["funding_cost_model"]["verified"])
         self.assertFalse(result["predictions"][0]["funding_cost_verified"])
-        metrics = _performance_metrics(result["predictions"], [1], 500.0, 0.15)
+        metrics = _performance_metrics(result["predictions"], [1], 500.0, 0.12)
         self.assertEqual(metrics["directional_predictions"], 0)
         self.assertEqual(metrics["net_profit_usd"], 0.0)
 
@@ -90,7 +90,7 @@ class RealValidationTests(unittest.TestCase):
         metrics = _directional_metrics(result)
         self.assertEqual(metrics["directional_predictions"], 2)
         self.assertAlmostEqual(metrics["net_profit_usd"], -1.5)
-        baselines = _baseline_metrics(result, 500.0, 0.15, "BTC", 2, simulations=100)
+        baselines = _baseline_metrics(result, 500.0, 0.12, "BTC", 2, simulations=100)
         self.assertEqual(baselines["sample_policy"], "same_non_overlapping_oos_rows")
         self.assertEqual(baselines["model"]["directional_predictions"], 2)
         self.assertEqual(baselines["buy_and_hold_long"]["directional_predictions"], 2)
@@ -211,18 +211,15 @@ class RealValidationTests(unittest.TestCase):
         self.assertEqual(aggregate["directional_predictions"], 0)
         self.assertFalse(aggregate["portfolio_metrics_available"])
 
-    def test_validation_legacy_modes_resolve_to_single_cost(self):
+    def test_validation_uses_single_base_cost_policy(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "market.jsonl"
             path.write_text("", encoding="utf-8")
             with patch("mi_core.real_validation.load_project60_assets", return_value={}):
                 with patch("mi_core.real_validation.rank_assets", return_value=[]):
-                    base = validate_project60(str(path))
-                    strict = validate_project60(str(path), cost_mode="strict")
-        self.assertEqual(base["policy"]["round_trip_cost_pct"], 0.15)
-        self.assertEqual(base["policy"]["cost_mode"], "base")
-        self.assertEqual(strict["policy"]["round_trip_cost_pct"], 0.15)
-        self.assertEqual(strict["policy"]["cost_mode"], "strict")
+                    result = validate_project60(str(path))
+        self.assertEqual(result["policy"]["round_trip_cost_pct"], 0.12)
+        self.assertEqual(result["policy"]["cost_mode"], "base")
 
     def test_short_horizon_is_diagnostic_only(self):
         with tempfile.TemporaryDirectory() as td:
