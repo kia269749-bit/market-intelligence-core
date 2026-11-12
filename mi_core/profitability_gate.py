@@ -37,7 +37,7 @@ def evaluate_setup(price: float, stop: float, target: float, direction: str,
     if cost_model == "policy":
         cost = resolve_round_trip_cost_pct(cost_mode, cost_policy)
     elif cost_model == "components":
-        raise ValueError("component cost mode is retired; use the single 0.15% Taker round-trip policy")
+        raise ValueError("component cost mode is retired; use the single 0.12% Taker round-trip policy")
     else:
         raise ValueError("cost_model must be 'policy'")
     net_target=gross_target-cost
