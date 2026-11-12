@@ -16,25 +16,25 @@ class CentralCostPolicyIntegrationTests(unittest.TestCase):
              "favorable_mfe_pct": 1.0, "adverse_mae_pct": 0.1}
         ]}
 
-    def test_policy_rates_are_single_named_values(self):
-        self.assertEqual(get_round_trip_cost_pct("base"), 0.15)
-        self.assertEqual(get_round_trip_cost_pct("strict"), 0.15)
-        self.assertEqual(DEFAULT_COST_POLICY.version, "v5-taker-0.15")
+    def test_policy_has_one_fixed_base_rate(self):
+        self.assertEqual(get_round_trip_cost_pct("base"), 0.12)
+        self.assertEqual(DEFAULT_COST_POLICY.version, "v6-taker-0.12")
+        with self.assertRaises(ValueError):
+            get_round_trip_cost_pct("strict")
 
     def test_same_trade_uses_one_taker_cost_in_all_research_paths(self):
-        for mode in ("base", "strict"):
-            expected_cost, expected_net = 0.15, 4.25
-            capital = evaluate_capital_target(1.0, cost_mode=mode)
-            gate = evaluate_setup(100.0, 99.0, 102.0, "BULLISH", 0.9, cost_mode=mode)
-            directional = _directional_metrics(self.result, cost_mode=mode)
-            edge = diagnose_economic_edge(self.result, cost_mode=mode)
-            scored = score_capital_targets(self.result, cost_mode=mode)
+        expected_cost, expected_net = 0.12, 4.40
+        capital = evaluate_capital_target(1.0)
+        gate = evaluate_setup(100.0, 99.0, 102.0, "BULLISH", 0.9)
+        directional = _directional_metrics(self.result)
+        edge = diagnose_economic_edge(self.result)
+        scored = score_capital_targets(self.result)
 
-            self.assertAlmostEqual(capital.round_trip_cost_pct, expected_cost)
-            self.assertAlmostEqual(gate.round_trip_cost_pct, expected_cost)
-            self.assertAlmostEqual(directional["net_profit_usd"], expected_net)
-            self.assertAlmostEqual(edge["thresholds"]["round_trip_cost_pct"], expected_cost)
-            self.assertAlmostEqual(scored["round_trip_cost_pct"], expected_cost)
+        self.assertAlmostEqual(capital.round_trip_cost_pct, expected_cost)
+        self.assertAlmostEqual(gate.round_trip_cost_pct, expected_cost)
+        self.assertAlmostEqual(directional["net_profit_usd"], expected_net)
+        self.assertAlmostEqual(edge["thresholds"]["round_trip_cost_pct"], expected_cost)
+        self.assertAlmostEqual(scored["round_trip_cost_pct"], expected_cost)
 
     def test_retired_component_mode_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "component cost mode is retired"):
