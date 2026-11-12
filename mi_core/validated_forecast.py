@@ -388,7 +388,7 @@ def score_capital_targets(
     """Score non-overlapping OOS outcomes under the central v4 cost policy.
 
     round_trip_cost_pct remains an explicit compatibility/scenario override;
-    normal callers should select only cost_mode='base' or 'strict'.
+    normal callers use the single cost_mode='base'.
     """
     resolved_cost_pct = resolve_round_trip_cost_pct(
         cost_mode, cost_policy, override=round_trip_cost_pct
