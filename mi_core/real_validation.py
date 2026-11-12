@@ -179,7 +179,7 @@ def _baseline_metrics(result, capital_usd, round_trip_cost_pct, symbol, horizon,
 
 def _path_excursion_metrics(
     result, capital_usd=500.0, min_profit_usd=4.0, preferred_profit_usd=10.0,
-    round_trip_cost_pct=0.15, stop_levels=(0.50, 0.75, 1.00, 1.25, 1.50),
+    round_trip_cost_pct=0.12, stop_levels=(0.50, 0.75, 1.00, 1.25, 1.50),
 ):
     rows=[x for x in non_overlapping_predictions(result) if x.get("pred") in (-1,1)]
     target_levels = (
@@ -449,7 +449,7 @@ def main(argv=None):
     ap.add_argument("--horizon", type=int, default=60)
     ap.add_argument("--horizons", default="", help="comma-separated horizons; <60 bars are diagnostic-only")
     ap.add_argument("--min-samples", type=int, default=100)
-    ap.add_argument("--cost-mode", choices=("base", "strict"), default="base")
+    ap.add_argument("--cost-mode", choices=("base",), default="base")
     ap.add_argument("--out", default="")
     args = ap.parse_args(argv)
 
