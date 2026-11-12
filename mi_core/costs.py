@@ -2,7 +2,7 @@
 
 This module decomposes fee/spread/slippage/impact for sensitivity reporting.
 Its 11 bps default is diagnostic only and must never be substituted for or
-added to the single 0.15% Taker round-trip policy in economic evaluation.
+added to the single 0.12% Taker round-trip policy in economic evaluation.
 """
 from __future__ import annotations
 
