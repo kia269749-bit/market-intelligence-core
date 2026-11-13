@@ -64,7 +64,10 @@ class OhlcExecutionTests(unittest.TestCase):
         bars = [bar(i, 100 + i * .01) for i in range(500)]
         result = backtest(bars, min_history=300, horizon_bars=24, step_bars=24, max_evals=4)
         self.assertAlmostEqual(result["cost_round_trip_pct"], 0.12)
-        self.assertEqual([x["target_pct"] for x in result["results"][:2]], [0.92, 2.12])
+        self.assertEqual(
+            list(dict.fromkeys(x["target_pct"] for x in result["results"])),
+            [0.92, 2.12],
+        )
         self.assertEqual(result["cost_mode"], "base")
 
     def test_metrics_report_research_only_and_no_trade_ready(self):
