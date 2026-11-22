@@ -91,3 +91,15 @@ This runtime is research and signal generation only:
 `research_only=True`, `live_orders=False`. It has no order execution path.
 No live order, testnet order, or protected service operation is part of this
 architecture.
+
+
+## Live-all persistence paths
+
+The `live-all` command creates these local append-only files by default:
+- `data/brain_signals.jsonl`: specialist proposals and central decisions.
+- `data/brain_outcomes.jsonl`: fixed-horizon specialist outcomes after the 0.12% cost deduction.
+
+Override them with `--brain-signal-journal` and `--brain-outcome-journal`.
+The signal journal is the source of truth for unresolved calls; the outcome
+journal is the source of truth for per-specialist win-rate weighting. No
+historical registry or locked Forward Test file is rewritten.
