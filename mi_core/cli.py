@@ -25,6 +25,8 @@ from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
 from .cost_policy import DEFAULT_COST_POLICY
 from .indicator_brain import fetch_indicator_ohlcv
+from .brains.outcome_store import OutcomeStore
+from .brains.signal_journal import SignalJournal
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -221,7 +223,7 @@ def main():
     pv=sp.add_parser("forecast-project60"); pv.add_argument("--input",required=True); pv.add_argument("--asset",default="BTC"); pv.add_argument("--horizon",type=int,default=60); pv.add_argument("--max-rows",type=int,default=800); pv.add_argument("--cost-mode",choices=("base","strict"),default="base"); pv.add_argument("--out")
     ms=sp.add_parser("forecast-scan"); ms.add_argument("--input",required=True); ms.add_argument("--top",type=int,default=5); ms.add_argument("--horizon",type=int,default=60); ms.add_argument("--max-rows",type=int,default=800); ms.add_argument("--cost-mode",choices=("base","strict"),default="base"); ms.add_argument("--out")
     sr=sp.add_parser("shadow-report"); sr.add_argument("--journal",required=True)
-    z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default="")
+    z=sp.add_parser("live-all"); z.add_argument("--exchanges",default=",".join(EXCHANGES)); z.add_argument("--symbols",default=",".join(DEFAULT_SYMBOLS)); z.add_argument("--interval",type=int,default=30); z.add_argument("--cycles",type=int,default=0); z.add_argument("--fomo-chain",default="solana"); z.add_argument("--fomo-limit",type=int,default=5); z.add_argument("--project60-file",default=""); z.add_argument("--fomo-fills-file",default=""); z.add_argument("--fomo-leader-scores",default=""); z.add_argument("--outcome-journal",default=""); z.add_argument("--brain-signal-journal",default="data/brain_signals.jsonl"); z.add_argument("--brain-outcome-journal",default="data/brain_outcomes.jsonl")
     x=ap.parse_args()
     if x.cmd=="demo": demo(x.out)
     elif x.cmd=="shadow-report": print(json.dumps(summarize_performance(x.journal),indent=2,ensure_ascii=False))
@@ -252,6 +254,8 @@ def main():
     elif x.cmd=="live-all":
         if x.interval<10: raise ValueError("interval must be at least 10 seconds")
         count=0
+        brain_signals=SignalJournal(x.brain_signal_journal)
+        brain_outcomes=OutcomeStore(x.brain_outcome_journal)
         while x.cycles==0 or count<x.cycles:
             p60=summarize_project60(x.project60_file) if x.project60_file else None
             lf=summarize_fomo_leader_follower(x.fomo_fills_file,x.fomo_leader_scores) if x.fomo_fills_file else None
@@ -272,7 +276,30 @@ def main():
                 except Exception as exc:
                     mtf={"available":False,"reason":"multi_timeframe_error:"+str(exc)[:120],"research_only":True,"live_orders":False}
             indicator_ohlcv=fetch_indicator_ohlcv(symbols=("BTCUSDT",),intervals=("15m","1h","4h","1d"),limit=500)
-            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context,mtf,indicator_ohlcv=indicator_ohlcv)
+            brain_prices={}
+            if p60 and p60.get("available"):
+                for asset,row in (p60.get("assets") or {}).items():
+                    try:
+                        price=float(row.get("price"))
+                        if price>0:
+                            base=str(asset).upper()
+                            brain_prices[base]=price
+                            brain_prices[base+"USDT"]=price
+                    except (TypeError,ValueError,AttributeError):
+                        continue
+            if brain_prices:
+                resolved_brains=brain_outcomes.resolve_due_signals(
+                    x.brain_signal_journal, brain_prices, int(time.time()*1000),
+                    round_trip_cost_pct=0.12,
+                )
+                if resolved_brains:
+                    print("BRAIN_OUTCOMES_RESOLVED="+str(resolved_brains))
+            snap=run_live_brain(
+                x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,
+                p60,lf,outcome,forecast,candle,market_context,mtf,
+                indicator_ohlcv=indicator_ohlcv,
+                outcome_store=brain_outcomes, signal_journal=brain_signals,
+            )
             if x.outcome_journal:
                 fc=snap.get("evidence",{}).get("forecast",{})
                 selected=fc.get("selected") if isinstance(fc,dict) else {}
