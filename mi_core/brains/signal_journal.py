@@ -41,7 +41,9 @@ class SignalJournal:
             for proposal in proposals:
                 key = (proposal.brain_id, snapshot.symbol, snapshot.timeframe, proposal.direction)
                 last_ts = previous.get(key, 0)
-                cooldown = (_TIMEFRAME_MS.get(snapshot.timeframe, 300_000)
+                brain_timeframe = proposal.brain_id.rsplit(".", 1)[-1]
+                signal_horizon = _TIMEFRAME_MS.get(brain_timeframe, _TIMEFRAME_MS.get(snapshot.timeframe, 300_000))
+                cooldown = (signal_horizon
                             if proposal.direction in ("LONG", "SHORT") and proposal.available
                             else 300_000)
                 if last_ts and snapshot.as_of_ms - last_ts < cooldown:
