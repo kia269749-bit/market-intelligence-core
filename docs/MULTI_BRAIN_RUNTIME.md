@@ -28,7 +28,11 @@ print(report.central_decision)
 
 The technical adapter invokes the pinned pandas-ta-classic engine once per
 provided timeframe. Each timeframe has its own stable brain ID and outcome
-history. It never fabricates a vote when a frame is absent or invalid.
+history. The order-book specialist consumes normalized L2 bids/asks and
+checks imbalance plus microprice confirmation. Derivatives specialists use
+the latest settled funding event at or before candle close and contextual OI
+change with price confirmation. Missing or stale feeds produce unavailable
+NO_TRADE proposals, never fabricated zero evidence.
 
 ## Adding an upstream strategy
 
