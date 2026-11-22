@@ -27,7 +27,7 @@ from .cost_policy import DEFAULT_COST_POLICY
 from .indicator_brain import fetch_indicator_ohlcv
 from .brains.outcome_store import OutcomeStore
 from .brains.signal_journal import SignalJournal
-from .brains.hyperliquid_feed import fetch_hyperliquid_brain_context
+from .brains.hyperliquid_feed import fetch_hyperliquid_brain_contexts
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -285,7 +285,11 @@ def main():
                     mtf=fetch_multi_timeframe("BTCUSDT")
                 except Exception as exc:
                     mtf={"available":False,"reason":"multi_timeframe_error:"+str(exc)[:120],"research_only":True,"live_orders":False}
-            indicator_ohlcv=fetch_indicator_ohlcv(symbols=("BTCUSDT",),intervals=("15m","1h","4h","1d"),limit=500)
+            requested_symbols=tuple(dict.fromkeys(
+                str(symbol).strip().upper().replace("/", "").replace("-", "")
+                for symbol in x.symbols.split(",") if str(symbol).strip()
+            ))
+            indicator_ohlcv=fetch_indicator_ohlcv(symbols=requested_symbols or ("BTCUSDT",),intervals=("15m","1h","4h","1d"),limit=500)
             brain_prices={}
             if p60 and p60.get("available"):
                 for asset,row in (p60.get("assets") or {}).items():
@@ -320,10 +324,15 @@ def main():
                 )
                 if resolved_brains:
                     print("BRAIN_OUTCOMES_RESOLVED="+str(resolved_brains))
-            try:
-                hyperliquid_brain_data=fetch_hyperliquid_brain_context("BTC")
-            except Exception as exc:
-                hyperliquid_brain_data={"available":False,"errors":{"feed":type(exc).__name__}}
+            brain_coins=[]
+            for symbol in requested_symbols or ("BTCUSDT",):
+                base=str(symbol).upper()
+                for suffix in ("USDT","USDC","USD","PERP"):
+                    if base.endswith(suffix):
+                        base=base[:-len(suffix)]
+                        break
+                brain_coins.append(base)
+            hyperliquid_brain_data={"by_symbol":fetch_hyperliquid_brain_contexts(tuple(dict.fromkeys(brain_coins)))}
             snap=run_live_brain(
                 x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,
                 p60,lf,outcome,forecast,candle,market_context,mtf,
