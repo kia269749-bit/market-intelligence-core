@@ -24,6 +24,26 @@ def _feed(now_ms: int, bullish: bool = True) -> dict:
 
 
 class LiveBrainIntegrationProbeTests(unittest.TestCase):
+
+    def test_evaluate_brains_directly_surfaces_runtime_exception(self):
+        from mi_core.brains.contracts import MarketSnapshot
+        from mi_core.brains.engine import evaluate_brains
+        now_ms = 10_000_000
+        snapshot = MarketSnapshot(
+            "BTCUSDT",
+            now_ms,
+            "1h",
+            {
+                "orderbook": {"timestamp_ms": now_ms - 1000,
+                              "bids": [[100.0, 20.0]], "asks": [[100.1, 5.0]]},
+                "funding_events": [{"timestamp_ms": now_ms - 1000, "funding_rate": -0.0008}],
+                "open_interest": None,
+            },
+        )
+        report = evaluate_brains(snapshot)
+        self.assertTrue(report.research_only)
+        self.assertFalse(report.live_orders)
+
     def test_multi_brain_report_contains_decisions(self):
         now_seconds = 10_000
         now_ms = now_seconds * 1000
