@@ -1,0 +1,59 @@
+"""Top-level read-only multi-brain evaluation entry point."""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from .contracts import BrainProposal, BrainResult, MarketSnapshot
+from .orchestrator import arbitrate
+from .strategy_runtime import StrategyRuntime
+from .technical_adapter import evaluate_technical_specialists
+
+
+@dataclass(frozen=True)
+class SignalReport:
+    snapshot: MarketSnapshot
+    specialist_proposals: tuple[BrainProposal, ...]
+    central_decision: BrainResult
+    research_only: bool = True
+    live_orders: bool = False
+
+
+def evaluate_brains(
+    snapshot: MarketSnapshot,
+    strategy_runtime: StrategyRuntime | None = None,
+    outcome_store: Any | None = None,
+    min_independent_families: int = 2,
+) -> SignalReport:
+    """Evaluate all currently runnable brains and arbitrate one shared snapshot.
+
+    Each brain's history is looked up independently, scoped to symbol and
+    timeframe. Unavailable data is represented as no vote, never as a
+    synthetic directional signal.
+    """
+    proposals = evaluate_technical_specialists(snapshot)
+    if strategy_runtime is not None:
+        proposals.extend(strategy_runtime.evaluate(snapshot))
+
+    performance: dict[str, dict[str, int]] = {}
+    if outcome_store is not None:
+        for proposal in proposals:
+            performance[proposal.brain_id] = outcome_store.performance(
+                proposal.brain_id,
+                symbol=snapshot.symbol,
+                timeframe=snapshot.timeframe,
+            )
+
+    decision = arbitrate(
+        snapshot,
+        proposals,
+        performance=performance,
+        min_independent_families=min_independent_families,
+    )
+    return SignalReport(
+        snapshot=snapshot,
+        specialist_proposals=tuple(proposals),
+        central_decision=decision,
+        research_only=True,
+        live_orders=False,
+    )
