@@ -25,18 +25,27 @@ def evaluate_derivatives_specialists(snapshot: MarketSnapshot) -> list[BrainProp
                 eligible.append((ts, rate))
     if eligible:
         ts, rate = max(eligible, key=lambda row: row[0])
-        direction = "SHORT" if rate > 0 else "LONG" if rate < 0 else "NO_TRADE"
-        magnitude = min(1.0, abs(rate) / 0.001) if rate else 0.0
-        output.append(BrainProposal(
-            brain_id="derivatives.hyperliquid_funding",
-            family="derivatives",
-            direction=direction,
-            confidence=round(magnitude, 4),
-            as_of_ms=snapshot.as_of_ms,
-            source_ids=("Project60:settled_FundingEvent",),
-            reasons=(("positive_funding_crowding_long" if rate > 0 else
-                      "negative_funding_crowding_short" if rate < 0 else "neutral_funding"), f"event_timestamp_ms:{ts}"),
-        ))
+        if snapshot.as_of_ms - ts <= 5_400_000:
+            direction = "SHORT" if rate > 0 else "LONG" if rate < 0 else "NO_TRADE"
+            magnitude = min(1.0, abs(rate) / 0.001) if rate else 0.0
+            output.append(BrainProposal(
+                brain_id="derivatives.hyperliquid_funding",
+                family="derivatives",
+                direction=direction,
+                confidence=round(magnitude, 4),
+                as_of_ms=snapshot.as_of_ms,
+                source_ids=("Hyperliquid:fundingHistory",),
+                reasons=(("positive_funding_crowding_long" if rate > 0 else
+                          "negative_funding_crowding_short" if rate < 0 else "neutral_funding"), f"event_timestamp_ms:{ts}"),
+            ))
+        else:
+            output.append(BrainProposal(
+                brain_id="derivatives.hyperliquid_funding",
+                family="derivatives", direction="NO_TRADE", confidence=0.0,
+                as_of_ms=snapshot.as_of_ms,
+                source_ids=("Hyperliquid:fundingHistory",),
+                reasons=("latest_settled_funding_event_stale",), available=False,
+            ))
     else:
         output.append(BrainProposal(
             brain_id="derivatives.hyperliquid_funding",
@@ -53,7 +62,7 @@ def evaluate_derivatives_specialists(snapshot: MarketSnapshot) -> list[BrainProp
             oi_change = float(oi["change_pct"])
             price_change = float(oi["price_change_pct"])
             oi_ts = int(oi["timestamp_ms"])
-            valid = oi_ts <= snapshot.as_of_ms and oi_change > 0
+            valid = oi_ts <= snapshot.as_of_ms and snapshot.as_of_ms - oi_ts <= 120_000 and oi_change > 0
         except (KeyError, TypeError, ValueError):
             valid = False
         if valid:
