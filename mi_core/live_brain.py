@@ -644,55 +644,68 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     # existing live brain. Project60 orderbook/trade imbalance is passed only
     # with its original timestamp; unavailable feeds remain unavailable.
     multi_brain_report = None
+    multi_brain_reports = {}
+    primary_symbol = str(forecast_asset or "BTCUSDT").upper().replace("/", "").replace("-", "")
+    if not primary_symbol.endswith(("USDT", "USDC", "USD", "PERP")):
+        primary_symbol += "USDT"
     if indicator_ohlcv is not None or brain_market_data is not None:
         try:
             from .brains import MarketSnapshot, evaluate_brains
-            brain_payload = dict(brain_market_data or {})
-            target_symbol = str(forecast_asset or "BTCUSDT").upper().replace("/", "").replace("-", "")
-            if not target_symbol.endswith(("USDT", "USDC", "USD", "PERP")):
-                target_symbol += "USDT"
-            base_asset = target_symbol
-            for suffix in ("USDT", "USDC", "USD", "PERP"):
-                if base_asset.endswith(suffix):
-                    base_asset = base_asset[:-len(suffix)]
-                    break
-            if project60 and project60.get("available"):
-                brain_payload["project60_assets"] = project60.get("assets") or {}
-                p60_ts = _num(project60.get("timestamp"), 0.0)
-                if p60_ts > 0:
-                    brain_payload["project60_timestamp_ms"] = int(p60_ts * 1000 if p60_ts < 1e12 else p60_ts)
-            frames = (indicator_ohlcv or {}).get("frames", {}) if isinstance(indicator_ohlcv, dict) else {}
-            selected_frames = {}
-            if isinstance(frames, dict):
-                for key, frame in frames.items():
-                    key_text = str(key).upper()
-                    if key_text.startswith(target_symbol + ":"):
-                        selected_frames[key_text.rsplit(":", 1)[-1].lower()] = frame
-            elif isinstance(indicator_ohlcv, dict):
-                selected_frames = {str(k).lower(): v for k, v in indicator_ohlcv.items()
-                                   if str(k).lower() in ("15m", "1h", "4h", "1d")}
-            if selected_frames:
-                brain_payload["ohlcv_by_timeframe"] = selected_frames
-                last_frame = selected_frames.get("1h")
-                if last_frame is None:
-                    last_frame = next(iter(selected_frames.values()))
-                try:
-                    brain_payload["price"] = float(last_frame["close"].iloc[-1])
-                except Exception:
-                    pass
-            p60_asset = (brain_payload.get("project60_assets") or {}).get(base_asset) or {}
-            if p60_asset.get("price") is not None:
-                try:
-                    brain_payload["price"] = float(p60_asset["price"])
-                except (TypeError, ValueError):
-                    pass
-            brain_payload["regime"] = regime.get("name")
-            brain_as_of_ms = int(time.time() * 1000)
-            brain_snapshot = MarketSnapshot(target_symbol, brain_as_of_ms, "1h", brain_payload)
-            multi_brain_report = evaluate_brains(
-                brain_snapshot, strategy_runtime=strategy_runtime,
-                outcome_store=outcome_store, signal_journal=signal_journal,
-            )
+            requested_symbols = list(symbols or DEFAULT_SYMBOLS)
+            normalized_symbols = []
+            for raw_symbol in requested_symbols + [primary_symbol]:
+                normalized = str(raw_symbol).upper().replace("/", "").replace("-", "")
+                if not normalized.endswith(("USDT", "USDC", "USD", "PERP")):
+                    normalized += "USDT"
+                if normalized not in normalized_symbols:
+                    normalized_symbols.append(normalized)
+            all_frames = (indicator_ohlcv or {}).get("frames", {}) if isinstance(indicator_ohlcv, dict) else {}
+            p60_assets = (project60 or {}).get("assets") or {}
+            p60_ts = _num((project60 or {}).get("timestamp"), 0.0)
+            p60_ts_ms = int(p60_ts * 1000 if 0 < p60_ts < 1e12 else p60_ts) if p60_ts > 0 else None
+            feed_map = (brain_market_data or {}).get("by_symbol", {}) if isinstance(brain_market_data, dict) else {}
+            common_as_of_ms = int(time.time() * 1000)
+            for target_symbol in normalized_symbols:
+                base_asset = target_symbol
+                for suffix in ("USDT", "USDC", "USD", "PERP"):
+                    if base_asset.endswith(suffix):
+                        base_asset = base_asset[:-len(suffix)]
+                        break
+                feed = feed_map.get(base_asset) or feed_map.get(target_symbol) if isinstance(feed_map, dict) else None
+                brain_payload = dict(feed if isinstance(feed, dict) else (brain_market_data or {}))
+                brain_payload.pop("by_symbol", None)
+                if project60 and project60.get("available"):
+                    brain_payload["project60_assets"] = p60_assets
+                    if p60_ts_ms is not None:
+                        brain_payload["project60_timestamp_ms"] = p60_ts_ms
+                selected_frames = {}
+                if isinstance(all_frames, dict):
+                    for key, frame in all_frames.items():
+                        key_text = str(key).upper()
+                        if key_text.startswith(target_symbol + ":"):
+                            selected_frames[key_text.rsplit(":", 1)[-1].lower()] = frame
+                if selected_frames:
+                    brain_payload["ohlcv_by_timeframe"] = selected_frames
+                    last_frame = selected_frames.get("1h")
+                    if last_frame is None:
+                        last_frame = next(iter(selected_frames.values()))
+                    try:
+                        brain_payload["price"] = float(last_frame["close"].iloc[-1])
+                    except Exception:
+                        pass
+                p60_asset = p60_assets.get(base_asset) or {}
+                if isinstance(p60_asset, dict) and p60_asset.get("price") is not None:
+                    try:
+                        brain_payload["price"] = float(p60_asset["price"])
+                    except (TypeError, ValueError):
+                        pass
+                brain_payload["regime"] = regime.get("name")
+                brain_snapshot = MarketSnapshot(target_symbol, common_as_of_ms, "1h", brain_payload)
+                multi_brain_reports[target_symbol] = evaluate_brains(
+                    brain_snapshot, strategy_runtime=strategy_runtime,
+                    outcome_store=outcome_store, signal_journal=signal_journal,
+                )
+            multi_brain_report = multi_brain_reports.get(primary_symbol)
         except Exception as exc:
             multi_brain_report = {"available": False, "reason": "multi_brain_error:" + type(exc).__name__}
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
@@ -782,6 +795,29 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         and not isinstance(multi_brain_report, dict)
         and multi_brain_report.central_decision.decision == ("LONG" if combined.get("bias") == "BULLISH" else "SHORT")
     )
+    def _serialize_brain_report(report):
+        if report is None:
+            return {"available": False, "reason": "not_enabled"}
+        if isinstance(report, dict):
+            return report
+        return {
+            "available": True,
+            "central_decision": report.central_decision.decision,
+            "confidence": report.central_decision.confidence,
+            "supporting_families": list(report.central_decision.supporting_families),
+            "reasons": list(report.central_decision.reasons),
+            "specialists": [{
+                "brain_id": p.brain_id, "family": p.family, "direction": p.direction,
+                "confidence": p.confidence, "available": p.available,
+                "reasons": list(p.reasons), "source_ids": list(p.source_ids),
+            } for p in report.specialist_proposals],
+            "journal_ids": list(report.journal_ids),
+            "research_only": True, "live_orders": False,
+        }
+    multi_brain_payload = _serialize_brain_report(multi_brain_report)
+    multi_brains_payload = {symbol: _serialize_brain_report(report)
+                            for symbol, report in multi_brain_reports.items()}
+
     return {"ts":int(time.time()),"market":market,"fomo":fomo,
         "evidence":{"execution_ready":execution_ready,
           "market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
@@ -794,21 +830,8 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"multi_timeframe":{"available":bool(mtf.get("available")),"bias":mtf_bias,"confidence_score":round(mtf_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"technical_indicators":{"available":bool(indicator_evidence.get("available")),"bias":indicator_bias,"confidence":indicator_conf},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
           "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
-        "multi_brain": ({
-            "available": True,
-            "central_decision": multi_brain_report.central_decision.decision,
-            "confidence": multi_brain_report.central_decision.confidence,
-            "supporting_families": list(multi_brain_report.central_decision.supporting_families),
-            "reasons": list(multi_brain_report.central_decision.reasons),
-            "specialists": [{
-                "brain_id": p.brain_id, "family": p.family, "direction": p.direction,
-                "confidence": p.confidence, "available": p.available,
-                "reasons": list(p.reasons), "source_ids": list(p.source_ids),
-            } for p in multi_brain_report.specialist_proposals],
-            "journal_ids": list(multi_brain_report.journal_ids),
-            "research_only": True, "live_orders": False,
-        } if multi_brain_report is not None and not isinstance(multi_brain_report, dict)
-          else multi_brain_report or {"available": False, "reason": "not_enabled"}),
+        "multi_brain": multi_brain_payload,
+        "multi_brains": multi_brains_payload,
         "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
