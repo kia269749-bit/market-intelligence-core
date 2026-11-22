@@ -61,7 +61,7 @@ class HyperDataAdapterTests(unittest.TestCase):
         self.assertTrue(fifteen_minute.available)
         self.assertLessEqual(fifteen_minute.confidence, 0.95)
         self.assertIn("hyperliquid", fifteen_minute.source_ids)
-        self.assertFalse(any(p.brain_id.endswith((".1m", ".5m", ".30m")) for p in proposals)
+        self.assertFalse(any(p.brain_id.endswith((".1m", ".5m", ".30m")) for p in proposals))
 
     def test_warming_up_window_is_not_a_vote(self):
         data = _payload()

@@ -147,3 +147,6 @@ Its results must be compared against the current walk-forward process on the
 same frozen dataset before adoption. DSR requires the caller to supply the
 actual number of independent trials and the variance of trial Sharpes; neither
 is guessed by the wrapper.
+
+
+Approved timeframe policy: Project60 brain calculations use only 15m, 1h, 4h, and 1d (daily). 1m and 5m are excluded. HyperData's 24h source frame is normalized to the 1d specialist ID.
