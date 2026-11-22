@@ -106,7 +106,8 @@ class CallableForecastAdapter:
         except (TypeError, ValueError):
             return self._unavailable(snapshot, "forecast_model_probability_missing_or_invalid")
         direction = "LONG" if p_up >= self.min_probability else "SHORT" if p_up <= 1.0 - self.min_probability else "NO_TRADE"
-        confidence = min(0.95, abs(p_up - 0.5) * 2.0)
+        confidence = (min(0.95, 0.55 + (abs(p_up - 0.5) - (self.min_probability - 0.5)) * 1.5)
+                      if direction != "NO_TRADE" else 0.0)
         expected_win_rate = p_up if direction == "LONG" else (1.0 - p_up if direction == "SHORT" else None)
         return BrainProposal(
             brain_id=self.brain_id, family="forecast", direction=direction,
@@ -140,7 +141,7 @@ class OpenBBMacroAdapter:
         try:
             ts = int(data["timestamp_ms"])
             score = float(data["direction_score"])
-            confidence = float(data.get("confidence", abs(score)))
+            confidence = float(data.get("confidence", 0.55 + max(0.0, abs(score) - 0.25) * 0.5))
             if not math.isfinite(score) or not math.isfinite(confidence):
                 raise ValueError("non_finite")
         except (KeyError, TypeError, ValueError):
