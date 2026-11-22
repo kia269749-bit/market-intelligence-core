@@ -22,6 +22,7 @@ Important: 351 was the previous Project60 **software test count**, not the count
 | Source | What is reusable | What is not admitted yet |
 |---|---|---|
 | HyperGrok | Seven role boundaries; six public read-only Hyperliquid data tools; provenance and risk/review workflow | No bundled strategy or signal; execution/wallet/order flows excluded |
+| Grok bot directory | hft.md lists 235 public bots across research, paper, approval and autonomous categories | Directory metadata only; prompts/source implementations and actual performance not independently audited bot-by-bot |
 | TradeMemory | Local decision/outcome journal, recall, risk reminders and tamper-evident audit concepts | Its own empirical evidence is limited/regime-dependent; adapter is payload-only, not connected |
 | Circuit Framework | Shared immutable crypto snapshot, specialist debate and deterministic risk gate; Apache-2.0 claim | Fork lineage/license and code need final verification; use architecture first |
 | TradingAgents | Multi-agent analyst/research debate architecture | LLM dependency/cost and no direct proof of net trading edge |
@@ -98,7 +99,7 @@ PyneCore corpus includes scripts that request nonstandard timeframes (including 
 
 ## Validation status at this commit
 - Prior known CI: 351 tests passed on commit 13cd8f9 (before the latest TradeMemory and ta_patterns changes).
-- ta_patterns adapter tests were converted to unittest and included in the follow-up CI run; the CI run below validates the repository test suite, but does not evaluate profitability.
+- TradeMemory adapter tests were included in CI and passed. The ta_patterns tests were converted to unittest after that run and have **not yet been executed**; run them locally before treating the adapter as test-verified.
 - No new GitHub workflow was triggered. Broad legacy research workflows are deliberately not retriggered because a previous temporary PR unexpectedly started economic workflows.
 - Termux cannot be controlled from this chat. Local Android/Python validation remains pending until the user runs the supplied read-only test commands and shares output.
 - No live orders, testnet, exchange credentials, protected Telegram services, Forward Test files, PR #131, or historical registry were changed.
