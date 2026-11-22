@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "protocol": "EDGE_SEARCH_v1",
-  "lock_status": "INITIAL_REGISTRY_CREATED; FINAL_LOCK_REQUIRES_SOURCE_AND_DATA_MANIFEST_REVIEW_BEFORE_A",
+  "lock_status": "LOCKED_BASELINE_ONLY_BEFORE_ANY_EVALUATION",
   "created_from_base": "0630706dc655366042c073cebc44aebad070b39e",
   "multiple_testing": "HOLM_ONLY",
   "trial_count": 420,
@@ -6472,5 +6472,6 @@
       "direction": "LONG_OR_SHORT",
       "status": "BLOCKED_SPEC_CONFLICT"
     }
-  ]
+  ],
+  "lock_note": "Exactly 420 rows are registered and this registry is immutable for the planned run. No repository-derived parameter variants were admitted because none have been verified; any desired additional trial would invalidate this registry and require a new protocol, not an in-place edit."
 }
