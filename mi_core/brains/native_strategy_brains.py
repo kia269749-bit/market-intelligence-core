@@ -32,6 +32,15 @@ def evaluate_native_ohlcv_strategies(snapshot: MarketSnapshot) -> list[BrainProp
         frame = frames.get(timeframe)
         if frame is None:
             continue
+        duration_ms = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}[timeframe]
+        try:
+            last_index = frame.index[-1]
+            open_ms = int(last_index.timestamp() * 1000) if hasattr(last_index, "timestamp") else int(last_index)
+            age_ms = snapshot.as_of_ms - (open_ms + duration_ms)
+            if age_ms < 0 or age_ms > 2 * duration_ms:
+                continue
+        except Exception:
+            continue
         try:
             import pandas as pd
             close = pd.to_numeric(frame["close"], errors="coerce").dropna()
