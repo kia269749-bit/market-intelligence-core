@@ -103,3 +103,30 @@ def fetch_hyperliquid_brain_context(coin: str = "BTC", now_ms: int | None = None
     result["available"] = any(result[key] for key in ("orderbook", "funding_events", "open_interest"))
     _CACHE[coin] = (time.monotonic(), result)
     return dict(result)
+
+
+def fetch_hyperliquid_brain_contexts(coins=("BTC",), now_ms: int | None = None,
+                                     timeout: float = 6.0) -> dict:
+    """Fetch independent cached read-only market contexts for several coins."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    names = tuple(dict.fromkeys(str(coin).upper() for coin in coins if str(coin).strip()))
+    results = {}
+    if not names:
+        return results
+    with ThreadPoolExecutor(max_workers=min(5, len(names))) as pool:
+        futures = {
+            pool.submit(fetch_hyperliquid_brain_context, coin, now_ms, timeout): coin
+            for coin in names
+        }
+        for future in as_completed(futures):
+            coin = futures[future]
+            try:
+                results[coin] = future.result()
+            except Exception as exc:
+                results[coin] = {
+                    "available": False,
+                    "source": "Hyperliquid public Info API",
+                    "errors": {"feed": type(exc).__name__},
+                }
+    return results
