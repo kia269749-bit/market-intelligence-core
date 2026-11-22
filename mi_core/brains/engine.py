@@ -10,6 +10,7 @@ from .derivatives_adapter import evaluate_derivatives_specialists
 from .native_strategy_brains import evaluate_native_ohlcv_strategies
 from .orderbook_adapter import evaluate_orderbook_specialist
 from .project60_flow_adapter import evaluate_project60_flow
+from .hyperdata_adapter import evaluate_hyperdata_orderflow
 from .orchestrator import arbitrate
 from .strategy_runtime import StrategyRuntime
 from .technical_adapter import evaluate_technical_specialists
