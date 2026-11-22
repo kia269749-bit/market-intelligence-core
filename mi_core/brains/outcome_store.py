@@ -14,7 +14,9 @@ class OutcomeStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + chr(10))
-    def performance(self, brain_id: str) -> dict[str, int]:
+    def performance(self, brain_id: str, symbol: str | None = None,
+                    timeframe: str | None = None, regime: str | None = None) -> dict[str, int]:
+        """Return this brain's resolved record, optionally scoped to context."""
         wins = losses = 0
         if not self.path.exists(): return {"wins": 0, "losses": 0}
         with self.path.open("r", encoding="utf-8") as handle:
@@ -22,6 +24,9 @@ class OutcomeStore:
                 try: row = json.loads(line)
                 except json.JSONDecodeError: continue
                 if row.get("brain_id") != brain_id or not row.get("resolved"): continue
+                if symbol is not None and row.get("symbol") != symbol: continue
+                if timeframe is not None and row.get("timeframe") != timeframe: continue
+                if regime is not None and row.get("regime") != regime: continue
                 if row.get("won") is True: wins += 1
                 elif row.get("won") is False: losses += 1
         return {"wins": wins, "losses": losses}
