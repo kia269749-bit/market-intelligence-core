@@ -1,6 +1,7 @@
 """Full-library technical evidence engine for Project60."""
 from __future__ import annotations
 import math
+import time
 
 PACKAGE_VERSION = "0.9.0"
 PACKAGE_WHEEL_SHA256 = "f9792bfc478e6ab20dc67008eea748fd5f7042a986f96dbef582b270b706cc57"
@@ -139,5 +140,92 @@ def evaluate_indicator_brain(ohlcv, min_bars=80):
         "pattern_error": pattern_error, "bias": bias, "confidence": round(confidence, 4),
         "agreement": round(agreement, 4), "vote_count": len(votes),
         "vote_sources": [{"direction": d, "weight": round(w, 4), "source": s} for d, w, s in votes],
+        "research_only": True, "live_orders": False
+    }
+
+
+_INDICATOR_CACHE = {}
+_INDICATOR_CACHE_TTL = 60.0
+
+def fetch_indicator_ohlcv(symbols=("BTCUSDT",), intervals=("15m", "1h", "4h", "1d"),
+                          limit=500, timeout=8.0):
+    """Fetch closed Binance USD-M Futures OHLCV bars with a short in-process cache."""
+    try:
+        import pandas as pd
+        from .binance_futures_data import fetch_futures_klines, KLINE_INTERVAL_MS
+    except Exception as exc:
+        return {"available": False, "reason": "futures_ohlcv_source_unavailable", "error": str(exc)}
+    now = time.monotonic()
+    now_ms = int(time.time() * 1000)
+    output, errors = {}, {}
+    for symbol in symbols:
+        for interval in intervals:
+            key = (str(symbol).upper(), str(interval), int(limit))
+            cached = _INDICATOR_CACHE.get(key)
+            if cached and now - cached[0] < _INDICATOR_CACHE_TTL:
+                output[key[0] + ":" + key[1]] = cached[1]
+                continue
+            if interval not in KLINE_INTERVAL_MS:
+                errors[key[0] + ":" + key[1]] = "unsupported_interval"
+                continue
+            try:
+                candles = fetch_futures_klines(symbol, interval, limit=limit, timeout=timeout)
+                closed = [bar for bar in candles if int(bar.close_time_ms) <= now_ms]
+                if not closed:
+                    errors[key[0] + ":" + key[1]] = "no_closed_candles"
+                    continue
+                frame = pd.DataFrame([{
+                    "open": bar.open, "high": bar.high, "low": bar.low,
+                    "close": bar.close, "volume": bar.volume
+                } for bar in closed], index=[bar.open_time_ms for bar in closed])
+                frame.index.name = "open_time_ms"
+                _INDICATOR_CACHE[key] = (now, frame)
+                output[key[0] + ":" + key[1]] = frame
+            except Exception as exc:
+                errors[key[0] + ":" + key[1]] = str(exc)[:180]
+    return {"available": bool(output), "frames": output, "errors": errors,
+            "source": "Binance USD-M Futures public klines",
+            "intervals": list(intervals), "symbols": list(symbols),
+            "cache_ttl_seconds": _INDICATOR_CACHE_TTL,
+            "research_only": True, "live_orders": False}
+
+
+def evaluate_indicator_brain_multi(ohlcv_by_key):
+    """Evaluate all configured assets/timeframes and fuse their causal evidence."""
+    frames = ohlcv_by_key.get("frames", {}) if isinstance(ohlcv_by_key, dict) else {}
+    if not frames:
+        return {"available": False, "reason": "no_indicator_ohlcv_frames",
+                "errors": (ohlcv_by_key or {}).get("errors", {}),
+                "research_only": True, "live_orders": False}
+    results = {}
+    weights = {"15m": 0.15, "1h": 0.25, "4h": 0.35, "1d": 0.25}
+    bull = bear = 0.0
+    votes = []
+    for key, frame in frames.items():
+        result = evaluate_indicator_brain(frame)
+        results[key] = result
+        if not result.get("available"):
+            continue
+        interval = key.rsplit(":", 1)[-1]
+        tf_weight = weights.get(interval, 0.10)
+        direction = result.get("bias")
+        confidence = max(0.0, min(1.0, float(result.get("confidence", 0.0))))
+        contribution = tf_weight * confidence
+        if direction == "BULLISH":
+            bull += contribution
+            votes.append({"timeframe": key, "direction": direction, "weight": contribution})
+        elif direction == "BEARISH":
+            bear += contribution
+            votes.append({"timeframe": key, "direction": direction, "weight": contribution})
+    total = bull + bear
+    bias = "BULLISH" if bull > bear else "BEARISH" if bear > bull else "NEUTRAL"
+    agreement = max(bull, bear) / total if total else 0.0
+    confidence = min(0.90, max(bull, bear) * agreement)
+    return {
+        "available": True, "bias": bias, "confidence": round(confidence, 4),
+        "agreement": round(agreement, 4), "timeframes": results,
+        "timeframe_votes": votes, "frames_evaluated": len(results),
+        "pattern_count": sum(x.get("pattern_count", 0) for x in results.values()),
+        "computed_indicator_count": sum(x.get("computed_count", 0) for x in results.values()),
         "research_only": True, "live_orders": False
     }
