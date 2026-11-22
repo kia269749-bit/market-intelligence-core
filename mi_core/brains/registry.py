@@ -1,13 +1,52 @@
-"""Declarative specialist source registry; adapters are enabled only when implemented."""
+"""Source-to-specialist registry with explicit execution readiness.
+
+Every strategy source gets a stable brain ID and its own outcome history.
+A source is not marked runnable until a concrete, read-only adapter exists.
+"""
+from __future__ import annotations
+
+SPECIALIST_SOURCES = {
+    "technical.pandas_ta_classic.15m": {"family": "technical", "source": "pandas-ta-classic", "adapter": "technical_adapter", "status": "runnable"},
+    "technical.pandas_ta_classic.1h": {"family": "technical", "source": "pandas-ta-classic", "adapter": "technical_adapter", "status": "runnable"},
+    "technical.pandas_ta_classic.4h": {"family": "technical", "source": "pandas-ta-classic", "adapter": "technical_adapter", "status": "runnable"},
+    "technical.pandas_ta_classic.1d": {"family": "technical", "source": "pandas-ta-classic", "adapter": "technical_adapter", "status": "runnable"},
+    "strategy.pynecore": {"family": "strategy", "source": "theonetrade/pynecore-strategies", "adapter": "strategy_runtime", "status": "plugin_ready"},
+    "strategy.freqtrade": {"family": "strategy", "source": "freqtrade/freqtrade", "adapter": "strategy_runtime", "status": "plugin_ready"},
+    "strategy.hummingbot": {"family": "strategy", "source": "hummingbot/hummingbot", "adapter": "strategy_runtime", "status": "plugin_ready"},
+    "strategy.qlib": {"family": "strategy", "source": "microsoft/qlib", "adapter": "strategy_runtime", "status": "plugin_ready"},
+    "strategy.rd_agent": {"family": "strategy", "source": "microsoft/RD-Agent", "adapter": "strategy_runtime", "status": "plugin_ready"},
+    "strategy.tradingagents": {"family": "strategy", "source": "TauricResearch/TradingAgents", "adapter": "strategy_runtime", "status": "plugin_ready"},
+    "strategy.forven": {"family": "strategy", "source": "judder659/Forven", "adapter": "strategy_runtime", "status": "license_review_required"},
+    "market.hypergrok": {"family": "orderflow", "source": "galleonlabs/hypergrok-trading-desk", "adapter": "pending", "status": "adapter_pending"},
+    "market.circuit": {"family": "orderflow", "source": "EthanXiang777/circuit-framework", "adapter": "pending", "status": "adapter_pending"},
+    "market.cryptointel_mcp": {"family": "orderflow", "source": "Arshad-13/CryptoIntel-MCP", "adapter": "pending", "status": "adapter_pending"},
+    "derivatives.hyperliquid_funding": {"family": "derivatives", "source": "Project60 settled FundingEvent", "adapter": "pending", "status": "feed_wiring_pending"},
+    "derivatives.open_interest": {"family": "derivatives", "source": "Project60 Hyperliquid OI", "adapter": "pending", "status": "feed_wiring_pending"},
+    "forecast.kronos": {"family": "forecast", "source": "shiyu-coder/Kronos", "adapter": "pending", "status": "runtime_review_pending"},
+    "memory.tradememory": {"family": "memory", "source": "mnemox-ai/tradememory-protocol", "adapter": "pending", "status": "adapter_pending"},
+    "memory.project60_outcomes": {"family": "memory", "source": "Project60 OutcomeStore", "adapter": "outcome_store", "status": "runnable"},
+    "macro.openbb": {"family": "macro", "source": "OpenBB", "adapter": "pending", "status": "adapter_pending"},
+    "macro.grok_research": {"family": "macro", "source": "Grok research bots", "adapter": "pending", "status": "adapter_pending"},
+}
+
+# Backward-compatible family view. Individual source identities remain primary.
 SPECIALISTS = {
-    "technical_patterns": {"family": "technical", "sources": ["indicator_brain", "pandas-ta-classic", "ta_patterns", "freqtrade/technical", "QuanTAlib", "PyneCore"], "status": "adapter_pending"},
-    "strategy_library": {"family": "strategy", "sources": ["PyneCore Strategies", "Freqtrade", "Hummingbot", "Qlib", "RD-Agent", "Forven", "TradingAgents"], "status": "adapter_pending"},
-    "market_structure": {"family": "orderflow", "sources": ["HyperGrok read-only schemas", "Circuit framework", "OFI", "OBI", "Microprice", "VPIN"], "status": "adapter_pending"},
-    "derivatives": {"family": "derivatives", "sources": ["Project60 Funding", "Hyperliquid OI", "Liquidations", "Options data"], "status": "adapter_pending"},
-    "forecast": {"family": "forecast", "sources": ["Kronos", "Project60 path forecast"], "status": "adapter_pending"},
-    "memory": {"family": "memory", "sources": ["TradeMemory protocol", "Project60 OutcomeStore"], "status": "native_foundation"},
+    "technical_patterns": {"family": "technical", "sources": ["pandas-ta-classic", "ta_patterns", "freqtrade/technical", "QuanTAlib", "PyneCore"], "status": "partially_runnable"},
+    "strategy_library": {"family": "strategy", "sources": ["PyneCore Strategies", "Freqtrade", "Hummingbot", "Qlib", "RD-Agent", "Forven", "TradingAgents"], "status": "plugin_runtime_ready"},
+    "market_structure": {"family": "orderflow", "sources": ["HyperGrok", "Circuit", "CryptoIntel-MCP", "OFI", "OBI", "Microprice", "VPIN"], "status": "adapter_pending"},
+    "derivatives": {"family": "derivatives", "sources": ["Project60 Funding", "Hyperliquid OI", "Liquidations", "Options data"], "status": "feed_wiring_pending"},
+    "forecast": {"family": "forecast", "sources": ["Kronos", "Project60 path forecast"], "status": "runtime_review_pending"},
+    "memory": {"family": "memory", "sources": ["TradeMemory protocol", "Project60 OutcomeStore"], "status": "partially_runnable"},
     "macro_news": {"family": "macro", "sources": ["Grok research bots", "OpenBB"], "status": "adapter_pending"},
 }
 
+
 def list_specialists():
-    return {key: {"family": value["family"], "sources": tuple(value["sources"]), "status": value["status"]} for key, value in SPECIALISTS.items()}
+    return {key: {**value, "source_ids": tuple(
+        brain_id for brain_id, spec in SPECIALIST_SOURCES.items()
+        if spec["family"] == value["family"]
+    )} for key, value in SPECIALISTS.items()}
+
+
+def list_specialist_sources():
+    return {key: dict(value) for key, value in SPECIALIST_SOURCES.items()}
