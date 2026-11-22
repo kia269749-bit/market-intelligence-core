@@ -610,7 +610,8 @@ def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None, ca
 
 def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None,
              fomo_leader_evidence=None, outcome_memory=None, forecast=None, candle_evidence=None, market_context=None,
-             multi_timeframe=None, indicator_ohlcv=None):
+             multi_timeframe=None, indicator_ohlcv=None, brain_market_data=None,
+             strategy_runtime=None, outcome_store=None, signal_journal=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
@@ -639,6 +640,79 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     quality_status={"SAFE":"HEALTHY","PARTIAL":"DEGRADED"}.get(quality_status,quality_status)
     quality["status"]=quality_status
     regime=_regime(market,forecast,multi_timeframe)
+    # Run the specialist layer on the same closed-candle snapshot used by the
+    # existing live brain. Project60 orderbook/trade imbalance is passed only
+    # with its original timestamp; unavailable feeds remain unavailable.
+    multi_brain_report = None
+    multi_brain_reports = {}
+    primary_symbol = str(forecast_asset or "BTCUSDT").upper().replace("/", "").replace("-", "")
+    if not primary_symbol.endswith(("USDT", "USDC", "USD", "PERP")):
+        primary_symbol += "USDT"
+    if indicator_ohlcv is not None or brain_market_data is not None:
+        try:
+            from .brains import MarketSnapshot, evaluate_brains
+            requested_symbols = list(symbols or DEFAULT_SYMBOLS)
+            normalized_symbols = []
+            for raw_symbol in requested_symbols + [primary_symbol]:
+                normalized = str(raw_symbol).upper().replace("/", "").replace("-", "")
+                if not normalized.endswith(("USDT", "USDC", "USD", "PERP")):
+                    normalized += "USDT"
+                if normalized not in normalized_symbols:
+                    normalized_symbols.append(normalized)
+            all_frames = (indicator_ohlcv or {}).get("frames", {}) if isinstance(indicator_ohlcv, dict) else {}
+            p60_assets = (project60 or {}).get("assets") or {}
+            p60_ts = _num((project60 or {}).get("timestamp"), 0.0)
+            p60_ts_ms = int(p60_ts * 1000 if 0 < p60_ts < 1e12 else p60_ts) if p60_ts > 0 else None
+            feed_map = (brain_market_data or {}).get("by_symbol", {}) if isinstance(brain_market_data, dict) else {}
+            common_as_of_ms = int(time.time() * 1000)
+            for target_symbol in normalized_symbols:
+                base_asset = target_symbol
+                for suffix in ("USDT", "USDC", "USD", "PERP"):
+                    if base_asset.endswith(suffix):
+                        base_asset = base_asset[:-len(suffix)]
+                        break
+                feed = feed_map.get(base_asset) or feed_map.get(target_symbol) if isinstance(feed_map, dict) else None
+                brain_payload = dict(feed if isinstance(feed, dict) else (brain_market_data or {}))
+                brain_payload.pop("by_symbol", None)
+                if project60 and project60.get("available"):
+                    brain_payload["project60_assets"] = p60_assets
+                    if p60_ts_ms is not None:
+                        brain_payload["project60_timestamp_ms"] = p60_ts_ms
+                selected_frames = {}
+                if isinstance(all_frames, dict):
+                    for key, frame in all_frames.items():
+                        key_text = str(key).upper()
+                        if key_text.startswith(target_symbol + ":"):
+                            selected_frames[key_text.rsplit(":", 1)[-1].lower()] = frame
+                if selected_frames:
+                    brain_payload["ohlcv_by_timeframe"] = selected_frames
+                    last_frame = selected_frames.get("1h")
+                    if last_frame is None:
+                        last_frame = next(iter(selected_frames.values()))
+                    try:
+                        brain_payload["price"] = float(last_frame["close"].iloc[-1])
+                    except Exception:
+                        pass
+                p60_asset = p60_assets.get(base_asset) or {}
+                if isinstance(p60_asset, dict) and p60_asset.get("price") is not None:
+                    try:
+                        brain_payload["price"] = float(p60_asset["price"])
+                    except (TypeError, ValueError):
+                        pass
+                brain_payload["regime"] = regime.get("name")
+                brain_snapshot = MarketSnapshot(target_symbol, common_as_of_ms, "1h", brain_payload)
+                try:
+                    multi_brain_reports[target_symbol] = evaluate_brains(
+                        brain_snapshot, strategy_runtime=strategy_runtime,
+                        outcome_store=outcome_store, signal_journal=signal_journal,
+                    )
+                except Exception as brain_exc:
+                    multi_brain_reports[target_symbol] = {
+                        "available": False, "reason": "specialist_runtime_error:" + type(brain_exc).__name__
+                    }
+            multi_brain_report = multi_brain_reports.get(primary_symbol)
+        except Exception as exc:
+            multi_brain_report = {"available": False, "reason": "multi_brain_error:" + type(exc).__name__}
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
     votes=[(raw_bias,raw_conf)]
@@ -722,7 +796,33 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         and timing.get("state")=="EARLY" and quality_status=="HEALTHY"
         and mtf.get("available") and mtf_bias==str(forecast_alignment.get("direction","")).upper()
         and _num(mtf.get("aligned_timeframes"))>=2
+        and multi_brain_report is not None
+        and not isinstance(multi_brain_report, dict)
+        and multi_brain_report.central_decision.decision == ("LONG" if combined.get("bias") == "BULLISH" else "SHORT")
     )
+    def _serialize_brain_report(report):
+        if report is None:
+            return {"available": False, "reason": "not_enabled"}
+        if isinstance(report, dict):
+            return report
+        return {
+            "available": True,
+            "central_decision": report.central_decision.decision,
+            "confidence": report.central_decision.confidence,
+            "supporting_families": list(report.central_decision.supporting_families),
+            "reasons": list(report.central_decision.reasons),
+            "specialists": [{
+                "brain_id": p.brain_id, "family": p.family, "direction": p.direction,
+                "confidence": p.confidence, "available": p.available,
+                "reasons": list(p.reasons), "source_ids": list(p.source_ids),
+            } for p in report.specialist_proposals],
+            "journal_ids": list(report.journal_ids),
+            "research_only": True, "live_orders": False,
+        }
+    multi_brain_payload = _serialize_brain_report(multi_brain_report)
+    multi_brains_payload = {symbol: _serialize_brain_report(report)
+                            for symbol, report in multi_brain_reports.items()}
+
     return {"ts":int(time.time()),"market":market,"fomo":fomo,
         "evidence":{"execution_ready":execution_ready,
           "market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
@@ -735,6 +835,9 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"multi_timeframe":{"available":bool(mtf.get("available")),"bias":mtf_bias,"confidence_score":round(mtf_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"technical_indicators":{"available":bool(indicator_evidence.get("available")),"bias":indicator_bias,"confidence":indicator_conf},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
           "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
+        "multi_brain": multi_brain_payload,
+        "multi_brains": multi_brains_payload,
+        "multi_brain_primary_symbol": primary_symbol,
         "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
@@ -744,6 +847,20 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
+    multi_brains=snapshot.get("multi_brains") or {}
+    if multi_brains:
+        for symbol, brain_result in sorted(multi_brains.items()):
+            print("CENTRAL_MULTI_BRAIN asset={} decision={} confidence={:.2f} families={} journal_rows={}".format(
+                symbol,brain_result.get("central_decision","NO_TRADE"),_num(brain_result.get("confidence")),
+                ",".join(brain_result.get("supporting_families") or []),len(brain_result.get("journal_ids") or [])))
+            for specialist in brain_result.get("specialists",[]):
+                print("  SPECIALIST {} | {} | {} | confidence={:.2f} | available={} | {}".format(
+                    specialist.get("brain_id"),specialist.get("family"),specialist.get("direction"),
+                    _num(specialist.get("confidence")),specialist.get("available"),
+                    ";".join(specialist.get("reasons") or [])))
+    else:
+        multi_brain=snapshot.get("multi_brain") or {}
+        print("CENTRAL_MULTI_BRAIN unavailable | {}".format(multi_brain.get("reason","not_enabled")))
     technical=e.get("technical_indicators",{}) or {}
     print("TECHNICAL_BRAIN available={} bias={} confidence={:.2f} frames={} indicators={} patterns={} reason={}".format(
         technical.get("available",False),technical.get("bias","UNKNOWN"),

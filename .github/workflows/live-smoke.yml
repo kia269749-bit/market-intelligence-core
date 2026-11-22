@@ -9,7 +9,7 @@ on:
 jobs:
   live-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,6 +19,6 @@ jobs:
         run: python -m pip install -e .
       - name: Unit tests
         run: python -m unittest discover -s tests -v
-      - name: One real multi-exchange snapshot
+      - name: Hyperliquid live read-only brain integration (two observations)
         run: |
-          python -m mi_core.cli live             --exchanges binance,coinbase,kraken,okx             --symbols BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,DOGEUSDT             --interval 5             --cycles 1
+          python -m mi_core.brains.hyperliquid_market_feed             --symbols BTC,ETH,SOL,XRP,DOGE             --bars 120             --timeout 8             --interval 30             --cycles 2
