@@ -12,5 +12,8 @@ dependencies = [
     "pandas-ta-classic==0.9.0",
 ]
 
+[project.optional-dependencies]
+candlestick = ["TA-Lib>=0.6.0"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
