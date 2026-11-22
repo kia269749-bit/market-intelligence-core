@@ -832,6 +832,7 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         "capital_economics":capital_economics,
         "multi_brain": multi_brain_payload,
         "multi_brains": multi_brains_payload,
+        "multi_brain_primary_symbol": primary_symbol,
         "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
         "research_only":True,"live_orders":False,"fomo_error":fomo_error}
 
@@ -841,17 +842,19 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
-    multi_brain=snapshot.get("multi_brain") or {}
-    if multi_brain.get("available"):
-        print("CENTRAL_MULTI_BRAIN decision={} confidence={:.2f} families={} journal_rows={}".format(
-            multi_brain.get("central_decision","NO_TRADE"),_num(multi_brain.get("confidence")),
-            ",".join(multi_brain.get("supporting_families") or []),len(multi_brain.get("journal_ids") or [])))
-        for specialist in multi_brain.get("specialists",[]):
-            print("  SPECIALIST {} | {} | {} | confidence={:.2f} | available={} | {}".format(
-                specialist.get("brain_id"),specialist.get("family"),specialist.get("direction"),
-                _num(specialist.get("confidence")),specialist.get("available"),
-                ";".join(specialist.get("reasons") or [])))
+    multi_brains=snapshot.get("multi_brains") or {}
+    if multi_brains:
+        for symbol, brain_result in sorted(multi_brains.items()):
+            print("CENTRAL_MULTI_BRAIN asset={} decision={} confidence={:.2f} families={} journal_rows={}".format(
+                symbol,brain_result.get("central_decision","NO_TRADE"),_num(brain_result.get("confidence")),
+                ",".join(brain_result.get("supporting_families") or []),len(brain_result.get("journal_ids") or [])))
+            for specialist in brain_result.get("specialists",[]):
+                print("  SPECIALIST {} | {} | {} | confidence={:.2f} | available={} | {}".format(
+                    specialist.get("brain_id"),specialist.get("family"),specialist.get("direction"),
+                    _num(specialist.get("confidence")),specialist.get("available"),
+                    ";".join(specialist.get("reasons") or [])))
     else:
+        multi_brain=snapshot.get("multi_brain") or {}
         print("CENTRAL_MULTI_BRAIN unavailable | {}".format(multi_brain.get("reason","not_enabled")))
     technical=e.get("technical_indicators",{}) or {}
     print("TECHNICAL_BRAIN available={} bias={} confidence={:.2f} frames={} indicators={} patterns={} reason={}".format(
