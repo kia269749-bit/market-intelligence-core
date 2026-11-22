@@ -32,10 +32,10 @@ def evaluate_derivatives_specialists(snapshot: MarketSnapshot) -> list[BrainProp
             family="derivatives",
             direction=direction,
             confidence=round(magnitude, 4),
-            as_of_ms=ts,
+            as_of_ms=snapshot.as_of_ms,
             source_ids=("Project60:settled_FundingEvent",),
-            reasons=("positive_funding_crowding_long" if rate > 0 else
-                     "negative_funding_crowding_short" if rate < 0 else "neutral_funding",),
+            reasons=(("positive_funding_crowding_long" if rate > 0 else
+                      "negative_funding_crowding_short" if rate < 0 else "neutral_funding"), f"event_timestamp_ms:{ts}"),
         ))
     else:
         output.append(BrainProposal(
@@ -61,7 +61,7 @@ def evaluate_derivatives_specialists(snapshot: MarketSnapshot) -> list[BrainProp
             strength = min(1.0, abs(oi_change) / 0.05) * min(1.0, abs(price_change) / 0.02)
             output.append(BrainProposal(
                 brain_id="derivatives.open_interest", family="derivatives",
-                direction=direction, confidence=round(strength, 4), as_of_ms=oi_ts,
+                direction=direction, confidence=round(strength, 4), as_of_ms=snapshot.as_of_ms,
                 source_ids=("Project60:open_interest",),
                 reasons=("rising_oi_with_price_confirmation",),
             ))
