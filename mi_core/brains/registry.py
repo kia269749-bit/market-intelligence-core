@@ -34,6 +34,7 @@ SPECIALIST_SOURCES = {
     "technical.strategy.donchian_breakout.1d": {"family": "technical", "source": "Project60 OHLCV native strategy donchian_breakout", "adapter": "native_strategy_brains", "status": "runnable_when_ohlcv_present"},
     "technical.strategy.macd_momentum.1d": {"family": "technical", "source": "Project60 OHLCV native strategy macd_momentum", "adapter": "native_strategy_brains", "status": "runnable_when_ohlcv_present"},
     "technical.strategy.bollinger_reversion.1d": {"family": "technical", "source": "Project60 OHLCV native strategy bollinger_reversion", "adapter": "native_strategy_brains", "status": "runnable_when_ohlcv_present"},
+    "technical.ta_patterns.dynamic": {"family": "technical", "source": "AdventuresInDataScience/ta_patterns (300 pattern detectors)", "adapter": "ta_patterns_adapter", "status": "runnable_when_ohlcv_present; dynamic per-pattern/timeframe IDs"},
     "strategy.pynecore": {"family": "strategy", "source": "theonetrade/pynecore-strategies", "adapter": "callable_adapters", "status": "callable_adapter_runtime_required"},
     "strategy.freqtrade": {"family": "strategy", "source": "freqtrade/freqtrade", "adapter": "freqtrade_adapter", "status": "adapter_available_source_review_required"},
     "strategy.hummingbot": {"family": "strategy", "source": "hummingbot/hummingbot", "adapter": "strategy_runtime", "status": "plugin_ready"},
