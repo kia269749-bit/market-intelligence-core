@@ -72,9 +72,7 @@ Every upstream update requires:
 - explicit promotion from candidate to runnable;
 - independent OOS evidence before any performance weighting or economic claim.
 
-The `SPECIALIST_SOURCES` registry now contains 50 source-level entries, including one dynamic HyperData order-flow source the directional
-specialist registry. These capability sources are intentionally not added to it.
-The central brain's family-independence rules remain in force.
+The `SPECIALIST_SOURCES` registry now contains 50 source-level entries, including one dynamic HyperData order-flow source. The separate capability catalog tracks data, research, validation and runtime sources. HyperData-derived proposals join the existing `orderflow` family; they do not create additional independent families.
 
 ## Safety and evaluation policy
 
@@ -130,3 +128,21 @@ own data-integrity documentation warns that liquidation coverage differs by
 venue and that Binance liquidation events are sampled while Hyperliquid
 liquidations are partial; liquidation values are not treated as complete census
 data. The educational liquidation strategy is not imported.
+
+
+## Optional purgedcv validation runtime
+
+Project60 now includes mi_core/research_validation.py, a wrapper around
+purgedcv.WalkForwardSplit, PSR and optional DSR diagnostics. It requires
+explicit prediction and evaluation timestamps and refuses returns unless the
+caller marks them as net of all modeled costs. The optional dependency is
+available through pip install -e ".[cloud-validation]"; it is not installed
+by default and must not be installed in the current Android Termux environment
+without a separate compatibility check.
+
+This wrapper evaluates precomputed returns only. It does not train a model,
+generate signals, alter thresholds or replace Project60's existing validation.
+Its results must be compared against the current walk-forward process on the
+same frozen dataset before adoption. DSR requires the caller to supply the
+actual number of independent trials and the variance of trial Sharpes; neither
+is guessed by the wrapper.
