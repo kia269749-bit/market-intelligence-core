@@ -22,7 +22,7 @@ SPECIALIST_SOURCES = {
     "market.circuit": {"family": "orderflow", "source": "EthanXiang777/circuit-framework", "adapter": "pending", "status": "adapter_pending"},
     "market.cryptointel_mcp": {"family": "orderflow", "source": "Arshad-13/CryptoIntel-MCP", "adapter": "pending", "status": "adapter_pending"},
     "derivatives.hyperliquid_funding": {"family": "derivatives", "source": "Project60 settled FundingEvent", "adapter": "derivatives_adapter", "status": "runnable_when_feed_present"},
-    "derivatives.open_interest": {"family": "derivatives", "source": "Project60 Hyperliquid OI", "adapter": "pending", "status": "feed_wiring_pending"},
+    "derivatives.open_interest": {"family": "derivatives", "source": "Project60 normalized OI change + price change", "adapter": "derivatives_adapter", "status": "runnable_when_feed_present"},
     "forecast.kronos": {"family": "forecast", "source": "shiyu-coder/Kronos", "adapter": "pending", "status": "runtime_review_pending"},
     "memory.tradememory": {"family": "memory", "source": "mnemox-ai/tradememory-protocol", "adapter": "pending", "status": "adapter_pending"},
     "memory.project60_outcomes": {"family": "memory", "source": "Project60 OutcomeStore", "adapter": "outcome_store", "status": "runnable"},
