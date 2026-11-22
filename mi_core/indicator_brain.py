@@ -160,40 +160,50 @@ _INDICATOR_CACHE_TTL = 60.0
 
 def fetch_indicator_ohlcv(symbols=("BTCUSDT",), intervals=("15m", "1h", "4h", "1d"),
                           limit=500, timeout=8.0):
-    """Fetch closed Binance USD-M Futures OHLCV bars with a short in-process cache."""
+    """Fetch closed Binance USD-M Futures OHLCV with bounded parallelism/cache."""
     try:
         import pandas as pd
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         from .binance_futures_data import fetch_futures_klines, KLINE_INTERVAL_MS
     except Exception as exc:
         return {"available": False, "reason": "futures_ohlcv_source_unavailable", "error": str(exc)}
     now = time.monotonic()
     now_ms = int(time.time() * 1000)
     output, errors = {}, {}
-    for symbol in symbols:
-        for interval in intervals:
-            key = (str(symbol).upper(), str(interval), int(limit))
-            cached = _INDICATOR_CACHE.get(key)
-            if cached and now - cached[0] < _INDICATOR_CACHE_TTL:
-                output[key[0] + ":" + key[1]] = cached[1]
-                continue
-            if interval not in KLINE_INTERVAL_MS:
-                errors[key[0] + ":" + key[1]] = "unsupported_interval"
-                continue
+    tasks = [(str(symbol).upper(), str(interval), int(limit)) for symbol in symbols for interval in intervals]
+
+    def fetch_one(key):
+        symbol, interval, row_limit = key
+        cache = _INDICATOR_CACHE.get(key)
+        if cache and now - cache[0] < _INDICATOR_CACHE_TTL:
+            return key, cache[1], None
+        if interval not in KLINE_INTERVAL_MS:
+            return key, None, "unsupported_interval"
+        candles = fetch_futures_klines(symbol, interval, limit=row_limit, timeout=timeout)
+        closed = [bar for bar in candles if int(bar.close_time_ms) <= now_ms]
+        if not closed:
+            return key, None, "no_closed_candles"
+        frame = pd.DataFrame([{
+            "open": bar.open, "high": bar.high, "low": bar.low,
+            "close": bar.close, "volume": bar.volume
+        } for bar in closed], index=[bar.open_time_ms for bar in closed])
+        frame.index.name = "open_time_ms"
+        _INDICATOR_CACHE[key] = (now, frame)
+        return key, frame, None
+
+    with ThreadPoolExecutor(max_workers=min(5, max(1, len(tasks)))) as pool:
+        futures = {pool.submit(fetch_one, key): key for key in tasks}
+        for future in as_completed(futures):
+            key = futures[future]
+            name = key[0] + ":" + key[1]
             try:
-                candles = fetch_futures_klines(symbol, interval, limit=limit, timeout=timeout)
-                closed = [bar for bar in candles if int(bar.close_time_ms) <= now_ms]
-                if not closed:
-                    errors[key[0] + ":" + key[1]] = "no_closed_candles"
-                    continue
-                frame = pd.DataFrame([{
-                    "open": bar.open, "high": bar.high, "low": bar.low,
-                    "close": bar.close, "volume": bar.volume
-                } for bar in closed], index=[bar.open_time_ms for bar in closed])
-                frame.index.name = "open_time_ms"
-                _INDICATOR_CACHE[key] = (now, frame)
-                output[key[0] + ":" + key[1]] = frame
+                _key, frame, error = future.result()
+                if error:
+                    errors[name] = error
+                else:
+                    output[name] = frame
             except Exception as exc:
-                errors[key[0] + ":" + key[1]] = str(exc)[:180]
+                errors[name] = str(exc)[:180]
     return {"available": bool(output), "frames": output, "errors": errors,
             "source": "Binance USD-M Futures public klines",
             "intervals": list(intervals), "symbols": list(symbols),
