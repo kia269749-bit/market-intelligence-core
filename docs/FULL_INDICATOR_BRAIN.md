@@ -3,7 +3,7 @@
 Status: implemented on a separate feature branch; Draft PR #132; not merged or run in the user's Termux environment.
 
 ## What is wired
-- pandas-ta-classic 0.9.0 is pinned with its package version recorded.
+- pandas-ta-classic 0.9.0 is pinned with its package version recorded. The optional candlestick extra enables the TA-Lib backend for the full native pattern inventory. CI installs the declared core dependencies through the project package metadata.
 - The live-all CLI fetches completed Binance USD-M Futures OHLCV bars for BTCUSDT on 15m, 1h, 4h and 1d, with a 60-second in-process cache.
 - The brain attempts the installed indicator accessor inventory on each timeframe and retains computed outputs as machine-readable features.
 - The native all-pattern dispatcher is called on each timeframe. The optional candlestick extra installs TA-Lib, which is needed for the full TA-Lib-backed pattern set. Pattern errors and actual pattern counts are surfaced, not hidden.
