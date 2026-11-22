@@ -24,6 +24,18 @@ def arbitrate(snapshot: MarketSnapshot, proposals: Iterable[BrainProposal], perf
         if not p.available or p.direction == "NO_TRADE": continue
         if p.as_of_ms > snapshot.as_of_ms or snapshot.as_of_ms - p.as_of_ms > max_age_ms: continue
         if p.direction not in ("LONG", "SHORT") or p.confidence < min_confidence: continue
+        # If a strategy supplies a complete payoff estimate, require positive
+        # expected return after the locked 0.12% round-trip cost. Do not invent
+        # payoff values when the strategy has not supplied them.
+        if p.expected_win_rate is not None and p.expected_win_pct is not None and p.expected_loss_pct is not None:
+            win_rate = float(p.expected_win_rate)
+            win_pct = float(p.expected_win_pct)
+            loss_pct = float(p.expected_loss_pct)
+            if not 0.0 <= win_rate <= 1.0 or win_pct < 0.0 or loss_pct < 0.0:
+                continue
+            net_expectancy_pct = win_rate * win_pct - (1.0 - win_rate) * loss_pct - ROUND_TRIP_COST_PCT
+            if net_expectancy_pct <= 0.0:
+                continue
         weight, wr, n = _performance_weight(performance.get(p.brain_id))
         valid.append((p, weight, wr, n))
     family_best = {}
