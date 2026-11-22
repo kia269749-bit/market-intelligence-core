@@ -818,6 +818,18 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
+    multi_brain=snapshot.get("multi_brain") or {}
+    if multi_brain.get("available"):
+        print("CENTRAL_MULTI_BRAIN decision={} confidence={:.2f} families={} journal_rows={}".format(
+            multi_brain.get("central_decision","NO_TRADE"),_num(multi_brain.get("confidence")),
+            ",".join(multi_brain.get("supporting_families") or []),len(multi_brain.get("journal_ids") or [])))
+        for specialist in multi_brain.get("specialists",[]):
+            print("  SPECIALIST {} | {} | {} | confidence={:.2f} | available={} | {}".format(
+                specialist.get("brain_id"),specialist.get("family"),specialist.get("direction"),
+                _num(specialist.get("confidence")),specialist.get("available"),
+                ";".join(specialist.get("reasons") or [])))
+    else:
+        print("CENTRAL_MULTI_BRAIN unavailable | {}".format(multi_brain.get("reason","not_enabled")))
     technical=e.get("technical_indicators",{}) or {}
     print("TECHNICAL_BRAIN available={} bias={} confidence={:.2f} frames={} indicators={} patterns={} reason={}".format(
         technical.get("available",False),technical.get("bias","UNKNOWN"),
