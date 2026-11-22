@@ -44,12 +44,31 @@ def evaluate_technical_specialists(snapshot: MarketSnapshot) -> list[BrainPropos
 
     proposals: list[BrainProposal] = []
     timeframes = sorted(set(DEFAULT_TIMEFRAMES) | {str(key) for key in frames})
+    interval_ms = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000}
     for timeframe in timeframes:
         frame = frames.get(timeframe)
         if frame is None:
             proposals.append(_unavailable(snapshot, timeframe, "ohlcv_timeframe_missing"))
             continue
         brain_id = f"{BRAIN_PREFIX}.{timeframe.lower()}"
+        # A valid DataFrame is not automatically fresh. Its final row index is
+        # the candle open time; reject unknown timestamps, forming/future bars,
+        # and bars older than two timeframe lengths.
+        try:
+            last_index = frame.index[-1]
+            if hasattr(last_index, "timestamp"):
+                open_ms = int(last_index.timestamp() * 1000)
+            else:
+                open_ms = int(last_index)
+            duration = interval_ms.get(timeframe)
+            close_ms = open_ms + duration if duration else snapshot.as_of_ms + 1
+            age_ms = snapshot.as_of_ms - close_ms
+            if duration is None or age_ms < 0 or age_ms > 2 * duration:
+                proposals.append(_unavailable(snapshot, timeframe, "stale_forming_or_unverifiable_candle"))
+                continue
+        except Exception:
+            proposals.append(_unavailable(snapshot, timeframe, "ohlcv_timestamp_unavailable"))
+            continue
         try:
             result: dict[str, Any] = evaluate_indicator_brain(frame)
         except Exception as exc:
