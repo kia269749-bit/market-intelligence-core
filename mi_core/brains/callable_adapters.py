@@ -57,11 +57,13 @@ class CallableStrategyAdapter:
             confidence = max(0.0, min(0.95, float(confidence)))
         except (TypeError, ValueError):
             return self._unavailable(snapshot, "callable_returned_invalid_confidence")
+        raw_reasons = result.get("reasons", ("external_callable_strategy",))
+        reasons = (raw_reasons,) if isinstance(raw_reasons, str) else tuple(str(x) for x in raw_reasons)
         return BrainProposal(
             brain_id=self.brain_id, family="strategy", direction=direction,
             confidence=confidence, as_of_ms=snapshot.as_of_ms,
             source_ids=(self.source_repository, str(result.get("source_id", "callable_strategy"))),
-            reasons=tuple(str(x) for x in result.get("reasons", ("external_callable_strategy",))),
+            reasons=reasons,
             expected_win_rate=result.get("expected_win_rate"),
             expected_win_pct=result.get("expected_win_pct"),
             expected_loss_pct=result.get("expected_loss_pct"),
@@ -149,11 +151,13 @@ class OpenBBMacroAdapter:
         if ts > snapshot.as_of_ms or snapshot.as_of_ms - ts > self.max_age_ms:
             return self._unavailable(snapshot, "openbb_macro_context_stale_or_future")
         direction = "LONG" if score >= 0.25 else "SHORT" if score <= -0.25 else "NO_TRADE"
+        raw_sources = data.get("source_ids", ("OpenBB:macro_context",))
+        source_ids = (raw_sources,) if isinstance(raw_sources, str) else tuple(str(x) for x in raw_sources)
         return BrainProposal(
             brain_id=self.brain_id, family="macro", direction=direction,
             confidence=max(0.0, min(0.90, confidence)) if direction != "NO_TRADE" else 0.0,
             as_of_ms=snapshot.as_of_ms,
-            source_ids=tuple(data.get("source_ids", ("OpenBB:macro_context",))),
+            source_ids=source_ids,
             reasons=(f"macro_direction_score:{score:.4f}",),
         )
 
