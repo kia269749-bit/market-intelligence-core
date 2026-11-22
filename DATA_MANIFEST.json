@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "protocol": "EDGE_SEARCH_v1",
+  "status": "PENDING_DATA_ACQUISITION",
+  "source": {
+    "venue": "Binance USD-M Futures public klines",
+    "endpoint": "https://fapi.binance.com/fapi/v1/klines",
+    "collector": "mi_core/binance_futures_data.py",
+    "instrument": "USDT perpetual",
+    "fields": [
+      "open_time",
+      "open",
+      "high",
+      "low",
+      "close",
+      "volume",
+      "close_time"
+    ],
+    "timeframes": [
+      "1h",
+      "4h",
+      "1d"
+    ],
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT"
+    ]
+  },
+  "periods": {
+    "A": {
+      "start": "2020-01-01T00:00:00Z",
+      "end_exclusive": "2023-01-01T00:00:00Z"
+    },
+    "B": {
+      "start": "2023-01-01T00:00:00Z",
+      "end_exclusive": "2025-01-01T00:00:00Z"
+    },
+    "C": {
+      "start": "2025-01-01T00:00:00Z",
+      "end": "2026-11-15T23:59:59Z",
+      "sealed": true,
+      "one_run": true
+    }
+  },
+  "acquisition": {
+    "download_performed": false,
+    "reason": "GitHub repository API can commit files but does not execute the repository's Python collector or provide a runtime for a full multi-year OHLC download.",
+    "dataset_sha256": null,
+    "per_symbol_timeframe_counts": null,
+    "ohlc_validation": null,
+    "gap_report": null
+  },
+  "sealing": {
+    "C_hash_before_A": null,
+    "hash_status": "NOT YET AVAILABLE",
+    "must_be_recorded_before_A": true,
+    "any_C_values_exposed_before_final_run": false
+  },
+  "known_coverage_risk": "SOL perpetual history may begin later than 2020; actual first timestamp and missing interval coverage must be reported, not backfilled or fabricated.",
+  "no_lookahead": "Signals use only information available at candle close; entries occur no earlier than the next eligible bar; overlapping positions are prohibited within each asset."
+}

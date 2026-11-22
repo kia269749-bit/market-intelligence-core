@@ -1,0 +1,2865 @@
+{
+  "schema_version": "1.1",
+  "protocol": "EDGE_SEARCH_v1",
+  "lock_status": "LOCKED_AFTER_PRE_RUN_PORTFOLIO_UNIT_CORRECTION",
+  "correction_note": "This registry supersedes the initial 420-row draft registry before any data download or evaluation. The acceptance rule 'no asset >50% of net profit' and same-day cross-asset cluster definition require each trial to be a 3-asset portfolio, not one separate trial per asset. No results were observed and no trial was executed. The prior registry hash is retained in Git history.",
+  "supersedes_blob_sha": "0d4c436b8725129d6ff23b3ba2119307c6d283e6",
+  "created_from_base": "0630706dc655366042c073cebc44aebad070b39e",
+  "multiple_testing": "HOLM_ONLY_ACROSS_ALL_140_PORTFOLIO_TRIALS",
+  "trial_count": 140,
+  "indicator_definition_count": 23,
+  "indicator_portfolio_trial_count": 138,
+  "kronos_portfolio_trial_count": 2,
+  "unit_of_trial": "One indicator x timeframe x direction portfolio containing BTCUSDT, ETHUSDT, and SOLUSDT; asset-level results are components, not separate hypothesis tests.",
+  "cluster_definition": "Within each asset, trades cannot overlap. All trades opened on the same UTC calendar day across the three assets within a trial count as one independent cluster. Report trade rows, per-asset rows, and portfolio cluster count.",
+  "indicator_definition_set": [
+    {
+      "id": "ema_cross",
+      "family": "trend",
+      "name": "EMA cross",
+      "params": {
+        "fast": 20,
+        "slow": 50
+      }
+    },
+    {
+      "id": "macd",
+      "family": "trend",
+      "name": "MACD",
+      "params": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      }
+    },
+    {
+      "id": "adx_di",
+      "family": "trend",
+      "name": "ADX/DI",
+      "params": {
+        "period": 14,
+        "trend_threshold": 25
+      }
+    },
+    {
+      "id": "supertrend",
+      "family": "trend",
+      "name": "Supertrend",
+      "params": {
+        "atr_period": 10,
+        "multiplier": 3
+      }
+    },
+    {
+      "id": "ichimoku",
+      "family": "trend",
+      "name": "Ichimoku",
+      "params": {
+        "tenkan": 9,
+        "kijun": 26,
+        "senkou_b": 52
+      }
+    },
+    {
+      "id": "rsi",
+      "family": "momentum",
+      "name": "RSI",
+      "params": {
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      }
+    },
+    {
+      "id": "stoch",
+      "family": "momentum",
+      "name": "Stochastic",
+      "params": {
+        "k_period": 14,
+        "d_period": 3,
+        "smooth": 3
+      }
+    },
+    {
+      "id": "cci",
+      "family": "momentum",
+      "name": "CCI",
+      "params": {
+        "period": 20,
+        "threshold": 100
+      }
+    },
+    {
+      "id": "roc",
+      "family": "momentum",
+      "name": "ROC",
+      "params": {
+        "period": 12
+      }
+    },
+    {
+      "id": "bollinger",
+      "family": "volatility",
+      "name": "Bollinger Bands",
+      "params": {
+        "period": 20,
+        "stdev": 2
+      }
+    },
+    {
+      "id": "keltner",
+      "family": "volatility",
+      "name": "Keltner Channel",
+      "params": {
+        "ema_period": 20,
+        "atr_period": 10,
+        "multiplier": 2
+      }
+    },
+    {
+      "id": "atr_breakout",
+      "family": "volatility",
+      "name": "ATR breakout",
+      "params": {
+        "atr_period": 14,
+        "lookback": 20
+      }
+    },
+    {
+      "id": "obv",
+      "family": "volume",
+      "name": "OBV",
+      "params": {
+        "signal_period": 20
+      }
+    },
+    {
+      "id": "mfi",
+      "family": "volume",
+      "name": "MFI",
+      "params": {
+        "period": 14,
+        "oversold": 20,
+        "overbought": 80
+      }
+    },
+    {
+      "id": "vwap",
+      "family": "volume",
+      "name": "VWAP",
+      "params": {
+        "anchor": "session"
+      }
+    },
+    {
+      "id": "breakout_high_20",
+      "family": "price_structure",
+      "name": "20-bar high breakout",
+      "params": {
+        "lookback": 20
+      }
+    },
+    {
+      "id": "breakout_low_20",
+      "family": "price_structure",
+      "name": "20-bar low breakout",
+      "params": {
+        "lookback": 20
+      }
+    },
+    {
+      "id": "breakout_high_50",
+      "family": "price_structure",
+      "name": "50-bar high breakout",
+      "params": {
+        "lookback": 50
+      }
+    },
+    {
+      "id": "breakout_low_50",
+      "family": "price_structure",
+      "name": "50-bar low breakout",
+      "params": {
+        "lookback": 50
+      }
+    },
+    {
+      "id": "reversal_high_20",
+      "family": "price_structure",
+      "name": "20-bar high reversal",
+      "params": {
+        "lookback": 20
+      }
+    },
+    {
+      "id": "reversal_low_20",
+      "family": "price_structure",
+      "name": "20-bar low reversal",
+      "params": {
+        "lookback": 20
+      }
+    },
+    {
+      "id": "swing_high_low",
+      "family": "price_structure",
+      "name": "Swing high/low",
+      "params": {
+        "left_bars": 5,
+        "right_bars": 5
+      }
+    },
+    {
+      "id": "support_resistance_20",
+      "family": "price_structure",
+      "name": "Support/resistance",
+      "params": {
+        "lookback": 20
+      }
+    }
+  ],
+  "repository_alternates_included": 0,
+  "repository_alternates_reason": "No repository-derived parameter setting has yet been verified and reviewed; no settings are invented.",
+  "known_spec_blocker": "Kronos is restricted to post-training-cutoff data with cutoff no earlier than 2025-09-01, while A and B end on 2024-12-31 and C is sealed until final evaluation. Therefore Kronos has no eligible A/B selection data under the unified schedule; its two portfolio trials are blocked pending a non-leaking protocol resolution. They must not be silently run on pre-cutoff data.",
+  "trials": [
+    {
+      "trial_id": "IND-ema_cross-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ema_cross",
+      "family": "trend",
+      "parameters": {
+        "fast": 20,
+        "slow": 50
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ema_cross-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ema_cross",
+      "family": "trend",
+      "parameters": {
+        "fast": 20,
+        "slow": 50
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ema_cross-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ema_cross",
+      "family": "trend",
+      "parameters": {
+        "fast": 20,
+        "slow": 50
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ema_cross-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ema_cross",
+      "family": "trend",
+      "parameters": {
+        "fast": 20,
+        "slow": 50
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ema_cross-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ema_cross",
+      "family": "trend",
+      "parameters": {
+        "fast": 20,
+        "slow": 50
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ema_cross-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ema_cross",
+      "family": "trend",
+      "parameters": {
+        "fast": 20,
+        "slow": 50
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-macd-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "macd",
+      "family": "trend",
+      "parameters": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-macd-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "macd",
+      "family": "trend",
+      "parameters": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-macd-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "macd",
+      "family": "trend",
+      "parameters": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-macd-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "macd",
+      "family": "trend",
+      "parameters": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-macd-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "macd",
+      "family": "trend",
+      "parameters": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-macd-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "macd",
+      "family": "trend",
+      "parameters": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-adx_di-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "adx_di",
+      "family": "trend",
+      "parameters": {
+        "period": 14,
+        "trend_threshold": 25
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-adx_di-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "adx_di",
+      "family": "trend",
+      "parameters": {
+        "period": 14,
+        "trend_threshold": 25
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-adx_di-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "adx_di",
+      "family": "trend",
+      "parameters": {
+        "period": 14,
+        "trend_threshold": 25
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-adx_di-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "adx_di",
+      "family": "trend",
+      "parameters": {
+        "period": 14,
+        "trend_threshold": 25
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-adx_di-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "adx_di",
+      "family": "trend",
+      "parameters": {
+        "period": 14,
+        "trend_threshold": 25
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-adx_di-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "adx_di",
+      "family": "trend",
+      "parameters": {
+        "period": 14,
+        "trend_threshold": 25
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-supertrend-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "supertrend",
+      "family": "trend",
+      "parameters": {
+        "atr_period": 10,
+        "multiplier": 3
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-supertrend-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "supertrend",
+      "family": "trend",
+      "parameters": {
+        "atr_period": 10,
+        "multiplier": 3
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-supertrend-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "supertrend",
+      "family": "trend",
+      "parameters": {
+        "atr_period": 10,
+        "multiplier": 3
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-supertrend-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "supertrend",
+      "family": "trend",
+      "parameters": {
+        "atr_period": 10,
+        "multiplier": 3
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-supertrend-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "supertrend",
+      "family": "trend",
+      "parameters": {
+        "atr_period": 10,
+        "multiplier": 3
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-supertrend-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "supertrend",
+      "family": "trend",
+      "parameters": {
+        "atr_period": 10,
+        "multiplier": 3
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ichimoku-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ichimoku",
+      "family": "trend",
+      "parameters": {
+        "tenkan": 9,
+        "kijun": 26,
+        "senkou_b": 52
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ichimoku-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ichimoku",
+      "family": "trend",
+      "parameters": {
+        "tenkan": 9,
+        "kijun": 26,
+        "senkou_b": 52
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ichimoku-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ichimoku",
+      "family": "trend",
+      "parameters": {
+        "tenkan": 9,
+        "kijun": 26,
+        "senkou_b": 52
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ichimoku-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ichimoku",
+      "family": "trend",
+      "parameters": {
+        "tenkan": 9,
+        "kijun": 26,
+        "senkou_b": 52
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ichimoku-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ichimoku",
+      "family": "trend",
+      "parameters": {
+        "tenkan": 9,
+        "kijun": 26,
+        "senkou_b": 52
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-ichimoku-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "ichimoku",
+      "family": "trend",
+      "parameters": {
+        "tenkan": 9,
+        "kijun": 26,
+        "senkou_b": 52
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-rsi-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "rsi",
+      "family": "momentum",
+      "parameters": {
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-rsi-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "rsi",
+      "family": "momentum",
+      "parameters": {
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-rsi-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "rsi",
+      "family": "momentum",
+      "parameters": {
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-rsi-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "rsi",
+      "family": "momentum",
+      "parameters": {
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-rsi-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "rsi",
+      "family": "momentum",
+      "parameters": {
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-rsi-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "rsi",
+      "family": "momentum",
+      "parameters": {
+        "period": 14,
+        "oversold": 30,
+        "overbought": 70
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-stoch-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "stoch",
+      "family": "momentum",
+      "parameters": {
+        "k_period": 14,
+        "d_period": 3,
+        "smooth": 3
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-stoch-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "stoch",
+      "family": "momentum",
+      "parameters": {
+        "k_period": 14,
+        "d_period": 3,
+        "smooth": 3
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-stoch-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "stoch",
+      "family": "momentum",
+      "parameters": {
+        "k_period": 14,
+        "d_period": 3,
+        "smooth": 3
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-stoch-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "stoch",
+      "family": "momentum",
+      "parameters": {
+        "k_period": 14,
+        "d_period": 3,
+        "smooth": 3
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-stoch-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "stoch",
+      "family": "momentum",
+      "parameters": {
+        "k_period": 14,
+        "d_period": 3,
+        "smooth": 3
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-stoch-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "stoch",
+      "family": "momentum",
+      "parameters": {
+        "k_period": 14,
+        "d_period": 3,
+        "smooth": 3
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-cci-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "cci",
+      "family": "momentum",
+      "parameters": {
+        "period": 20,
+        "threshold": 100
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-cci-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "cci",
+      "family": "momentum",
+      "parameters": {
+        "period": 20,
+        "threshold": 100
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-cci-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "cci",
+      "family": "momentum",
+      "parameters": {
+        "period": 20,
+        "threshold": 100
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-cci-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "cci",
+      "family": "momentum",
+      "parameters": {
+        "period": 20,
+        "threshold": 100
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-cci-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "cci",
+      "family": "momentum",
+      "parameters": {
+        "period": 20,
+        "threshold": 100
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-cci-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "cci",
+      "family": "momentum",
+      "parameters": {
+        "period": 20,
+        "threshold": 100
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-roc-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "roc",
+      "family": "momentum",
+      "parameters": {
+        "period": 12
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-roc-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "roc",
+      "family": "momentum",
+      "parameters": {
+        "period": 12
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-roc-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "roc",
+      "family": "momentum",
+      "parameters": {
+        "period": 12
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-roc-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "roc",
+      "family": "momentum",
+      "parameters": {
+        "period": 12
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-roc-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "roc",
+      "family": "momentum",
+      "parameters": {
+        "period": 12
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-roc-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "roc",
+      "family": "momentum",
+      "parameters": {
+        "period": 12
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-bollinger-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "bollinger",
+      "family": "volatility",
+      "parameters": {
+        "period": 20,
+        "stdev": 2
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-bollinger-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "bollinger",
+      "family": "volatility",
+      "parameters": {
+        "period": 20,
+        "stdev": 2
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-bollinger-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "bollinger",
+      "family": "volatility",
+      "parameters": {
+        "period": 20,
+        "stdev": 2
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-bollinger-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "bollinger",
+      "family": "volatility",
+      "parameters": {
+        "period": 20,
+        "stdev": 2
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-bollinger-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "bollinger",
+      "family": "volatility",
+      "parameters": {
+        "period": 20,
+        "stdev": 2
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-bollinger-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "bollinger",
+      "family": "volatility",
+      "parameters": {
+        "period": 20,
+        "stdev": 2
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-keltner-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "keltner",
+      "family": "volatility",
+      "parameters": {
+        "ema_period": 20,
+        "atr_period": 10,
+        "multiplier": 2
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-keltner-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "keltner",
+      "family": "volatility",
+      "parameters": {
+        "ema_period": 20,
+        "atr_period": 10,
+        "multiplier": 2
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-keltner-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "keltner",
+      "family": "volatility",
+      "parameters": {
+        "ema_period": 20,
+        "atr_period": 10,
+        "multiplier": 2
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-keltner-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "keltner",
+      "family": "volatility",
+      "parameters": {
+        "ema_period": 20,
+        "atr_period": 10,
+        "multiplier": 2
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-keltner-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "keltner",
+      "family": "volatility",
+      "parameters": {
+        "ema_period": 20,
+        "atr_period": 10,
+        "multiplier": 2
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-keltner-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "keltner",
+      "family": "volatility",
+      "parameters": {
+        "ema_period": 20,
+        "atr_period": 10,
+        "multiplier": 2
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-atr_breakout-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "atr_breakout",
+      "family": "volatility",
+      "parameters": {
+        "atr_period": 14,
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-atr_breakout-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "atr_breakout",
+      "family": "volatility",
+      "parameters": {
+        "atr_period": 14,
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-atr_breakout-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "atr_breakout",
+      "family": "volatility",
+      "parameters": {
+        "atr_period": 14,
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-atr_breakout-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "atr_breakout",
+      "family": "volatility",
+      "parameters": {
+        "atr_period": 14,
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-atr_breakout-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "atr_breakout",
+      "family": "volatility",
+      "parameters": {
+        "atr_period": 14,
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-atr_breakout-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "atr_breakout",
+      "family": "volatility",
+      "parameters": {
+        "atr_period": 14,
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-obv-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "obv",
+      "family": "volume",
+      "parameters": {
+        "signal_period": 20
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-obv-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "obv",
+      "family": "volume",
+      "parameters": {
+        "signal_period": 20
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-obv-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "obv",
+      "family": "volume",
+      "parameters": {
+        "signal_period": 20
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-obv-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "obv",
+      "family": "volume",
+      "parameters": {
+        "signal_period": 20
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-obv-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "obv",
+      "family": "volume",
+      "parameters": {
+        "signal_period": 20
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-obv-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "obv",
+      "family": "volume",
+      "parameters": {
+        "signal_period": 20
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-mfi-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "mfi",
+      "family": "volume",
+      "parameters": {
+        "period": 14,
+        "oversold": 20,
+        "overbought": 80
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-mfi-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "mfi",
+      "family": "volume",
+      "parameters": {
+        "period": 14,
+        "oversold": 20,
+        "overbought": 80
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-mfi-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "mfi",
+      "family": "volume",
+      "parameters": {
+        "period": 14,
+        "oversold": 20,
+        "overbought": 80
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-mfi-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "mfi",
+      "family": "volume",
+      "parameters": {
+        "period": 14,
+        "oversold": 20,
+        "overbought": 80
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-mfi-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "mfi",
+      "family": "volume",
+      "parameters": {
+        "period": 14,
+        "oversold": 20,
+        "overbought": 80
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-mfi-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "mfi",
+      "family": "volume",
+      "parameters": {
+        "period": 14,
+        "oversold": 20,
+        "overbought": 80
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-vwap-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "vwap",
+      "family": "volume",
+      "parameters": {
+        "anchor": "session"
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-vwap-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "vwap",
+      "family": "volume",
+      "parameters": {
+        "anchor": "session"
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-vwap-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "vwap",
+      "family": "volume",
+      "parameters": {
+        "anchor": "session"
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-vwap-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "vwap",
+      "family": "volume",
+      "parameters": {
+        "anchor": "session"
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-vwap-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "vwap",
+      "family": "volume",
+      "parameters": {
+        "anchor": "session"
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-vwap-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "vwap",
+      "family": "volume",
+      "parameters": {
+        "anchor": "session"
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_20-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_20-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_20-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_20-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_20-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_20-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_20-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_20-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_20-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_20-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_20-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_20-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_50-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_50-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_50-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_50-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_50-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_high_50-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_high_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_50-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_50-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_50-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_50-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_50-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-breakout_low_50-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "breakout_low_50",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 50
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_high_20-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_high_20-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_high_20-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_high_20-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_high_20-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_high_20-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_high_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_low_20-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_low_20-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_low_20-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_low_20-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_low_20-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-reversal_low_20-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "reversal_low_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-swing_high_low-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "swing_high_low",
+      "family": "price_structure",
+      "parameters": {
+        "left_bars": 5,
+        "right_bars": 5
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-swing_high_low-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "swing_high_low",
+      "family": "price_structure",
+      "parameters": {
+        "left_bars": 5,
+        "right_bars": 5
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-swing_high_low-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "swing_high_low",
+      "family": "price_structure",
+      "parameters": {
+        "left_bars": 5,
+        "right_bars": 5
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-swing_high_low-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "swing_high_low",
+      "family": "price_structure",
+      "parameters": {
+        "left_bars": 5,
+        "right_bars": 5
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-swing_high_low-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "swing_high_low",
+      "family": "price_structure",
+      "parameters": {
+        "left_bars": 5,
+        "right_bars": 5
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-swing_high_low-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "swing_high_low",
+      "family": "price_structure",
+      "parameters": {
+        "left_bars": 5,
+        "right_bars": 5
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-support_resistance_20-1h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "support_resistance_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-support_resistance_20-1h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "support_resistance_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-support_resistance_20-4h-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "support_resistance_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-support_resistance_20-4h-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "support_resistance_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "4h",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-support_resistance_20-1d-LONG_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "support_resistance_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "LONG_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "IND-support_resistance_20-1d-SHORT_ONLY",
+      "kind": "indicator_portfolio",
+      "indicator": "support_resistance_20",
+      "family": "price_structure",
+      "parameters": {
+        "lookback": 20
+      },
+      "timeframe": "1d",
+      "direction": "SHORT_ONLY",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "repository_alternates": [],
+      "status": "REGISTERED_NOT_RUN"
+    },
+    {
+      "trial_id": "KRONOS-kronos-mini-1h-PORTFOLIO",
+      "kind": "kronos_portfolio",
+      "model": "Kronos-mini",
+      "parameters": {
+        "timeframe": "1h",
+        "lookback": 400,
+        "horizon": 24,
+        "sample_count": 20,
+        "median_return_threshold_pct": 0.6,
+        "minimum_same_direction_paths_pct": 60
+      },
+      "timeframe": "1h",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "direction": "LONG_OR_SHORT",
+      "status": "BLOCKED_SPEC_CONFLICT"
+    },
+    {
+      "trial_id": "KRONOS-kronos-small-1h-PORTFOLIO",
+      "kind": "kronos_portfolio",
+      "model": "Kronos-small",
+      "parameters": {
+        "timeframe": "1h",
+        "lookback": 400,
+        "horizon": 24,
+        "sample_count": 20,
+        "median_return_threshold_pct": 0.6,
+        "minimum_same_direction_paths_pct": 60
+      },
+      "timeframe": "1h",
+      "assets": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT"
+      ],
+      "direction": "LONG_OR_SHORT",
+      "status": "BLOCKED_SPEC_CONFLICT"
+    }
+  ]
+}
