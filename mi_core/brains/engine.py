@@ -13,6 +13,7 @@ from .project60_flow_adapter import evaluate_project60_flow
 from .orchestrator import arbitrate
 from .strategy_runtime import StrategyRuntime
 from .technical_adapter import evaluate_technical_specialists
+from .ta_patterns_adapter import evaluate_ta_patterns_specialists
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,7 @@ def evaluate_brains(
     synthetic directional signal.
     """
     proposals = evaluate_technical_specialists(snapshot)
+    proposals.extend(evaluate_ta_patterns_specialists(snapshot))
     proposals.append(OpenBBMacroAdapter()(snapshot))
     proposals.extend(evaluate_native_ohlcv_strategies(snapshot))
     proposals.extend(evaluate_derivatives_specialists(snapshot))
