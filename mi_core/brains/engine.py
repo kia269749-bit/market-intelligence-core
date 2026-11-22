@@ -48,10 +48,13 @@ def evaluate_brains(
     performance: dict[str, dict[str, int]] = {}
     if outcome_store is not None:
         for proposal in proposals:
+            suffix = proposal.brain_id.rsplit(".", 1)[-1]
+            brain_timeframe = suffix if suffix in ("1m", "5m", "15m", "30m", "1h", "4h", "1d") else snapshot.timeframe
             performance[proposal.brain_id] = outcome_store.performance(
                 proposal.brain_id,
                 symbol=snapshot.symbol,
-                timeframe=snapshot.timeframe,
+                timeframe=brain_timeframe,
+                regime=snapshot.payload.get("regime"),
             )
 
     decision = arbitrate(
