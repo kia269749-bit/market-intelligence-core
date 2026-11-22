@@ -1,0 +1,50 @@
+# EDGE_SEARCH_v1
+Status: initial GitHub research branch setup. No data acquisition or economic evaluation has been performed.
+
+## Single unified scope
+This protocol replaces the separate KRONOS_GATE and SCREEN_v2 plans. Branch: `research/edge-search-20261122`, based on `release/v4-hyperliquid-verified-20261106` at `0630706dc655366042c073cebc44aebad070b39e`.
+
+One historical OHLC dataset, one evaluation path using existing `mi_core/walk_forward.py`, `mi_core/backtest.py`, and `mi_core/cost_policy.py`, and one final report. Do not create duplicate frameworks or modify the signal bot, forward test, Termux services, or live systems. No live orders, no leverage, research-only.
+
+## Universe and trials
+Assets: BTCUSDT, ETHUSDT, SOLUSDT. Timeframes: 1h, 4h, 1d.
+Indicator screen: 23 fixed standard indicators across trend, momentum, volatility, volume, and price structure, each using one documented default parameter set. No repository-derived alternate parameter settings are included until a specific source and setting are reviewed and recorded before trial lock. No later trial additions.
+Directions: LONG_ONLY and SHORT_ONLY.
+Kronos: Kronos-mini and Kronos-small on 1h, lookback 400, horizon 24, 20 forecast paths. Directional signal requires median forecast return >= +0.6% and >=60% paths in the same direction.
+All registered trials are in `TRIALS.json`. The initial registry contains 420 trial rows (414 indicator cross-product rows and 6 Kronos rows). Holm correction only, across the complete locked registry. BH is prohibited.
+
+## Critical chronology blocker
+The indicator screen uses A=2020-01-01 through 2022-12-31, B=2023-01-01 through 2024-12-31, and sealed C=2025-01-01 through 2026-11-15. However, the unified instruction also restricts Kronos to data after its training cutoff, no earlier than 2025-09-01. This leaves Kronos with no eligible observations in A or B, while C cannot be viewed for finalist selection. The six Kronos rows are therefore BLOCKED and must not be run or used to select finalists unless a non-leaking chronology is explicitly resolved. Do not silently relax the cutoff or unseal C.
+
+## Data and costs
+Single source: Binance USD-M Futures public klines via the existing `mi_core/binance_futures_data.py` collector. Required fields: open, high, low, close. Report raw candle counts, valid OHLC counts, duplicates, gaps, first/last timestamps, and SHA-256 per symbol/timeframe/period. Do not fabricate missing history; SOL may have a later listing start.
+A/B/C periods are defined in `DATA_MANIFEST.json`. C dataset hash must be recorded before A begins. No C values may be read, printed, summarized, or reported before the final sealed run.
+Use only `mi_core/cost_policy.py`: 0.15% base and 0.45% strict round-trip. No 0.12% assumption.
+
+## Evaluation
+- Net positive separately in A and B at 0.45%.
+- Holm-adjusted significance across every trial in TRIALS.json.
+- Lower bound of 90% block-bootstrap confidence interval > 0.
+- At least 150 independent clusters. Within each asset, trades cannot overlap; trades opened on the same UTC day across multiple assets count as one cluster. Report both trade-row count and cluster count.
+- Maximum drawdown <=20%.
+- Net result remains positive after removing the three best trades.
+- No single asset contributes more than 50% of total net profit.
+- At most three finalists selected using A and B only. C is one sealed final run. Any pre-run exposure of C values invalidates the test and results in NOT RUN.
+- Kronos cannot pass under the current chronology due to the blocker above.
+
+## Schedule (Tehran)
+2026-11-26: manifest, locked trials, commit hash, data source and counts. Missing evidence = NOT RUN.
+2026-12-10: A/B results.
+2026-12-15: one C run.
+2026-12-20 23:59: hard deadline. No extensions.
+
+## Repository-source evidence
+The source-repository comparison must distinguish in-sample from out-of-sample evidence, identify execution costs, multiple-testing correction, sample size, and independent replication. Unsupported claims are idea-only. No alternate parameter settings are admitted into the locked registry without traceable evidence before A.
+
+## Current evidence state
+- Branch created on GitHub.
+- Existing WFO and cost-policy modules inspected.
+- Data download: NOT RUN.
+- Dataset hashes and candle counts: NOT AVAILABLE.
+- Economic tests: NOT RUN.
+- Final result: NOT RUN until all prerequisites and the actual evaluation are completed.
