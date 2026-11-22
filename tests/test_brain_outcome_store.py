@@ -16,6 +16,27 @@ class BrainOutcomeStoreTests(unittest.TestCase):
             self.assertEqual(store.performance("technical.rsi"), {"wins": 1, "losses": 1})
             self.assertEqual(len((Path(directory) / "outcomes.jsonl").read_text().splitlines()), 2)
 
+    def test_fixed_horizon_resolution_applies_cost_and_deduplicates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            signal_path = root / "signals.jsonl"
+            signal_path.write_text(json.dumps({
+                "signal_id": "sig-1", "brain_id": "technical.strategy.ema_trend.1h",
+                "family": "technical", "symbol": "BTCUSDT", "timeframe": "1h",
+                "direction": "LONG", "available": True, "entry_price": 100.0,
+                "as_of_ms": 1_000_000, "regime": "TREND",
+            }) + "\\n")
+            store = OutcomeStore(root / "outcomes.jsonl")
+            self.assertEqual(store.resolve_due_signals(
+                signal_path, {"BTCUSDT": 101.0}, 1_000_000 + 3_600_000 + 1_000,
+                round_trip_cost_pct=0.12,
+            ), 1)
+            self.assertEqual(store.performance("technical.strategy.ema_trend.1h"), {"wins": 1, "losses": 0})
+            self.assertEqual(store.resolve_due_signals(
+                signal_path, {"BTCUSDT": 102.0}, 1_000_000 + 7_200_000,
+                round_trip_cost_pct=0.12,
+            ), 0)
+
     def test_unresolved_is_not_counted(self):
         with tempfile.TemporaryDirectory() as directory:
             store = OutcomeStore(Path(directory) / "outcomes.jsonl")
