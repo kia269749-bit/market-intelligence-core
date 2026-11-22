@@ -39,7 +39,7 @@ class FreqtradeAdapterTests(unittest.TestCase):
         self.assertEqual(strategy.metadata, {"pair": "BTCUSDT"})
 
     def test_stale_freqtrade_frame_is_unavailable(self):
-        now = 10_000_000
+        now = 20_000_000
         frame = pd.DataFrame({
             "open": [100.0], "high": [101.0], "low": [99.0],
             "close": [100.0], "volume": [10.0],
