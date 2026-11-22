@@ -610,7 +610,7 @@ def _fuse(votes, quality, regime=None, outcome_memory=None, smart_money=None, ca
 
 def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, project60=None,
              fomo_leader_evidence=None, outcome_memory=None, forecast=None, candle_evidence=None, market_context=None,
-             multi_timeframe=None):
+             multi_timeframe=None, indicator_ohlcv=None):
     market=fetch_snapshot(symbols or DEFAULT_SYMBOLS, exchanges or EXCHANGES)
     try:
         fomo=scan_boosted(chain=fomo_chain,limit=fomo_limit); fomo_error=None
@@ -618,6 +618,11 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
         fomo={"ts":int(time.time()),"candidates":[],"research_only":True,"wallet_level":False}; fomo_error=str(exc)
     forecast_asset=(forecast or {}).get("asset") if isinstance(forecast,dict) else None
     raw_bias,raw_conf=_market_bias(market,forecast_asset)
+    indicator_evidence={"available":False,"reason":"completed_ohlcv_not_supplied",
+                        "research_only":True,"live_orders":False}
+    if indicator_ohlcv is not None:
+        from .indicator_brain import evaluate_indicator_brain
+        indicator_evidence=evaluate_indicator_brain(indicator_ohlcv)
     # Use the multi-exchange snapshot gate as the authoritative decision gate.
     # The local row-level check remains a fallback for snapshots that predate the gate.
     market_quality=market.get("data_quality") or {}
@@ -634,6 +639,10 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     p60_bias=str((project60 or {}).get("bias","UNKNOWN")).upper()
     p60_conf=_num((project60 or {}).get("confidence")); micro=_microstructure(project60,raw_bias)
     votes=[(raw_bias,raw_conf)]
+    indicator_bias=str(indicator_evidence.get("bias","NEUTRAL")).upper()
+    indicator_conf=max(0.0,min(0.80,_num(indicator_evidence.get("confidence"),0.0)))
+    if indicator_evidence.get("available") and indicator_bias in ("BULLISH","BEARISH") and indicator_conf>0:
+        votes.append((indicator_bias,indicator_conf))
     if p60_bias in ("BULLISH","BEARISH"): votes.append((p60_bias,p60_conf))
     mtf=multi_timeframe or {}
     mtf_bias=str(mtf.get("bias","NEUTRAL")).upper()
@@ -716,10 +725,11 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
           "market":{"bias":raw_bias,"confidence":round(raw_conf,4),"sources":len(market.get("rows",[]))},
           "project60":{"available":bool(project60 and project60.get("available")),"bias":p60_bias,"confidence":round(p60_conf,4)},
           "data_quality":quality,"market_data_gate":quality_status,"regime":regime,"microstructure":micro,"combined":combined,
+          "technical_indicators":indicator_evidence,
           "fomo_leader_follower":lf or {"available":False,"confirmed":False,"events":[]},
           "fomo":{"candidates":len(fomo.get("candidates",[])),"top":top,"wallet_level":False,"candidate_signal":fomo_candidate_signal},
           "multi_timeframe":mtf or {"available":False,"reason":"not_requested","research_only":True,"live_orders":False},
-          "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"multi_timeframe":{"available":bool(mtf.get("available")),"bias":mtf_bias,"confidence_score":round(mtf_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
+          "fusion_inputs":{"market":{"bias":raw_bias,"confidence":round(raw_conf,4)},"project60":{"bias":p60_bias,"confidence":round(p60_conf,4)},"multi_timeframe":{"available":bool(mtf.get("available")),"bias":mtf_bias,"confidence_score":round(mtf_conf,4)},"leader_follower":{"confirmed":bool(lf.get("confirmed")),"direction":str(lf.get("direction","")).upper() if lf.get("confirmed") else "NONE"},"technical_indicators":{"available":bool(indicator_evidence.get("available")),"bias":indicator_bias,"confidence":indicator_conf},"fomo_candidates":{"signal":fomo_candidate_signal,"used_as_vote":False}},
           "outcome_memory":outcome_memory or {"resolved":0,"win_rate":0.0},"smart_money":smart_money,"market_context":market_context or {"available":False},"candle_evidence":candle_evidence or {"available":False},"no_trade":no_trade,"forecast":forecast or {"available":False},"forecast_alignment":forecast_alignment,"capital_economics":capital_economics,"timing":timing},
         "capital_economics":capital_economics,
         "architecture":"Public multi-timeframe OHLC + Project60 flow + FOMO + SmartMoney + CandleMicrostructure + MarketContext -> Evidence -> Quality -> Regime -> Fusion -> Adaptive OOS Validation -> Risk -> Outcome Memory",
