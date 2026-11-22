@@ -701,10 +701,15 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
                         pass
                 brain_payload["regime"] = regime.get("name")
                 brain_snapshot = MarketSnapshot(target_symbol, common_as_of_ms, "1h", brain_payload)
-                multi_brain_reports[target_symbol] = evaluate_brains(
-                    brain_snapshot, strategy_runtime=strategy_runtime,
-                    outcome_store=outcome_store, signal_journal=signal_journal,
-                )
+                try:
+                    multi_brain_reports[target_symbol] = evaluate_brains(
+                        brain_snapshot, strategy_runtime=strategy_runtime,
+                        outcome_store=outcome_store, signal_journal=signal_journal,
+                    )
+                except Exception as brain_exc:
+                    multi_brain_reports[target_symbol] = {
+                        "available": False, "reason": "specialist_runtime_error:" + type(brain_exc).__name__
+                    }
             multi_brain_report = multi_brain_reports.get(primary_symbol)
         except Exception as exc:
             multi_brain_report = {"available": False, "reason": "multi_brain_error:" + type(exc).__name__}
