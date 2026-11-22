@@ -11,7 +11,7 @@ Assets: BTCUSDT, ETHUSDT, SOLUSDT. Timeframes: 1h, 4h, 1d.
 Indicator screen: 23 fixed standard indicators across trend, momentum, volatility, volume, and price structure, each using one documented default parameter set. No repository-derived alternate parameter settings are included until a specific source and setting are reviewed and recorded before trial lock. No later trial additions.
 Directions: LONG_ONLY and SHORT_ONLY.
 Kronos: Kronos-mini and Kronos-small on 1h, lookback 400, horizon 24, 20 forecast paths. Directional signal requires median forecast return >= +0.6% and >=60% paths in the same direction.
-All registered trials are in `TRIALS.json`. The initial registry contains 420 trial rows (414 indicator cross-product rows and 6 Kronos rows). Holm correction only, across the complete locked registry. BH is prohibited.
+All registered trials are in `TRIALS.json`. The authoritative corrected registry contains 140 portfolio trial rows (138 indicator combinations and 2 Kronos model portfolios). Each trial combines BTCUSDT, ETHUSDT, and SOLUSDT; asset-level results are components, not separate hypothesis tests. Holm correction only, across all 140 locked portfolio trials. BH is prohibited.
 
 ## Critical chronology blocker
 The indicator screen uses A=2020-01-01 through 2022-12-31, B=2023-01-01 through 2024-12-31, and sealed C=2025-01-01 through 2026-11-15. However, the unified instruction also restricts Kronos to data after its training cutoff, no earlier than 2025-09-01. This leaves Kronos with no eligible observations in A or B, while C cannot be viewed for finalist selection. The six Kronos rows are therefore BLOCKED and must not be run or used to select finalists unless a non-leaking chronology is explicitly resolved. Do not silently relax the cutoff or unseal C.
@@ -72,3 +72,7 @@ PR #129 (`integration/kronos-foundation-model`) contains an isolated adapter for
 
 No claim of external out-of-sample validation is made for any source above. Repository-derived parameter variants remain zero until exact revisions and evidence are reviewed before trial lock.
 
+
+
+## Trial-unit correction before any evaluation
+The first registry draft counted each asset as a separate hypothesis, which made the requirement that no single asset contribute more than 50% of profit incoherent at the trial level. Before any data download or evaluation, the registry was corrected so one trial is one indicator × timeframe × direction portfolio across all three assets. The authoritative registry is now 140 rows (138 indicator portfolios + 2 Kronos portfolios), and the superseded 420-row draft remains visible only in Git history. No data or results were accessed during this correction. Holm applies to the complete 140-row portfolio registry.
