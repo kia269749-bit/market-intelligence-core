@@ -8,40 +8,64 @@ from .contracts import BrainProposal, MarketSnapshot
 
 
 BRAIN_PREFIX = "technical.pandas_ta_classic"
+DEFAULT_TIMEFRAMES = ("15m", "1h", "4h", "1d")
+
+
+def _unavailable(snapshot: MarketSnapshot, timeframe: str, reason: str) -> BrainProposal:
+    return BrainProposal(
+        brain_id=f"{BRAIN_PREFIX}.{timeframe.lower()}",
+        family="technical",
+        direction="NO_TRADE",
+        confidence=0.0,
+        as_of_ms=snapshot.as_of_ms,
+        source_ids=("pandas-ta-classic", f"timeframe:{timeframe}"),
+        reasons=(reason,),
+        available=False,
+    )
 
 
 def evaluate_technical_specialists(snapshot: MarketSnapshot) -> list[BrainProposal]:
-    """Run one separately tracked specialist per supplied timeframe.
+    """Run one separately tracked specialist per configured timeframe.
 
     Expected payload:
       ohlcv_by_timeframe: {"15m": pandas.Dataframe, "1h": dataframe, ...}
     Only completed OHLCV frames should be supplied by the caller. Missing or
-    invalid frames produce no directional vote; they are never replaced by
-    fabricated prices or zero-valued market evidence.
+    invalid frames produce explicit unavailable proposals, never fabricated
+    prices or zero-valued market evidence.
     """
     frames = snapshot.payload.get("ohlcv_by_timeframe", {})
     if not isinstance(frames, Mapping):
-        return []
+        frames = {}
     try:
         from mi_core.indicator_brain import evaluate_indicator_brain
     except Exception:
-        return []
+        return [_unavailable(snapshot, tf, "indicator_engine_unavailable")
+                for tf in DEFAULT_TIMEFRAMES]
 
     proposals: list[BrainProposal] = []
-    for timeframe, frame in sorted(frames.items(), key=lambda item: str(item[0])):
-        brain_id = f"{BRAIN_PREFIX}.{str(timeframe).lower()}"
+    timeframes = sorted(set(DEFAULT_TIMEFRAMES) | {str(key) for key in frames})
+    for timeframe in timeframes:
+        frame = frames.get(timeframe)
+        if frame is None:
+            proposals.append(_unavailable(snapshot, timeframe, "ohlcv_timeframe_missing"))
+            continue
+        brain_id = f"{BRAIN_PREFIX}.{timeframe.lower()}"
         try:
             result: dict[str, Any] = evaluate_indicator_brain(frame)
-        except Exception:
+        except Exception as exc:
+            proposals.append(_unavailable(snapshot, timeframe, f"indicator_error:{type(exc).__name__}"))
             continue
         if not result.get("available"):
+            proposals.append(_unavailable(
+                snapshot, timeframe, str(result.get("reason", "indicator_frame_unavailable"))
+            ))
             continue
         bias = result.get("bias")
         direction = {"BULLISH": "LONG", "BEARISH": "SHORT"}.get(bias, "NO_TRADE")
-        confidence = result.get("confidence", 0.0)
         try:
-            confidence = max(0.0, min(1.0, float(confidence)))
+            confidence = max(0.0, min(1.0, float(result.get("confidence", 0.0))))
         except (TypeError, ValueError):
+            proposals.append(_unavailable(snapshot, timeframe, "invalid_indicator_confidence"))
             continue
         if direction == "NO_TRADE" or confidence <= 0:
             proposals.append(BrainProposal(
