@@ -50,7 +50,7 @@ class CallableAdapterTests(unittest.TestCase):
             "macro_context": {"timestamp_ms": now - 1000, "direction_score": 0.8}
         }))
         stale = adapter(MarketSnapshot("BTCUSDT", now, "1h", {
-            "macro_context": {"timestamp_ms": 1, "direction_score": 0.8}
+            "macro_context": {"timestamp_ms": now - 7 * 3_600_000, "direction_score": 0.8}
         }))
         self.assertEqual(fresh.direction, "LONG")
         self.assertFalse(stale.available)
