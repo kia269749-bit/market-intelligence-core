@@ -297,6 +297,22 @@ def main():
                             brain_prices[base+"USDT"]=price
                     except (TypeError,ValueError,AttributeError):
                         continue
+            # Fall back to the latest completed Binance futures close when
+            # no Project60 file is supplied; do not fabricate a price.
+            for frame_key, frame in (indicator_ohlcv.get("frames", {}) if isinstance(indicator_ohlcv, dict) else {}).items():
+                try:
+                    market_symbol = str(frame_key).split(":", 1)[0].upper()
+                    price = float(frame["close"].iloc[-1])
+                    if price > 0:
+                        brain_prices.setdefault(market_symbol, price)
+                        base = market_symbol
+                        for suffix in ("USDT", "USDC", "USD", "PERP"):
+                            if base.endswith(suffix):
+                                base = base[:-len(suffix)]
+                                break
+                        brain_prices.setdefault(base, price)
+                except (TypeError, ValueError, KeyError, AttributeError, IndexError):
+                    continue
             if brain_prices:
                 resolved_brains=brain_outcomes.resolve_due_signals(
                     x.brain_signal_journal, brain_prices, int(time.time()*1000),
