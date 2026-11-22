@@ -671,7 +671,9 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
                                    if str(k).lower() in ("15m", "1h", "4h", "1d")}
             if selected_frames:
                 brain_payload["ohlcv_by_timeframe"] = selected_frames
-                last_frame = selected_frames.get("1h") or next(iter(selected_frames.values()))
+                last_frame = selected_frames.get("1h")
+                if last_frame is None:
+                    last_frame = next(iter(selected_frames.values()))
                 try:
                     brain_payload["price"] = float(last_frame["close"].iloc[-1])
                 except Exception:
