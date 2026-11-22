@@ -98,7 +98,7 @@ PyneCore corpus includes scripts that request nonstandard timeframes (including 
 
 ## Validation status at this commit
 - Prior known CI: 351 tests passed on commit 13cd8f9 (before the latest TradeMemory and ta_patterns changes).
-- ta_patterns adapter and its two unit tests were added after that CI run; they have **not** been executed yet.
+- ta_patterns adapter tests were converted to unittest and included in the follow-up CI run; the CI run below validates the repository test suite, but does not evaluate profitability.
 - No new GitHub workflow was triggered. Broad legacy research workflows are deliberately not retriggered because a previous temporary PR unexpectedly started economic workflows.
 - Termux cannot be controlled from this chat. Local Android/Python validation remains pending until the user runs the supplied read-only test commands and shares output.
 - No live orders, testnet, exchange credentials, protected Telegram services, Forward Test files, PR #131, or historical registry were changed.
