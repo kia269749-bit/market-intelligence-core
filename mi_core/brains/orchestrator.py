@@ -1,5 +1,6 @@
 """Performance-weighted specialist consensus. No execution capability is provided."""
 from __future__ import annotations
+import math
 from collections.abc import Iterable, Mapping
 from .contracts import BrainProposal, BrainResult, MarketSnapshot
 ROUND_TRIP_COST_PCT = 0.12
@@ -36,7 +37,7 @@ def arbitrate(snapshot: MarketSnapshot, proposals: Iterable[BrainProposal], perf
                 loss_pct = float(p.expected_loss_pct)
             except (TypeError, ValueError):
                 continue
-            if (not all(map(__import__("math").isfinite, (win_rate, win_pct, loss_pct)))
+            if (not all(map(math.isfinite, (win_rate, win_pct, loss_pct)))
                     or not 0.0 <= win_rate <= 1.0 or win_pct < 0.0 or loss_pct < 0.0):
                 continue
             net_expectancy_pct = win_rate * win_pct - (1.0 - win_rate) * loss_pct - ROUND_TRIP_COST_PCT
