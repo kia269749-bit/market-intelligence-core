@@ -15,7 +15,10 @@ def _rsi(close, period=14):
     gain = delta.clip(lower=0).ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
     loss = (-delta.clip(upper=0)).ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
     rs = gain / loss.replace(0, float("nan"))
-    return 100 - 100 / (1 + rs)
+    result = 100 - 100 / (1 + rs)
+    result = result.mask((loss == 0) & (gain > 0), 100.0)
+    result = result.mask((loss == 0) & (gain == 0), 50.0)
+    return result
 
 
 def evaluate_native_ohlcv_strategies(snapshot: MarketSnapshot) -> list[BrainProposal]:
