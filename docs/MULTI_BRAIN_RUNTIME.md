@@ -31,12 +31,18 @@ print(report.central_decision)
 ```
 
 The technical adapter invokes the pinned pandas-ta-classic engine once per
-provided timeframe. Each timeframe has its own stable brain ID and outcome
-history. The order-book specialist consumes normalized L2 bids/asks and
-checks imbalance plus microprice confirmation. Derivatives specialists use
-the latest settled funding event at or before candle close and contextual OI
-change with price confirmation. Missing or stale feeds produce unavailable
-NO_TRADE proposals, never fabricated zero evidence.
+provided timeframe. In parallel, six native strategies (EMA trend, RSI momentum,
+RSI reversal, Donchian breakout, MACD momentum, Bollinger re-entry) run on each
+fresh timeframe. Each strategy/timeframe has a separate brain ID and outcome
+history. These OHLC-only strategies remain in the technical family so they do
+not count as independent families against their shared price source.
+
+The order-book specialist consumes normalized Hyperliquid L2 bids/asks and
+checks imbalance plus microprice confirmation. Project60 adds separate
+orderbook-imbalance and executed-trade-flow specialists. Derivatives specialists
+use the latest settled Hyperliquid funding event at or before evaluation time
+and OI change with mark-price confirmation. Missing or stale feeds produce
+unavailable NO_TRADE proposals, never fabricated zero evidence.
 
 ## Adding an upstream strategy
 
@@ -64,7 +70,9 @@ source registry.
 
 ## Learning and arbitration
 
-- Every specialist proposal, including NO_TRADE and unavailable states, is appended to SignalJournal with a signal_id and the central decision.
+- Every specialist proposal, including NO_TRADE and unavailable states, is appended to SignalJournal with a signal_id and the central decision. Identical directional calls are cooldown-deduplicated by specialist timeframe.
+- The live-all command reads public Hyperliquid l2Book, fundingHistory, and metaAndAssetCtxs endpoints without credentials. OI direction is unavailable on the first sample and becomes usable only after a second observation.
+- Directional specialist calls resolve after a fixed timeframe horizon against the observed market price, net of 0.12% round-trip cost. This is explicitly a fixed-horizon signal score, not an exchange fill or TP/SL backtest.
 - Outcomes are append-only and counted separately by brain ID; the signal_id links each resolved outcome back to its original proposal.
 - Performance can be scoped by symbol, timeframe, and regime.
 - Win-rate weighting is shrunk toward a 50% prior until enough resolved
