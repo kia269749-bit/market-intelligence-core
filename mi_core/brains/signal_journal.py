@@ -39,10 +39,11 @@ class SignalJournal:
         ids = []
         with self.path.open("a", encoding="utf-8") as handle:
             for proposal in proposals:
-                key = (proposal.brain_id, snapshot.symbol, snapshot.timeframe, proposal.direction)
+                suffix = proposal.brain_id.rsplit(".", 1)[-1]
+                brain_timeframe = suffix if suffix in _TIMEFRAME_MS else snapshot.timeframe
+                key = (proposal.brain_id, snapshot.symbol, brain_timeframe, proposal.direction)
                 last_ts = previous.get(key, 0)
-                brain_timeframe = proposal.brain_id.rsplit(".", 1)[-1]
-                signal_horizon = _TIMEFRAME_MS.get(brain_timeframe, _TIMEFRAME_MS.get(snapshot.timeframe, 300_000))
+                signal_horizon = _TIMEFRAME_MS.get(brain_timeframe, 300_000)
                 cooldown = (signal_horizon
                             if proposal.direction in ("LONG", "SHORT") and proposal.available
                             else 300_000)
@@ -54,7 +55,7 @@ class SignalJournal:
                     "brain_id": proposal.brain_id,
                     "family": proposal.family,
                     "symbol": snapshot.symbol,
-                    "timeframe": snapshot.timeframe,
+                    "timeframe": brain_timeframe,
                     "direction": proposal.direction,
                     "confidence": proposal.confidence,
                     "as_of_ms": proposal.as_of_ms,
