@@ -48,3 +48,27 @@ The source-repository comparison must distinguish in-sample from out-of-sample e
 - Dataset hashes and candle counts: NOT AVAILABLE.
 - Economic tests: NOT RUN.
 - Final result: NOT RUN until all prerequisites and the actual evaluation are completed.
+
+## Existing-code fit and implementation boundary
+- `mi_core/walk_forward.py` supplies chronological folds and rejects duplicate/non-increasing timestamps; it does not generate indicator signals or run a complete multi-asset strategy grid.
+- `mi_core/cost_policy.py` is the authoritative 0.15%/0.45% round-trip policy.
+- `mi_core/backtest.py` is a generic signal backtest, not a full OHLC indicator-grid engine.
+- `mi_core/features.py` currently contains returns, SMA, rolling standard deviation, z-score, and order imbalance only.
+- `tools/arena_inspired_backtest.py` is one combined strategy and fetches a rolling recent sample; it is not a date-addressable A/B/C indicator tournament.
+- `tools/ohlc_execution_backtest.py` is OHLC-aware but forecast-oriented, not the required indicator grid.
+Therefore one dedicated orchestration/evaluation engine is still required by this protocol. It must reuse the existing WFO and cost policy; no parallel WFO or cost framework is allowed. No such engine has yet been committed or run.
+
+## Kronos implementation provenance
+PR #129 (`integration/kronos-foundation-model`) contains an isolated adapter for Kronos-mini/small and OHLCV validation, but it remains a separate Draft PR; weights were not loaded and inference/economic evaluation were not run. This branch does not merge or copy PR #129. The six Kronos trials remain blocked both by the A/B/C cutoff chronology and by the absence of a verified inference run in this branch.
+
+## Repository evidence table (initial state)
+| Source | Relevant material | Test methodology / OOS evidence | Status for this protocol |
+|---|---|---|---|
+| galleonlabs/hypergrok-trading-desk | Agent roles and trading skills | Not independently audited here; no verified OOS/cost/Holm evidence recorded | Idea source only; no settings imported |
+| TradeMemory | Trade journaling / memory concepts | Exact source revision and test evidence not yet re-verified | Not audited; no settings imported |
+| Forven | Trading/strategy research source | Exact source revision and test evidence not yet re-verified | Not audited; no settings imported |
+| 501 trading skills collection | Indicator and strategy ideas | Individual strategies and their OOS methods not yet audited | Idea source only; no settings imported |
+| shiyu-coder/Kronos (upstream) | OHLCV time-series foundation model | PR #129 documents adapter; weights/inference and independent OOS economics remain unverified | Model integration reference only; trials blocked |
+
+No claim of external out-of-sample validation is made for any source above. Repository-derived parameter variants remain zero until exact revisions and evidence are reviewed before trial lock.
+
