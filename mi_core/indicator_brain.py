@@ -70,8 +70,19 @@ def evaluate_indicator_brain(ohlcv, min_bars=80):
     # Try every callable exposed by the pinned package; keep failures explicit.
     for raw_name in inventory:
         name = str(raw_name)
+        # Known whole-series/future-shifted outputs are excluded from features.
+        # DPO and CPR are called only with documented causal settings.
+        if name in ("tos_stdevall", "vp", "ichimoku"):
+            unavailable.append(name + ":excluded_non_causal_or_forward_shifted")
+            continue
         try:
-            result = getattr(accessor, name)()
+            method = getattr(accessor, name)
+            if name == "dpo":
+                result = method(lookahead=False)
+            elif name == "cpr":
+                result = method(virgin_cpr=False, lookahead=False)
+            else:
+                result = method()
         except Exception:
             unavailable.append(name)
             continue
@@ -120,7 +131,7 @@ def evaluate_indicator_brain(ohlcv, min_bars=80):
                 direction, strength = "BULLISH", min(1.0, (value - 50) / 30)
             elif value <= 45:
                 direction, strength = "BEARISH", min(1.0, (50 - value) / 30)
-        elif "macd" in key and ("hist" in key or key.endswith("_h")):
+        elif "macd" in key and ("hist" in key or "macdh" in key or key.endswith("_h")):
             direction = "BULLISH" if value > 0 else "BEARISH" if value < 0 else None
             strength = min(1.0, abs(value) / max(close * 0.002, 1e-12))
         if direction and strength >= 0.05:
