@@ -89,3 +89,21 @@ The central brain's family-independence rules remain in force.
 - Report sample count, expectancy, payoff, drawdown and uncertainty; allow
   POSITIVE OOS, NEGATIVE or INSUFFICIENT EVIDENCE. No forced winner.
 - PR #134 remains Draft/Open/Unmerged; no merge is performed by this catalog.
+
+
+## Optional Grok research runtime
+
+The optional client is `mi_core/brains/grok_research.py`. It calls the official
+xAI Responses API using `grok-4.20-multi-agent` and built-in `web_search` /
+`x_search` only. It is not invoked by `evaluate_brains` or `live-all`, does
+not produce a `BrainProposal`, and cannot submit orders.
+
+Configure `XAI_API_KEY` in the runtime environment (never in source control),
+then call `run_grok_research(prompt)` explicitly. Each request is billed and
+the multi-agent API is documented as beta. The report retains returned source
+URLs and usage metadata when provided.
+
+No remote MCP servers are attached by default. If added later, the MCP server
+must expose a dedicated read-only tool set and the xAI request must explicitly
+allowlist only those tools. xAI documents that an omitted/empty allowlist can
+expose all tools offered by the MCP server.
