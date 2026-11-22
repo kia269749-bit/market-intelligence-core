@@ -35,7 +35,7 @@ SPECIALIST_SOURCES = {
     "technical.strategy.macd_momentum.1d": {"family": "technical", "source": "Project60 OHLCV native strategy macd_momentum", "adapter": "native_strategy_brains", "status": "runnable_when_ohlcv_present"},
     "technical.strategy.bollinger_reversion.1d": {"family": "technical", "source": "Project60 OHLCV native strategy bollinger_reversion", "adapter": "native_strategy_brains", "status": "runnable_when_ohlcv_present"},
     "strategy.pynecore": {"family": "strategy", "source": "theonetrade/pynecore-strategies", "adapter": "strategy_runtime", "status": "plugin_ready"},
-    "strategy.freqtrade": {"family": "strategy", "source": "freqtrade/freqtrade", "adapter": "strategy_runtime", "status": "plugin_ready"},
+    "strategy.freqtrade": {"family": "strategy", "source": "freqtrade/freqtrade", "adapter": "freqtrade_adapter", "status": "adapter_available_source_review_required"},
     "strategy.hummingbot": {"family": "strategy", "source": "hummingbot/hummingbot", "adapter": "strategy_runtime", "status": "plugin_ready"},
     "strategy.qlib": {"family": "strategy", "source": "microsoft/qlib", "adapter": "strategy_runtime", "status": "plugin_ready"},
     "strategy.rd_agent": {"family": "strategy", "source": "microsoft/RD-Agent", "adapter": "strategy_runtime", "status": "plugin_ready"},
