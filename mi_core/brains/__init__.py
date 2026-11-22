@@ -2,9 +2,10 @@
 from .contracts import BrainProposal, BrainResult, MarketSnapshot
 from .engine import SignalReport, evaluate_brains
 from .orchestrator import arbitrate
+from .signal_journal import SignalJournal
 from .strategy_runtime import StrategyRegistration, StrategyRuntime
 
 __all__ = [
     "BrainProposal", "BrainResult", "MarketSnapshot", "SignalReport",
-    "StrategyRegistration", "StrategyRuntime", "arbitrate", "evaluate_brains",
+    "SignalJournal", "StrategyRegistration", "StrategyRuntime", "arbitrate", "evaluate_brains",
 ]
