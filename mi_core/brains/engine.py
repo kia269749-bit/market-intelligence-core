@@ -19,12 +19,14 @@ class SignalReport:
     central_decision: BrainResult
     research_only: bool = True
     live_orders: bool = False
+    journal_ids: tuple[str, ...] = ()
 
 
 def evaluate_brains(
     snapshot: MarketSnapshot,
     strategy_runtime: StrategyRuntime | None = None,
     outcome_store: Any | None = None,
+    signal_journal: Any | None = None,
     min_independent_families: int = 2,
 ) -> SignalReport:
     """Evaluate all currently runnable brains and arbitrate one shared snapshot.
@@ -54,10 +56,15 @@ def evaluate_brains(
         performance=performance,
         min_independent_families=min_independent_families,
     )
+    journal_ids = ()
+    if signal_journal is not None:
+        journal_ids = signal_journal.append(snapshot, proposals, decision)
+
     return SignalReport(
         snapshot=snapshot,
         specialist_proposals=tuple(proposals),
         central_decision=decision,
         research_only=True,
         live_orders=False,
+        journal_ids=tuple(journal_ids),
     )
