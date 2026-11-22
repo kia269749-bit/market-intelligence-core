@@ -15,5 +15,9 @@ dependencies = [
 [project.optional-dependencies]
 candlestick = ["TA-Lib>=0.6.0"]
 
+[tool.setuptools.packages.find]
+include = ["mi_core*"]
+exclude = ["tests*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
