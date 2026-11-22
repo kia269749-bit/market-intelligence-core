@@ -621,8 +621,11 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
     indicator_evidence={"available":False,"reason":"completed_ohlcv_not_supplied",
                         "research_only":True,"live_orders":False}
     if indicator_ohlcv is not None:
-        from .indicator_brain import evaluate_indicator_brain
-        indicator_evidence=evaluate_indicator_brain(indicator_ohlcv)
+        from .indicator_brain import evaluate_indicator_brain, evaluate_indicator_brain_multi
+        if isinstance(indicator_ohlcv, dict) and "frames" in indicator_ohlcv:
+            indicator_evidence=evaluate_indicator_brain_multi(indicator_ohlcv)
+        else:
+            indicator_evidence=evaluate_indicator_brain(indicator_ohlcv)
     # Use the multi-exchange snapshot gate as the authoritative decision gate.
     # The local row-level check remains a fallback for snapshots that predate the gate.
     market_quality=market.get("data_quality") or {}
