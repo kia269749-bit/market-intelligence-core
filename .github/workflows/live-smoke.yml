@@ -19,6 +19,6 @@ jobs:
         run: python -m pip install -e .
       - name: Unit tests
         run: python -m unittest discover -s tests -v
-      - name: Hyperliquid live read-only brain integration
+      - name: Hyperliquid live read-only brain integration (two observations)
         run: |
-          python -m mi_core.brains.hyperliquid_market_feed             --symbols BTC,ETH,SOL,XRP,DOGE             --bars 120             --timeout 8             --cycles 1
+          python -m mi_core.brains.hyperliquid_market_feed             --symbols BTC,ETH,SOL,XRP,DOGE             --bars 120             --timeout 8             --interval 30             --cycles 2
