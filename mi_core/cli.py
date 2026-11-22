@@ -24,6 +24,7 @@ from .context_brain import analyze_market_context
 from .candle_brain import analyze_project60 as analyze_candle_brain
 from .economic_edge import diagnose_economic_edge
 from .cost_policy import DEFAULT_COST_POLICY
+from .indicator_brain import fetch_indicator_ohlcv
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -270,7 +271,8 @@ def main():
                     mtf=fetch_multi_timeframe("BTCUSDT")
                 except Exception as exc:
                     mtf={"available":False,"reason":"multi_timeframe_error:"+str(exc)[:120],"research_only":True,"live_orders":False}
-            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context,mtf)
+            indicator_ohlcv=fetch_indicator_ohlcv(symbols=("BTCUSDT",),intervals=("15m","1h","4h","1d"),limit=500)
+            snap=run_live_brain(x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,p60,lf,outcome,forecast,candle,market_context,mtf,indicator_ohlcv=indicator_ohlcv)
             if x.outcome_journal:
                 fc=snap.get("evidence",{}).get("forecast",{})
                 selected=fc.get("selected") if isinstance(fc,dict) else {}
