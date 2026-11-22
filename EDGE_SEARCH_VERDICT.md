@@ -17,3 +17,12 @@ As of the GitHub setup checkpoint:
 **Blocking issue:** Kronos cutoff >= 2025-09-01 is incompatible with selecting Kronos finalists from A/B (which end 2024) while C remains sealed. The two Kronos portfolio trials are marked BLOCKED in TRIALS.json. PR #129 contains a separate Draft adapter, but no weights or inference benchmark were run there.
 
 This is a setup checkpoint, not a final economic verdict.
+
+## 2026-11-22 control clarification
+- Holm only across the complete 140-row locked registry; BH prohibited.
+- Minimum 150 independent portfolio clusters, not trade rows; same UTC opening day across assets is one cluster.
+- Finalists selected from A/B only; any C data or derived output exposed before the final run invalidates C and sets NOT RUN.
+- Registry frozen at 140 rows. DPO is not registered and cannot be added after lock. Ichimoku requires strict no-look-ahead use.
+- The supplied BTC-only Termux script was statically reviewed and rejected as a substitute for EDGE_SEARCH_v1; it was not executed and its Spot endpoint does not match the registered USD-M Futures source.
+- Locked TRIALS.json Git blob SHA: `f98f648706d4537b6e40747f0d490859aff8a629`.
+- No data download, engine implementation, or economic test has been performed.
