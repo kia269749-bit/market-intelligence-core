@@ -27,6 +27,7 @@ from .cost_policy import DEFAULT_COST_POLICY
 from .indicator_brain import fetch_indicator_ohlcv
 from .brains.outcome_store import OutcomeStore
 from .brains.signal_journal import SignalJournal
+from .brains.hyperliquid_feed import fetch_hyperliquid_brain_context
 
 def demo(out):
     p=Path(out); p.mkdir(parents=True,exist_ok=True); fp=p/"market.jsonl"; price=100.0
@@ -299,10 +300,15 @@ def main():
                 )
                 if resolved_brains:
                     print("BRAIN_OUTCOMES_RESOLVED="+str(resolved_brains))
+            try:
+                hyperliquid_brain_data=fetch_hyperliquid_brain_context("BTC")
+            except Exception as exc:
+                hyperliquid_brain_data={"available":False,"errors":{"feed":type(exc).__name__}}
             snap=run_live_brain(
                 x.symbols.split(","),x.exchanges.split(","),x.fomo_chain,x.fomo_limit,
                 p60,lf,outcome,forecast,candle,market_context,mtf,
                 indicator_ohlcv=indicator_ohlcv,
+                brain_market_data=hyperliquid_brain_data,
                 outcome_store=brain_outcomes, signal_journal=brain_signals,
             )
             if x.outcome_journal:
