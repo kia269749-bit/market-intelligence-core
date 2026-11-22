@@ -12,7 +12,7 @@ from datetime import datetime
 
 from .contracts import BrainProposal, MarketSnapshot
 
-_TIMEFRAMES = ("1m", "5m", "15m", "1h", "4h", "24h")
+_TIMEFRAMES = ("15m", "1h", "4h", "24h")
 _BULL = {"BULLISH", "STRONG_BULL"}
 _BEAR = {"BEARISH", "STRONG_BEAR"}
 _NEUTRAL = {"NEUTRAL"}

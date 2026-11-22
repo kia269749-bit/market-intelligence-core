@@ -115,8 +115,9 @@ documented `get_order_flow(symbol)` payload through
 venue liveness, per-timeframe window coverage (minimum 95%), finite/ranged OFI
 and net delta, and agreement between signal direction and raw values.
 
-The adapter emits separate timeframe IDs but assigns every proposal to the
-existing `orderflow` family. Therefore HyperData cannot manufacture extra
+The adapter calculates proposals only for 15m, 1h, 4h, and 24h (mapped to the
+Project60 1d ID). It ignores 1m, 5m, 30m, and all other intervals. All proposals
+remain in the existing `orderflow` family. Therefore HyperData cannot manufacture extra
 independent-family votes against Project60's own order-flow specialists.
 Missing, stale, warming-up, malformed, or contradictory data become unavailable
 proposals, never zero-filled or invented market signals.

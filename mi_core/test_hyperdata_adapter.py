@@ -20,7 +20,7 @@ def _payload(**overrides):
         "signal": "STRONG_BULL",
         "window_coverage": 0.99,
     }
-    frames = {tf: dict(frame) for tf in ("1m", "5m", "15m", "1h", "4h", "24h")}
+    frames = {tf: dict(frame) for tf in ("15m", "1h", "4h", "24h")}
     data = {
         "meta": {"as_of": AS_OF, "warnings": []},
         "venues": {"hyperliquid": "ok", "binance": "partial"},
@@ -53,21 +53,23 @@ class HyperDataAdapterTests(unittest.TestCase):
 
     def test_fresh_full_coverage_payload_produces_orderflow_family_proposals(self):
         proposals = evaluate_hyperdata_orderflow(_snapshot(_payload()))
-        self.assertEqual(len(proposals), 6)
-        one_minute = next(p for p in proposals if p.brain_id.endswith(".1m"))
-        self.assertEqual(one_minute.direction, "LONG")
-        self.assertEqual(one_minute.family, "orderflow")
-        self.assertTrue(one_minute.available)
-        self.assertLessEqual(one_minute.confidence, 0.95)
-        self.assertIn("hyperliquid", one_minute.source_ids)
+        self.assertEqual(len(proposals), 4)
+        self.assertEqual({p.brain_id.rsplit(".", 1)[-1] for p in proposals}, {"15m", "1h", "4h", "1d"})
+        fifteen_minute = next(p for p in proposals if p.brain_id.endswith(".15m"))
+        self.assertEqual(fifteen_minute.direction, "LONG")
+        self.assertEqual(fifteen_minute.family, "orderflow")
+        self.assertTrue(fifteen_minute.available)
+        self.assertLessEqual(fifteen_minute.confidence, 0.95)
+        self.assertIn("hyperliquid", fifteen_minute.source_ids)
+        self.assertFalse(any(p.brain_id.endswith((".1m", ".5m", ".30m")) for p in proposals)
 
     def test_warming_up_window_is_not_a_vote(self):
         data = _payload()
-        data["timeframes"]["5m"]["window_coverage"] = 0.50
+        data["timeframes"]["15m"]["window_coverage"] = 0.50
         proposals = evaluate_hyperdata_orderflow(_snapshot(data))
-        five_minute = next(p for p in proposals if p.brain_id.endswith(".5m"))
-        self.assertFalse(five_minute.available)
-        self.assertIn("warming_up", five_minute.reasons[0])
+        fifteen_minute = next(p for p in proposals if p.brain_id.endswith(".15m"))
+        self.assertFalse(fifteen_minute.available)
+        self.assertIn("warming_up", fifteen_minute.reasons[0])
 
     def test_stale_feed_is_not_a_vote(self):
         proposals = evaluate_hyperdata_orderflow(_snapshot(_payload(), age_ms=90_000))
@@ -91,8 +93,8 @@ class HyperDataAdapterTests(unittest.TestCase):
         full = evaluate_hyperdata_orderflow(_snapshot(_payload()))
         partial_data = _payload(venues={"hyperliquid": "partial"})
         partial = evaluate_hyperdata_orderflow(_snapshot(partial_data))
-        full_p = next(p for p in full if p.brain_id.endswith(".1m"))
-        partial_p = next(p for p in partial if p.brain_id.endswith(".1m"))
+        full_p = next(p for p in full if p.brain_id.endswith(".15m"))
+        partial_p = next(p for p in partial if p.brain_id.endswith(".15m"))
         self.assertLess(partial_p.confidence, full_p.confidence)
 
 
