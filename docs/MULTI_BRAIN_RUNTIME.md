@@ -7,7 +7,7 @@ immutable `MarketSnapshot` for the symbol/timeframe and the already-closed
 OHLCV frames under `payload["ohlcv_by_timeframe"]`.
 
 ```python
-from mi_core.brains import MarketSnapshot, evaluate_brains
+from mi_core.brains import MarketSnapshot, SignalJournal, evaluate_brains
 from mi_core.brains.outcome_store import OutcomeStore
 
 snapshot = MarketSnapshot(
@@ -21,7 +21,11 @@ snapshot = MarketSnapshot(
         "1d": frame_1d,
     }},
 )
-report = evaluate_brains(snapshot, outcome_store=OutcomeStore("data/brain_outcomes.jsonl"))
+report = evaluate_brains(
+    snapshot,
+    outcome_store=OutcomeStore("data/brain_outcomes.jsonl"),
+    signal_journal=SignalJournal("data/brain_signals.jsonl"),
+)
 print(report.specialist_proposals)
 print(report.central_decision)
 ```
@@ -60,7 +64,8 @@ source registry.
 
 ## Learning and arbitration
 
-- Outcomes are append-only and counted separately by brain ID.
+- Every specialist proposal, including NO_TRADE and unavailable states, is appended to SignalJournal with a signal_id and the central decision.
+- Outcomes are append-only and counted separately by brain ID; the signal_id links each resolved outcome back to its original proposal.
 - Performance can be scoped by symbol, timeframe, and regime.
 - Win-rate weighting is shrunk toward a 50% prior until enough resolved
   outcomes exist; tiny samples cannot dominate the central brain.
