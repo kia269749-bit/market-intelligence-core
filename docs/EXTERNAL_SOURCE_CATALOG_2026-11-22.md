@@ -72,7 +72,7 @@ Every upstream update requires:
 - explicit promotion from candidate to runnable;
 - independent OOS evidence before any performance weighting or economic claim.
 
-The existing 49-entry `SPECIALIST_SOURCES` registry remains the directional
+The `SPECIALIST_SOURCES` registry now contains 50 source-level entries, including one dynamic HyperData order-flow source the directional
 specialist registry. These capability sources are intentionally not added to it.
 The central brain's family-independence rules remain in force.
 

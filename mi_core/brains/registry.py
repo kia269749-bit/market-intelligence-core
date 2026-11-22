@@ -45,6 +45,7 @@ SPECIALIST_SOURCES = {
     "market.orderbook_imbalance": {"family": "orderflow", "source": "Hyperliquid public l2Book normalized L2 bids/asks", "adapter": "hyperliquid_feed+orderbook_adapter", "status": "runnable_when_feed_present"},
     "market.project60_orderbook_imbalance": {"family": "orderflow", "source": "Project60 orderbook imbalance snapshot", "adapter": "project60_flow_adapter", "status": "runnable_when_feed_present"},
     "market.project60_trade_flow": {"family": "orderflow", "source": "Project60 executed-trade imbalance snapshot", "adapter": "project60_flow_adapter", "status": "runnable_when_feed_present"},
+    "market.hyperdata_orderflow.dynamic": {"family": "orderflow", "source": "Co-Messi/HyperData-Terminal get_order_flow read-only payload", "adapter": "hyperdata_adapter", "status": "runnable_when_external_payload_present"},
     "market.hypergrok": {"family": "orderflow", "source": "galleonlabs/hypergrok-trading-desk", "adapter": "pending", "status": "adapter_pending"},
     "market.circuit": {"family": "orderflow", "source": "EthanXiang777/circuit-framework", "adapter": "pending", "status": "adapter_pending"},
     "market.cryptointel_mcp": {"family": "orderflow", "source": "Arshad-13/CryptoIntel-MCP", "adapter": "pending", "status": "adapter_pending"},
@@ -61,7 +62,7 @@ SPECIALIST_SOURCES = {
 SPECIALISTS = {
     "technical_patterns": {"family": "technical", "sources": ["pandas-ta-classic", "ta_patterns", "freqtrade/technical", "QuanTAlib", "PyneCore"], "status": "partially_runnable"},
     "strategy_library": {"family": "strategy", "sources": ["PyneCore Strategies", "Freqtrade", "Hummingbot", "Qlib", "RD-Agent", "Forven", "TradingAgents"], "status": "plugin_runtime_ready"},
-    "market_structure": {"family": "orderflow", "sources": ["Project60 L2 orderbook", "HyperGrok", "Circuit", "CryptoIntel-MCP", "OFI", "OBI", "Microprice", "VPIN"], "status": "partially_runnable"},
+    "market_structure": {"family": "orderflow", "sources": ["Project60 L2 orderbook", "HyperData Terminal", "HyperGrok", "Circuit", "CryptoIntel-MCP", "OFI", "OBI", "Microprice", "VPIN"], "status": "partially_runnable"},
     "derivatives": {"family": "derivatives", "sources": ["Project60 Funding", "Hyperliquid OI", "Liquidations", "Options data"], "status": "adapter_ready_feed_conditional"},
     "forecast": {"family": "forecast", "sources": ["Kronos", "Project60 path forecast"], "status": "runtime_review_pending"},
     "memory": {"family": "memory", "sources": ["TradeMemory protocol", "Project60 OutcomeStore"], "status": "partially_runnable"},

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from mi_core.brains.contracts import MarketSnapshot
 from mi_core.brains.hyperdata_adapter import evaluate_hyperdata_orderflow
+from mi_core.brains.registry import list_specialist_sources
 
 
 AS_OF_MS = 1_800_000_000_000
@@ -39,6 +40,13 @@ def _snapshot(payload, age_ms=10_000):
 
 
 class HyperDataAdapterTests(unittest.TestCase):
+    def test_hyperdata_is_registered_as_one_dynamic_orderflow_source(self):
+        sources = list_specialist_sources()
+        item = sources["market.hyperdata_orderflow.dynamic"]
+        self.assertEqual(item["family"], "orderflow")
+        self.assertEqual(item["adapter"], "hyperdata_adapter")
+        self.assertEqual(item["status"], "runnable_when_external_payload_present")
+
     def test_missing_external_payload_adds_no_proposals(self):
         snapshot = MarketSnapshot("BTCUSDT", AS_OF_MS, "1h", {})
         self.assertEqual(evaluate_hyperdata_orderflow(snapshot), [])

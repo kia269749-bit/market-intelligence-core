@@ -22,6 +22,7 @@ Important: 351 was the previous Project60 **software test count**, not the count
 | Source | What is reusable | What is not admitted yet |
 |---|---|---|
 | HyperGrok | Seven role boundaries; six public read-only Hyperliquid data tools; provenance and risk/review workflow | No bundled strategy or signal; execution/wallet/order flows excluded |
+| HyperData Terminal | Read-only order-flow/market-data adapter for CVD/OFI with venue health and coverage gates | Adapter contract is wired; feed payload/runtime connection remains external and optional |
 | Grok bot directory | hft.md lists 235 public bots across research, paper, approval and autonomous categories | Directory metadata only; prompts/source implementations and actual performance not independently audited bot-by-bot |
 | TradeMemory | Local decision/outcome journal, recall, risk reminders and tamper-evident audit concepts | Its own empirical evidence is limited/regime-dependent; adapter is payload-only, not connected |
 | Circuit Framework | Shared immutable crypto snapshot, specialist debate and deterministic risk gate; Apache-2.0 claim | Fork lineage/license and code need final verification; use architecture first |
