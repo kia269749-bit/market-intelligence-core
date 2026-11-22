@@ -6,6 +6,7 @@ from typing import Any
 
 from .contracts import BrainProposal, BrainResult, MarketSnapshot
 from .derivatives_adapter import evaluate_derivatives_specialists
+from .native_strategy_brains import evaluate_native_ohlcv_strategies
 from .orderbook_adapter import evaluate_orderbook_specialist
 from .project60_flow_adapter import evaluate_project60_flow
 from .orchestrator import arbitrate
@@ -37,6 +38,7 @@ def evaluate_brains(
     synthetic directional signal.
     """
     proposals = evaluate_technical_specialists(snapshot)
+    proposals.extend(evaluate_native_ohlcv_strategies(snapshot))
     proposals.extend(evaluate_derivatives_specialists(snapshot))
     proposals.append(evaluate_orderbook_specialist(snapshot))
     proposals.extend(evaluate_project60_flow(snapshot))
