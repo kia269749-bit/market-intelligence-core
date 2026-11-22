@@ -13,7 +13,9 @@ def _performance_weight(stats: Mapping | None):
     n = wins + losses
     posterior = (wins + PRIOR_WIN_RATE * PRIOR_STRENGTH) / (n + PRIOR_STRENGTH)
     reliability = n / (n + MIN_RESOLVED_FOR_FULL_WEIGHT)
-    weight = max(0.05, min(1.0, 0.5 + (posterior - 0.5) * reliability * 2))
+    # Neutral history must not halve every new specialist's confidence.
+    # Performance changes relative weight only after resolved samples exist.
+    weight = max(0.50, min(1.50, 1.0 + (posterior - 0.5) * reliability * 2))
     return weight, (wins / n if n else None), n
 
 def arbitrate(snapshot: MarketSnapshot, proposals: Iterable[BrainProposal], performance: Mapping[str, Mapping] | None = None, min_independent_families: int = 2, min_confidence: float = 0.55, max_age_ms: int = 120_000) -> BrainResult:
@@ -54,7 +56,11 @@ def arbitrate(snapshot: MarketSnapshot, proposals: Iterable[BrainProposal], perf
     winner = "LONG" if totals["LONG"] > totals["SHORT"] else "SHORT" if totals["SHORT"] > totals["LONG"] else "NO_TRADE"
     families, total = family_sets.get(winner, set()), totals.get(winner, 0.0)
     other = totals["SHORT" if winner == "LONG" else "LONG"] if winner != "NO_TRADE" else 0.0
-    confidence = total / max(total + other, 1e-12) if winner != "NO_TRADE" else 0.0
+    agreement = total / max(total + other, 1e-12) if winner != "NO_TRADE" else 0.0
+    winning_scores = [score for (family, direction), (score, _item) in family_best.items()
+                      if direction == winner] if winner != "NO_TRADE" else []
+    mean_strength = sum(winning_scores) / len(winning_scores) if winning_scores else 0.0
+    confidence = agreement * mean_strength
     if winner == "NO_TRADE": reasons = ("no_directional_consensus",)
     elif len(families) < min_independent_families: winner, confidence, reasons = "NO_TRADE", 0.0, ("insufficient_independent_brain_families",)
     elif confidence < min_confidence: winner, confidence, reasons = "NO_TRADE", 0.0, ("weighted_consensus_below_threshold",)
