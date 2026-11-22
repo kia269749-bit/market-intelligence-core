@@ -744,6 +744,12 @@ def print_live(snapshot):
     print("market_bias={} confidence={:.2f} agreement={:.2f} actionable={} quality={} regime={} raw_market_bias={} raw_confidence={:.2f}".format(
         combined.get("bias","NEUTRAL"),combined.get("confidence",0.0),combined.get("agreement",0.0),
         combined.get("actionable",False),q.get("status","UNKNOWN"),combined.get("regime","UNKNOWN"),e["market"]["bias"],e["market"]["confidence"]))
+    technical=e.get("technical_indicators",{}) or {}
+    print("TECHNICAL_BRAIN available={} bias={} confidence={:.2f} frames={} indicators={} patterns={} reason={}".format(
+        technical.get("available",False),technical.get("bias","UNKNOWN"),
+        _num(technical.get("confidence")),technical.get("frames_evaluated",0),
+        technical.get("computed_indicator_count",technical.get("computed_count",0)),
+        technical.get("pattern_count",0),technical.get("reason","")))
     mtf=e.get("multi_timeframe",{}) or {}
     if mtf.get("available"):
         parts=[]
