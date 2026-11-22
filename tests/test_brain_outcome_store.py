@@ -25,7 +25,7 @@ class BrainOutcomeStoreTests(unittest.TestCase):
                 "family": "technical", "symbol": "BTCUSDT", "timeframe": "1h",
                 "direction": "LONG", "available": True, "entry_price": 100.0,
                 "as_of_ms": 1_000_000, "regime": "TREND",
-            }) + "\\n")
+            }) + "\n")
             store = OutcomeStore(root / "outcomes.jsonl")
             self.assertEqual(store.resolve_due_signals(
                 signal_path, {"BTCUSDT": 101.0}, 1_000_000 + 3_600_000 + 1_000,
