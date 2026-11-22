@@ -103,3 +103,21 @@ Override them with `--brain-signal-journal` and `--brain-outcome-journal`.
 The signal journal is the source of truth for unresolved calls; the outcome
 journal is the source of truth for per-specialist win-rate weighting. No
 historical registry or locked Forward Test file is rewritten.
+
+
+## Multi-asset live mode
+
+`live-all` now requests the configured symbol list from both Binance USD-M
+Futures OHLCV and the public Hyperliquid Info API. It evaluates one separate
+central brain per asset, while preserving each asset's specialist IDs,
+journal entries, and historical outcomes. The BTC forecast remains the legacy
+primary economic/shadow path; the multi-asset central decisions are separately
+printed and journaled.
+
+## Freqtrade strategy adapter
+
+`FreqtradeStrategyAdapter` can wrap an already-loaded, source-reviewed
+Freqtrade strategy instance. It calls only `populate_indicators` and
+`populate_entry_trend` on the supplied closed OHLCV DataFrame. Each strategy
+must be registered with its own brain ID. No Freqtrade bot, exchange client,
+wallet, or order method is started or exposed by this adapter.
