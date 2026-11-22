@@ -13,7 +13,7 @@ class OutcomeStore:
         if record["direction"] not in ("LONG", "SHORT"): raise ValueError("only directional signals can resolve")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\\n")
+            handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + chr(10))
     def performance(self, brain_id: str) -> dict[str, int]:
         wins = losses = 0
         if not self.path.exists(): return {"wins": 0, "losses": 0}
