@@ -104,3 +104,46 @@ PyneCore corpus includes scripts that request nonstandard timeframes (including 
 - No new GitHub workflow was triggered. Broad legacy research workflows are deliberately not retriggered because a previous temporary PR unexpectedly started economic workflows.
 - Termux cannot be controlled from this chat. Local Android/Python validation remains pending until the user runs the supplied read-only test commands and shares output.
 - No live orders, testnet, exchange credentials, protected Telegram services, Forward Test files, PR #131, or historical registry were changed.
+
+
+## 2026-11-22 integration delta
+
+The expanded external-source catalog is maintained in
+[EXTERNAL_SOURCE_CATALOG_2026-11-22.md](EXTERNAL_SOURCE_CATALOG_2026-11-22.md).
+It separates directional specialists from data providers, research intake,
+validation engines and cloud-agent runtimes.
+
+Implemented on this branch:
+
+- Specialist source registry: 50 source-level entries. HyperData is one
+  dynamic order-flow source; its timeframe-specific proposals remain in the
+  existing orderflow family.
+- HyperData Terminal: read-only CVD/OFI adapter wired into evaluate_brains.
+  It requires an explicitly supplied MCP payload and checks source timestamp,
+  venue status, 95% timeframe coverage, finite values and directional
+  consistency. No HyperData process or MCP server is started by Project60.
+- xAI Grok: optional Responses API multi-agent research client using built-in
+  web_search and x_search only. It returns a research note, not a trading vote.
+  It is not called automatically and requires XAI_API_KEY in the runtime.
+- purgedcv: optional cloud-validation wrapper for purged walk-forward, PSR and
+  DSR on precomputed net-of-cost returns. The dependency is not installed by
+  default and the actual upstream package has not yet been run in CI.
+- Source catalog: 11 external capability sources, with a public GitHub
+  metadata-only update checker. No source code is automatically pulled,
+  installed or executed.
+
+Validation on commit 8197969f5ad22d7fcffb7fd69057b4c543a0295e:
+
+- 22 new dependency-free module tests passed.
+- 355 existing repository tests passed.
+- Market Intelligence CI passed on push and pull_request.
+- Live Market Smoke passed, including one real multi-exchange read-only snapshot.
+- No legacy economic/backtest workflow was triggered. The only workflows for
+  this commit were the two CI runs and Live Market Smoke.
+- Grok API, HyperData live feed and purgedcv's real optional runtime were not
+  invoked; their adapters were tested with controlled fixtures/mocks.
+
+The GitHub branch is updated. The Android Termux worktree remains at the
+previous 8cf7988 snapshot until the user synchronizes it. No local Termux
+commands, services, Forward Test files, PR #131 or historical registries were
+changed by this GitHub work.
