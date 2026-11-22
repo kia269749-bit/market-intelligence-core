@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .callable_adapters import OpenBBMacroAdapter
 from .contracts import BrainProposal, BrainResult, MarketSnapshot
 from .derivatives_adapter import evaluate_derivatives_specialists
 from .native_strategy_brains import evaluate_native_ohlcv_strategies
@@ -38,6 +39,7 @@ def evaluate_brains(
     synthetic directional signal.
     """
     proposals = evaluate_technical_specialists(snapshot)
+    proposals.append(OpenBBMacroAdapter()(snapshot))
     proposals.extend(evaluate_native_ohlcv_strategies(snapshot))
     proposals.extend(evaluate_derivatives_specialists(snapshot))
     proposals.append(evaluate_orderbook_specialist(snapshot))
