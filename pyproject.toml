@@ -7,7 +7,10 @@ name = "market-intelligence-core"
 version = "0.1.0"
 description = "Auditable crypto market intelligence and validation engine"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "pandas>=2.0,<4",
+    "pandas-ta-classic==0.9.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
