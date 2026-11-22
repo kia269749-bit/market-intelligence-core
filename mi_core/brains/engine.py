@@ -46,6 +46,7 @@ def evaluate_brains(
     proposals.extend(evaluate_derivatives_specialists(snapshot))
     proposals.append(evaluate_orderbook_specialist(snapshot))
     proposals.extend(evaluate_project60_flow(snapshot))
+    proposals.extend(evaluate_hyperdata_orderflow(snapshot))
     if strategy_runtime is not None:
         proposals.extend(strategy_runtime.evaluate(snapshot))
 

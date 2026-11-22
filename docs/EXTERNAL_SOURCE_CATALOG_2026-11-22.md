@@ -107,3 +107,26 @@ No remote MCP servers are attached by default. If added later, the MCP server
 must expose a dedicated read-only tool set and the xAI request must explicitly
 allowlist only those tools. xAI documents that an omitted/empty allowlist can
 expose all tools offered by the MCP server.
+
+
+## HyperData order-flow adapter status
+
+Project60 now has `mi_core/brains/hyperdata_adapter.py`, which consumes the
+documented `get_order_flow(symbol)` payload through
+`MarketSnapshot.payload["hyperdata_orderflow"]`. It checks the source timestamp,
+venue liveness, per-timeframe window coverage (minimum 95%), finite/ranged OFI
+and net delta, and agreement between signal direction and raw values.
+
+The adapter emits separate timeframe IDs but assigns every proposal to the
+existing `orderflow` family. Therefore HyperData cannot manufacture extra
+independent-family votes against Project60's own order-flow specialists.
+Missing, stale, warming-up, malformed, or contradictory data become unavailable
+proposals, never zero-filled or invented market signals.
+
+This is an adapter contract, not a running HyperData connection. Project60 does
+not start HyperData, launch its MCP server, expose its local API, or install its
+dependencies. A caller must explicitly supply the read-only payload. HyperData's
+own data-integrity documentation warns that liquidation coverage differs by
+venue and that Binance liquidation events are sampled while Hyperliquid
+liquidations are partial; liquidation values are not treated as complete census
+data. The educational liquidation strategy is not imported.
