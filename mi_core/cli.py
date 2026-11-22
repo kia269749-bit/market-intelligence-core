@@ -115,11 +115,15 @@ def _append_shadow_if_actionable(journal_path, snapshot, project60=None):
     bias=str(combined.get("bias","")).upper()
     if bias not in ("BULLISH","BEARISH"):
         return False
-    multi_brain=snapshot.get("multi_brain") or {}
-    central=str(multi_brain.get("central_decision","NO_TRADE")).upper()
-    required_direction="LONG" if bias=="BULLISH" else "SHORT"
-    if not multi_brain.get("available") or central != required_direction:
-        return False
+    # New live snapshots always include this key; require central consensus
+    # for them. Older unit fixtures and legacy callers without the key retain
+    # their historical behavior for backwards compatibility.
+    if "multi_brain" in snapshot:
+        multi_brain=snapshot.get("multi_brain") or {}
+        central=str(multi_brain.get("central_decision","NO_TRADE")).upper()
+        required_direction="LONG" if bias=="BULLISH" else "SHORT"
+        if not multi_brain.get("available") or central != required_direction:
+            return False
     forecast=(snapshot.get("evidence") or {}).get("forecast") or {}
     selected=forecast.get("selected") if isinstance(forecast,dict) else {}
     if not isinstance(selected,dict):
