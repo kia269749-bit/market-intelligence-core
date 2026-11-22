@@ -649,6 +649,8 @@ def run_once(symbols=None, exchanges=None, fomo_chain="solana", fomo_limit=5, pr
             from .brains import MarketSnapshot, evaluate_brains
             brain_payload = dict(brain_market_data or {})
             target_symbol = str(forecast_asset or "BTCUSDT").upper().replace("/", "").replace("-", "")
+            if not target_symbol.endswith(("USDT", "USDC", "USD", "PERP")):
+                target_symbol += "USDT"
             base_asset = target_symbol
             for suffix in ("USDT", "USDC", "USD", "PERP"):
                 if base_asset.endswith(suffix):
