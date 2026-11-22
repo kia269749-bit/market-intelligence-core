@@ -16,6 +16,7 @@ class MultiBrainOrchestratorTests(unittest.TestCase):
         ])
         self.assertEqual(result.decision, "LONG")
         self.assertFalse(result.live_orders)
+        self.assertGreater(result.confidence, 0.55)
 
     def test_same_family_duplicates_count_once(self):
         result = arbitrate(MarketSnapshot("BTC", 100_000, "1h"), [
@@ -39,7 +40,7 @@ class MultiBrainOrchestratorTests(unittest.TestCase):
             proposal("flow", "orderflow", "LONG"),
         ], stats)
         self.assertEqual(result.decision, "LONG")
-        self.assertTrue(all(v["performance_weight"] < 1.0 for v in result.votes))
+        self.assertTrue(all(0.95 <= v["performance_weight"] <= 1.05 for v in result.votes))
 
 
 if __name__ == "__main__":
