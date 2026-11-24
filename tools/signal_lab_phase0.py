@@ -9,18 +9,31 @@ BASE="https://data-api.binance.vision/api/v3/klines"
 COST=0.0012
 CAPITAL=500.0
 LIMIT=1000
+HISTORY_START_MS=1577836800000
 OUT=Path("signal_lab/data")
 REPORT=Path("signal_lab/reports")
 
 def fetch(interval):
-    q=urlencode({"symbol":"BTCUSDT","interval":interval,"limit":LIMIT})
-    req=Request(BASE+"?"+q,headers={"User-Agent":"Project60-SignalLab-v1/1.0"})
-    with urlopen(req,timeout=30) as r: rows=json.loads(r.read().decode())
+    raw=[]; cursor=HISTORY_START_MS; now_ms=int(time.time()*1000)
+    while cursor<now_ms:
+        q=urlencode({"symbol":"BTCUSDT","interval":interval,"limit":LIMIT,"startTime":cursor})
+        req=Request(BASE+"?"+q,headers={"User-Agent":"Project60-SignalLab-v1/1.0"})
+        with urlopen(req,timeout=30) as r: rows=json.loads(r.read().decode())
+        if not rows: break
+        raw.extend(rows)
+        last_open=int(rows[-1][0])
+        if last_open<cursor: raise RuntimeError("Binance pagination did not advance")
+        cursor=last_open+1
+        if len(rows)<LIMIT: break
+        time.sleep(0.08)
     data=[]
-    for x in rows:
+    for x in raw:
+        if int(x[6])>=now_ms: continue
         data.append({"open_time":int(x[0]),"open":float(x[1]),"high":float(x[2]),
                      "low":float(x[3]),"close":float(x[4]),"volume":float(x[5]),
                      "close_time":int(x[6])})
+    dedup={x["open_time"]:x for x in data}
+    data=[dedup[k] for k in sorted(dedup)]
     if len(data)<250: raise RuntimeError(f"{interval}: only {len(data)} candles")
     for x in data:
         if not all(math.isfinite(x[k]) and x[k]>0 for k in ("open","high","low","close")):
@@ -118,7 +131,7 @@ def main():
     Path("signal_lab/DATA_MANIFEST.json").write_text(json.dumps(manifest,indent=2)+"\n")
     Path("signal_lab/reports/phase0_btc.json").write_text(json.dumps(report,indent=2)+"\n")
     print(json.dumps({"manifest":manifest,"summary":{
-        tf:{k:v for k,v in result.items() if k not in ("development","sealed_holdout_once")}
+        tf:{"candles":result["candles"],"development":{k:v for k,v in result["development"].items() if k!="trades_log"},"sealed_holdout_once":{k:v for k,v in result["sealed_holdout_once"].items() if k!="trades_log"},"buy_hold_development":result["buy_hold_development"],"buy_hold_holdout":result["buy_hold_holdout"]}
         for tf,result in report["results"].items()}},indent=2))
 
 if __name__=="__main__": main()
