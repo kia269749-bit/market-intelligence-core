@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "source_run": {
+    "workflow_run_id": 45316886171,
+    "job_id": 138185768235,
+    "runner_commit_attempt": "2c8e712",
+    "result_push": "REJECTED_NON_FAST_FORWARD"
+  },
+  "trial_lock": "signal_lab/TRIALS.json",
+  "symbol": "BTCUSDT",
+  "round_trip_cost_pct": 0.12,
+  "capital_usd": 500,
+  "method": "Fixed EMA20/EMA50 + RSI14 + 20-bar breakout; next-candle-open entry; ATR stop/target; stop wins same-candle ambiguity; max 12-candle time exit. This is the only candidate implemented by this script; it is not Kronos, GMGN, Freqtrade, or TradingAgents.",
+  "results": {
+    "1h": {
+      "candles": 60427,
+      "development": {
+        "trades": 1603,
+        "wins": 629,
+        "win_rate_pct": 39.239,
+        "net_profit_usd": -2.1339,
+        "return_pct": -0.4268,
+        "max_drawdown_pct": 18.5086,
+        "profit_after_removing_top3_usd": -38.7389
+      },
+      "sealed_holdout_once": {
+        "trades": 1083,
+        "wins": 436,
+        "win_rate_pct": 40.259,
+        "net_profit_usd": -61.6311,
+        "return_pct": -12.3262,
+        "max_drawdown_pct": 19.4204,
+        "profit_after_removing_top3_usd": -80.2717
+      },
+      "buy_hold_development": {
+        "return_pct": 626.1771,
+        "net_profit_usd": 3130.8855
+      },
+      "buy_hold_holdout": {
+        "return_pct": 14.8365,
+        "net_profit_usd": 74.1824
+      }
+    },
+    "4h": {
+      "candles": 15113,
+      "development": {
+        "trades": 455,
+        "wins": 185,
+        "win_rate_pct": 40.659,
+        "net_profit_usd": -23.1103,
+        "return_pct": -4.6221,
+        "max_drawdown_pct": 19.065,
+        "profit_after_removing_top3_usd": -55.6596
+      },
+      "sealed_holdout_once": {
+        "trades": 302,
+        "wins": 130,
+        "win_rate_pct": 43.046,
+        "net_profit_usd": 43.3917,
+        "return_pct": 8.6783,
+        "max_drawdown_pct": 5.501,
+        "profit_after_removing_top3_usd": 20.2184
+      },
+      "buy_hold_development": {
+        "return_pct": 620.3463,
+        "net_profit_usd": 3101.7315
+      },
+      "buy_hold_holdout": {
+        "return_pct": 18.074,
+        "net_profit_usd": 90.3701
+      }
+    },
+    "1d": {
+      "candles": 2519,
+      "development": {
+        "trades": 74,
+        "wins": 32,
+        "win_rate_pct": 43.243,
+        "net_profit_usd": 95.4717,
+        "return_pct": 19.0943,
+        "max_drawdown_pct": 8.7283,
+        "profit_after_removing_top3_usd": 55.8602
+      },
+      "sealed_holdout_once": {
+        "trades": 52,
+        "wins": 19,
+        "win_rate_pct": 36.538,
+        "net_profit_usd": -14.7286,
+        "return_pct": -2.9457,
+        "max_drawdown_pct": 11.1135,
+        "profit_after_removing_top3_usd": -45.7755
+      },
+      "buy_hold_development": {
+        "return_pct": 619.4492,
+        "net_profit_usd": 3097.2459
+      },
+      "buy_hold_holdout": {
+        "return_pct": 18.2214,
+        "net_profit_usd": 91.1068
+      }
+    }
+  },
+  "conclusion": "NO VERIFIED EDGE FOUND for this fixed indicator candidate. 1h holdout negative; 4h holdout positive but smaller than buy-and-hold and only one timeframe; 1d holdout negative. This result does not evaluate any external repository/model.",
+  "research_only": true,
+  "live_orders": false
+}
