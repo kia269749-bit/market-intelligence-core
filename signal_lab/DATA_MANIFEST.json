@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "status": "PENDING_DOWNLOAD",
+  "symbol": "BTCUSDT",
+  "timeframes": [
+    "1h",
+    "4h",
+    "1d"
+  ],
+  "source": "Binance public spot market-data REST: https://data-api.binance.vision/api/v3/klines",
+  "downloadable_source": "https://github.com/binance/binance-public-data",
+  "expected_columns": [
+    "open_time",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "close_time"
+  ],
+  "open_high_low_close_confirmed": false,
+  "candle_count_by_timeframe": {},
+  "downloaded_at_utc": null,
+  "round_trip_cost_pct": 0.12,
+  "research_only": true,
+  "live_orders": false
+}
