@@ -1,0 +1,269 @@
+{
+  "schema_version": 1,
+  "updated_utc": "2026-11-24",
+  "purpose": "Reusable external-source inventory for Project60 brain. This catalog does not modify the frozen Signal Lab TRIALS.json candidate lock.",
+  "safety": {
+    "research_only": true,
+    "live_orders": false,
+    "keys_or_wallet_secrets_in_repo": false,
+    "default_mode": "read_only",
+    "block_order_submission": true
+  },
+  "sources": [
+    {
+      "id": "gmgn_skills",
+      "repo": "https://github.com/GMGNAI/gmgn-skills",
+      "license": "MIT",
+      "role": "On-chain token discovery, market trends, holder/trader analysis, wallet history, smart-money/KOL tracking",
+      "evidence": "Maintainer README documents CLI skills and public demo key for read-only token/market/portfolio commands; demo key is test-only. Swap/order skills also exist.",
+      "access": "Public demo API key for read-only test commands; personal API key required for normal service; private key/order features not permitted.",
+      "project_action": "INTEGRATE_READ_ONLY_FIRST",
+      "allowed": [
+        "gmgn-token",
+        "gmgn-contract-dd",
+        "gmgn-holder-analysis",
+        "gmgn-market",
+        "gmgn-portfolio",
+        "gmgn-wallet-analysis",
+        "gmgn-wallet-score",
+        "gmgn-wallet-style",
+        "gmgn-wallet-review",
+        "gmgn-track",
+        "gmgn-callout",
+        "gmgn-kline-pattern"
+      ],
+      "blocked": [
+        "gmgn-token-buy",
+        "gmgn-swap",
+        "gmgn-cooking",
+        "all order and wallet-signing functions"
+      ],
+      "notes": "No code importing private-key, swap, or order paths. Preserve raw source timestamps and chain identifiers."
+    },
+    {
+      "id": "kronos",
+      "repo": "https://github.com/shiyu-coder/Kronos",
+      "model_repo": "https://huggingface.co/NeoQuasar/Kronos-small",
+      "license": "Check upstream license file before vendoring weights/code",
+      "role": "Pretrained financial candlestick time-series forecasting",
+      "evidence": "Published paper reports pretraining on over 12B candlestick records across 45 exchanges and zero-shot forecasting benchmarks; these are forecasting metrics, not live trading PnL.",
+      "access": "Model weights/dependencies required; Hugging Face availability and cloud inference compatibility must be checked; do not retrain or rerun vendor benchmark.",
+      "project_action": "CONNECT_PRETRAINED_INFERENCE_WHEN_ACCESSIBLE",
+      "allowed": [
+        "forecast output with as_of timestamp",
+        "forecast horizon",
+        "uncertainty/confidence metadata"
+      ],
+      "blocked": [
+        "training",
+        "fine-tuning",
+        "parameter search",
+        "order generation"
+      ],
+      "notes": "If HF host unavailable, mark BLOCKED and continue other sources."
+    },
+    {
+      "id": "freqtrade",
+      "repo": "https://github.com/freqtrade/freqtrade",
+      "strategies_repo": "https://github.com/freqtrade/freqtrade-strategies",
+      "license": "GPL-3.0 for Freqtrade core; verify each strategy file/repository license before copying",
+      "role": "Strategy library, indicators, exchange data interfaces, dry-run and backtest framework",
+      "evidence": "Official docs provide backtesting, dry-run, lookahead-analysis and recursive-analysis workflows; maintainers warn backtest can differ from live.",
+      "access": "Historical data for backtests; exchange public data for dry-run; keys only for authenticated/private endpoints or real execution.",
+      "project_action": "REUSE_EXISTING_STRATEGY_LOGIC_AND_DOCUMENTED_EVIDENCE",
+      "allowed": [
+        "read strategy source",
+        "reuse signal/indicator calculations subject to license",
+        "read-only OHLCV"
+      ],
+      "blocked": [
+        "trade execution",
+        "API keys",
+        "hyperopt/re-optimization in this locked scope"
+      ],
+      "notes": "No repeated vendor backtest. Only strategies with pre-existing published evidence are marked vendor-validated; others remain source-only."
+    },
+    {
+      "id": "tradingagents",
+      "repo": "https://github.com/TauricResearch/TradingAgents",
+      "license": "Apache-2.0",
+      "role": "Multi-agent analyst/researcher debate, sentiment/news/technical analysis, risk and portfolio reasoning",
+      "evidence": "Paper and repository publish historical stock benchmark results; README notes non-determinism and says framework is a research scaffold, not a fixed replicable-return strategy.",
+      "access": "Requires LLM provider API key; supports xAI/Grok among providers and several market/news data providers.",
+      "project_action": "ADAPT_ANALYST_AND_RISK_REPORTS_ONLY",
+      "allowed": [
+        "analyst reports",
+        "bull/bear debate",
+        "risk memo",
+        "structured thesis"
+      ],
+      "blocked": [
+        "simulated-exchange execution",
+        "broker/order tools"
+      ],
+      "notes": "Use as independent analyst inputs, not an autonomous order agent."
+    },
+    {
+      "id": "xai_grok_x_search",
+      "docs": "https://docs.x.ai/developers/tools/x-search",
+      "mcp_docs": "https://docs.x.ai/developers/tools/remote-mcp",
+      "license": "API service; not a repository license",
+      "role": "Live X keyword/semantic search, thread fetch, and remote read-only MCP tools",
+      "evidence": "Official xAI documentation describes X Search and remote MCP allow-listing.",
+      "access": "XAI_API_KEY required for API integration; X Search tool has usage-based charges; restrict allowed tools to read-only.",
+      "project_action": "CONNECT_AS_SOCIAL_SENTIMENT_SOURCE_AFTER_KEY_AVAILABLE",
+      "allowed": [
+        "x_search",
+        "read-only MCP tool allowlist"
+      ],
+      "blocked": [
+        "any MCP write/order tools",
+        "unrestricted tool exposure"
+      ],
+      "notes": "No official xAI trading-agent repository identified; Grok is a model/tool provider, not a trading strategy."
+    },
+    {
+      "id": "openbb",
+      "repo": "https://github.com/openbq-org/OpenBB",
+      "license": "Verify license at selected version before code reuse",
+      "role": "Unified market/financial data platform and agent-facing data access",
+      "evidence": "Official platform documentation and repository describe data APIs and agent integration.",
+      "access": "Provider-specific data sources may require API keys; some public providers are available.",
+      "project_action": "USE_AS_DATA_AND_MCP_ADAPTER_CANDIDATE",
+      "allowed": [
+        "market data",
+        "news/fundamentals where available",
+        "read-only MCP"
+      ],
+      "blocked": [
+        "broker writes and order execution"
+      ],
+      "notes": "Prioritize data normalization and source provenance over copying full platform."
+    },
+    {
+      "id": "qlib",
+      "repo": "https://github.com/microsoft/qlib",
+      "license": "MIT",
+      "role": "Quant research, data processing, ML modeling, portfolio/risk research",
+      "evidence": "Published platform paper and repository include end-to-end research/backtest pipeline; not a turnkey crypto signal service.",
+      "access": "Public historical datasets and configurable data providers.",
+      "project_action": "BORROW_RESEARCH_COMPONENTS_NOT_DEPLOY_WHOLE_PLATFORM",
+      "allowed": [
+        "feature/model research interfaces",
+        "risk and portfolio research patterns"
+      ],
+      "blocked": [
+        "unreviewed execution path"
+      ],
+      "notes": "Keep as research infrastructure reference."
+    },
+    {
+      "id": "finrl_x",
+      "repo": "https://github.com/AI4Finance-Foundation/FinRL-Trading",
+      "license": "Apache-2.0",
+      "role": "Modular quantitative trading stack with weight-centric strategy, risk, backtest and broker layers",
+      "evidence": "2026 FinRL-X paper and project results; repo says educational/research use and includes live execution modules.",
+      "access": "Data providers and Alpaca integration; provider keys needed for some paths.",
+      "project_action": "BORROW_WEIGHT_CONTRACT_AND_RISK_ARCHITECTURE",
+      "allowed": [
+        "target-weight contract",
+        "portfolio risk overlays",
+        "data/backtest abstractions"
+      ],
+      "blocked": [
+        "broker executor"
+      ],
+      "notes": "Primary repository for current FinRL-X, not legacy FinRL."
+    },
+    {
+      "id": "hummingbot",
+      "repo": "https://github.com/hummingbot/hummingbot",
+      "license": "Apache-2.0",
+      "role": "Exchange connectors, order-book/websocket data, paper trading, market-making architecture",
+      "evidence": "Maintainer docs describe connector architecture and paper mode using live market data; users' reported volume is not a profitability benchmark.",
+      "access": "Paper market data can work without exchange keys; authenticated trading requires keys.",
+      "project_action": "READ_ONLY_CONNECTOR_AND_MARKET_MICROSTRUCTURE_REFERENCE",
+      "allowed": [
+        "public market data",
+        "order-book feed",
+        "paper data adapter"
+      ],
+      "blocked": [
+        "Hummingbot API order endpoints",
+        "start/stop bot controls"
+      ],
+      "notes": "No bot deployment into protected Termux services."
+    },
+    {
+      "id": "nautilustrader",
+      "repo": "https://github.com/nautechsystems/nautilus_trader",
+      "license": "LGPL-3.0",
+      "role": "Deterministic event-driven multi-venue research/simulation engine and market data adapters",
+      "evidence": "Official docs describe event-driven backtesting, simulated exchange, latency/fill models and research/live semantic parity; not evidence of strategy profitability.",
+      "access": "Public market data adapters; live execution requires venue credentials.",
+      "project_action": "ARCHITECTURE_REFERENCE_ONLY_FOR_NOW",
+      "allowed": [
+        "event-time model",
+        "data adapters",
+        "simulation semantics"
+      ],
+      "blocked": [
+        "live execution",
+        "credentialed venue adapters"
+      ],
+      "notes": "Large Rust/Python engine; do not install in Termux."
+    },
+    {
+      "id": "jesse",
+      "repo": "https://github.com/jesse-ai/jesse",
+      "license": "Verify current upstream license before code reuse",
+      "role": "Crypto strategy research and multi-timeframe/multi-symbol backtesting",
+      "evidence": "Official README describes backtesting and multiple timeframes/symbols; inspect its published docs for execution assumptions.",
+      "access": "Historical OHLCV; live exchange integration may require keys.",
+      "project_action": "STRATEGY_LOGIC_REFERENCE_ONLY",
+      "allowed": [
+        "read strategy examples",
+        "indicator logic subject to license"
+      ],
+      "blocked": [
+        "live exchange trading"
+      ],
+      "notes": "No parameter tuning."
+    },
+    {
+      "id": "octobot",
+      "repo": "https://github.com/Drakkar-Software/OctoBot",
+      "license": "GPL-3.0-or-later",
+      "role": "Crypto automation, social/technical indicators, paper trading and exchange connectors",
+      "evidence": "Maintainer docs describe backtesting and live-data paper mode; beta interface is explicitly work in progress.",
+      "access": "Paper mode; exchange keys for authenticated trading features.",
+      "project_action": "REFERENCE_ONLY_DUE_TO_EXECUTION_SURFACE_AND_LICENSE",
+      "allowed": [
+        "public docs and indicator concepts"
+      ],
+      "blocked": [
+        "installing bot",
+        "execution APIs",
+        "copying GPL code without license review"
+      ],
+      "notes": "Avoid another independent bot deployment."
+    },
+    {
+      "id": "openalice",
+      "repo": "https://github.com/hernico/openalice",
+      "license": "Check upstream license before reuse",
+      "role": "File-driven AI trading agent, multi-provider reasoning, event log and guard pipeline",
+      "evidence": "Repository itself describes the software as experimental and warns against live trading.",
+      "access": "Provider authentication; broker integrations can be configured.",
+      "project_action": "WATCHLIST_ONLY",
+      "allowed": [
+        "architecture concepts: event log, tool registry, guard separation"
+      ],
+      "blocked": [
+        "broker and order paths",
+        "evolution mode"
+      ],
+      "notes": "Not suitable for direct integration as a live agent."
+    }
+  ]
+}
