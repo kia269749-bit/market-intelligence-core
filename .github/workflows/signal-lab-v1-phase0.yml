@@ -1,0 +1,47 @@
+name: Signal Lab v1 BTC Phase 0
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  btc-phase0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/signal-lab-v1-20261124
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Confirm locked trials exist before any run
+        run: |
+          test -f signal_lab/TRIALS.json
+          python - <<'PY'
+          import json
+          x=json.load(open("signal_lab/TRIALS.json"))
+          assert x["lock_status"]=="FROZEN_BEFORE_RUN"
+          assert x["round_trip_cost_pct"]==0.12
+          assert x["timeframes"]==["1h","4h","1d"]
+          print("TRIALS LOCK VERIFIED")
+          PY
+      - name: Download public OHLC and run BTC Phase 0
+        run: python tools/signal_lab_phase0.py
+      - name: Commit verified data manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add signal_lab/DATA_MANIFEST.json signal_lab/data signal_lab/reports/phase0_btc.json
+          git commit -m "record Signal Lab BTC Phase 0 OHLC and results"
+          git push origin HEAD:research/signal-lab-v1-20261124
+          echo "RESULT_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: Upload auditable artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: signal-lab-btc-phase0
+          path: |
+            signal_lab/TRIALS.json
+            signal_lab/DATA_MANIFEST.json
+            signal_lab/data/*.csv
+            signal_lab/reports/phase0_btc.json
