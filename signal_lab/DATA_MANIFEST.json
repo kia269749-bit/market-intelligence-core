@@ -1,5 +1,5 @@
 {
-  "status": "DOWNLOADED",
+  "status": "DOWNLOADED_AND_PHASE0_COMPLETED",
   "source": "https://data-api.binance.vision/api/v3/klines",
   "symbol": "BTCUSDT",
   "timeframes": {
@@ -31,5 +31,10 @@
   "round_trip_cost_pct": 0.12,
   "research_only": true,
   "live_orders": false,
-  "downloaded_at_utc": "2026-11-24T03:04:34.915283+00:00"
+  "downloaded_at_utc": "2026-11-24T03:04:34.915283+00:00",
+  "workflow_run_id": 45316886171,
+  "workflow_job_id": 138185768235,
+  "phase0_result_commit_attempt": "2c8e712 (created in runner; push rejected because branch advanced)",
+  "report_summary_path": "signal_lab/reports/phase0_btc_summary.json",
+  "note": "The runner completed data download and calculations. Its artifact/commit step failed on non-fast-forward push; detailed summary is preserved separately. This is not a vendor model re-test."
 }
