@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "lock_status": "FROZEN_BEFORE_MULTI_ASSET_RUN",
-  "lock_revision": "multi_asset_2026-11-24",
+  "lock_revision": "multi_asset_2026-11-24_amend1",
   "created_utc": "2026-11-24",
   "asset_universe": [
     {
@@ -47,6 +47,7 @@
     "TRUMPUSDT"
   ],
   "timeframes": [
+    "15m",
     "1h",
     "4h",
     "1d"
@@ -150,5 +151,56 @@
       }
     ],
     "note": "Historical BTC-only Phase 0 remains a separate completed historical record; this multi-asset lock does not rewrite its results."
-  }
+  },
+  "amendments": [
+    {
+      "id": "amend1_2026-11-24",
+      "recorded_utc": "2026-11-24T06:33:48.393351+00:00",
+      "recorded_before_any_multi_asset_run": true,
+      "timeframes_before": [
+        "1h",
+        "4h",
+        "1d"
+      ],
+      "timeframes_after": [
+        "15m",
+        "1h",
+        "4h",
+        "1d"
+      ],
+      "round_trip_cost_pct": 0.12,
+      "btc_rule": "BTC is development-only; its sealed holdout was used once in Phase 0 and is never reused",
+      "split_rule": "ETH/ADA/SOL/XRP: first 60% chronological = development, last 40% = sealed holdout used once (same split as Phase 0 code)",
+      "statistic": {
+        "test": "paired moving block bootstrap",
+        "block_calendar_days": 5,
+        "repetitions": 10000,
+        "seed": 20261109,
+        "metric": "mean daily net return difference (strategy minus buy&hold) on equal-weight BTC/ETH/ADA/SOL/XRP portfolio",
+        "tail": "one-sided",
+        "p_value": "(1+k)/(B+1)"
+      },
+      "holm": {
+        "alpha": 0.05,
+        "family": "candidate x timeframe tests plus the 3 BTC Phase 0 tests"
+      },
+      "legacy_btc_tests": "3 Phase 0 BTC tests (fixed_baseline 1h/4h/1d) stay in the family with p=1.0 (no comparable p-value)",
+      "not_computed_rule": "status NOT_COMPUTED if fewer than 250 calendar days or fewer than 200 independent trades",
+      "max_finalists": 3,
+      "extra_candidates": "Kronos and Freqtrade: max 2 pre-registered by 2026-12-01",
+      "forbidden": [
+        "Brain Mesh",
+        "new sources",
+        "touching forward test v2",
+        "touching telegram-bot",
+        "any real order"
+      ],
+      "milestones": {
+        "stage1_amendment": "2026-11-25",
+        "stage2_runner": "2026-11-26",
+        "stage3_paper_logger": "2026-11-27",
+        "final": "2026-12-01"
+      }
+    }
+  ]
 }
