@@ -1,5 +1,8 @@
 name: Signal Lab v1 BTC Phase 0
 on:
+  push:
+    branches: [research/signal-lab-v1-20261124]
+    paths: [signal_lab/START_PHASE0]
   workflow_dispatch:
 permissions:
   contents: write
