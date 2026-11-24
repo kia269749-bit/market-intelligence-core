@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "registry_mode": "open_ended",
+  "created_utc": "2026-11-24",
+  "defaults": {
+    "research_only": true,
+    "live_orders": false,
+    "execution_blocked": true,
+    "source_retest_policy": "reuse_vendor_published_validation; adapter_compatibility_checks_only",
+    "max_brains": null,
+    "max_sources": null
+  },
+  "orchestration": {
+    "topology": "hierarchical_mesh",
+    "fanout": "async_bounded_concurrency",
+    "queueing": true,
+    "caching": true,
+    "per_source_timeout_required": true,
+    "provider_budget_caps_required": true,
+    "domain_councils": true,
+    "meta_brain": true,
+    "abstain_on_stale_or_conflicting_evidence": true,
+    "deduplicate_correlated_sources": true
+  },
+  "contract": "brain_mesh/brain_output.schema.json",
+  "councils": [
+    {
+      "id": "market_structure",
+      "domains": [
+        "ohlcv",
+        "trend",
+        "support_resistance",
+        "candlestick_patterns",
+        "technical_indicators",
+        "volatility"
+      ]
+    },
+    {
+      "id": "derivatives_liquidity",
+      "domains": [
+        "funding",
+        "open_interest",
+        "liquidations",
+        "order_book",
+        "spread",
+        "liquidity"
+      ]
+    },
+    {
+      "id": "onchain_smart_money",
+      "domains": [
+        "token_discovery",
+        "wallets",
+        "holders",
+        "smart_money",
+        "chain_flows"
+      ],
+      "sources": [
+        "gmgn_skills"
+      ]
+    },
+    {
+      "id": "news_social",
+      "domains": [
+        "news",
+        "x_search",
+        "sentiment",
+        "events"
+      ],
+      "sources": [
+        "xai_grok_x_search"
+      ]
+    },
+    {
+      "id": "quant_strategy",
+      "domains": [
+        "strategy_logic",
+        "quant_research",
+        "portfolio_construction"
+      ],
+      "sources": [
+        "freqtrade",
+        "jesse",
+        "qlib",
+        "finrl_x"
+      ]
+    },
+    {
+      "id": "forecasting",
+      "domains": [
+        "time_series_forecasting",
+        "candle_forecast"
+      ],
+      "sources": [
+        "kronos"
+      ]
+    },
+    {
+      "id": "risk_portfolio",
+      "domains": [
+        "drawdown",
+        "concentration",
+        "correlation",
+        "regime",
+        "costs",
+        "risk_overlay"
+      ]
+    },
+    {
+      "id": "meta_council",
+      "domains": [
+        "evidence_independence",
+        "disagreement",
+        "freshness",
+        "abstention",
+        "signal_synthesis"
+      ]
+    }
+  ],
+  "workers": [
+    {
+      "id": "gmgn_readonly",
+      "source_id": "gmgn_skills",
+      "status": "adapter_added_execution_pending",
+      "mode": "read_only",
+      "council": "onchain_smart_money"
+    },
+    {
+      "id": "kronos_pretrained",
+      "source_id": "kronos",
+      "status": "catalogued_inference_adapter_pending",
+      "mode": "read_only",
+      "council": "forecasting"
+    },
+    {
+      "id": "tradingagents_analyst",
+      "source_id": "tradingagents",
+      "status": "catalogued_adapter_pending",
+      "mode": "read_only",
+      "council": "meta_council"
+    },
+    {
+      "id": "grok_x_search",
+      "source_id": "xai_grok_x_search",
+      "status": "requires_user_api_key_and_budget",
+      "mode": "read_only",
+      "council": "news_social"
+    },
+    {
+      "id": "freqtrade_strategy_library",
+      "source_id": "freqtrade",
+      "status": "source_catalogued_license_review_per_strategy",
+      "mode": "read_only",
+      "council": "quant_strategy"
+    },
+    {
+      "id": "openbb_data",
+      "source_id": "openbb",
+      "status": "catalogued_adapter_pending",
+      "mode": "read_only",
+      "council": "market_structure"
+    },
+    {
+      "id": "qlib_research",
+      "source_id": "qlib",
+      "status": "architecture_reference",
+      "mode": "read_only",
+      "council": "quant_strategy"
+    },
+    {
+      "id": "finrl_x_research",
+      "source_id": "finrl_x",
+      "status": "architecture_reference",
+      "mode": "read_only",
+      "council": "quant_strategy"
+    },
+    {
+      "id": "hummingbot_public_data",
+      "source_id": "hummingbot",
+      "status": "architecture_reference",
+      "mode": "read_only",
+      "council": "derivatives_liquidity"
+    },
+    {
+      "id": "nautilus_event_model",
+      "source_id": "nautilustrader",
+      "status": "architecture_reference",
+      "mode": "simulation_only",
+      "council": "risk_portfolio"
+    }
+  ]
+}
