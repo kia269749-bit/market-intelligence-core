@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Project60 Brain Mesh Worker Output",
+  "type": "object",
+  "required": [
+    "brain_id",
+    "brain_version",
+    "source_id",
+    "source_version",
+    "symbol",
+    "timeframe",
+    "as_of_utc",
+    "observation",
+    "bias",
+    "availability",
+    "execution_capability",
+    "execution_blocked"
+  ],
+  "properties": {
+    "brain_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "brain_version": {
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "source_version": {
+      "type": "string"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "venue_or_chain": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "timeframe": {
+      "type": "string"
+    },
+    "as_of_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "input_data_timestamp_utc": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "observation": {
+      "type": "string"
+    },
+    "bias": {
+      "enum": [
+        "bullish",
+        "bearish",
+        "neutral",
+        "unknown"
+      ]
+    },
+    "forecast_horizon": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "confidence_semantics": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "uncertainty": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "vendor_validation_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "freshness": {
+      "enum": [
+        "fresh",
+        "stale",
+        "unknown"
+      ]
+    },
+    "availability": {
+      "enum": [
+        "available",
+        "blocked",
+        "error"
+      ]
+    },
+    "execution_capability": {
+      "enum": [
+        "read_only",
+        "simulation_only",
+        "execution_capable"
+      ]
+    },
+    "execution_blocked": {
+      "const": true
+    }
+  },
+  "additionalProperties": false
+}
