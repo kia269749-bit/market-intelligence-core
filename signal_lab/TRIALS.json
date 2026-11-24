@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "lock_status": "FROZEN_BEFORE_RUN",
+  "created_utc": "2026-11-24",
+  "symbol": "BTCUSDT",
+  "timeframes": [
+    "1h",
+    "4h",
+    "1d"
+  ],
+  "round_trip_cost_pct": 0.12,
+  "research_only": true,
+  "live_orders": false,
+  "holdout_policy": "chronological final 40 percent; one use only",
+  "candidates": [
+    {
+      "id": "core_path_forecast",
+      "source": "market-intelligence-core:mi_core.path_forecast",
+      "status": "included"
+    },
+    {
+      "id": "indicator_fixed_set",
+      "source": "EMA20/EMA50 + RSI14 + 20-bar breakout, fixed parameters",
+      "status": "included"
+    },
+    {
+      "id": "bot_own_rules",
+      "source": "kia269749-bit/telegram-bot",
+      "status": "blocked_source_unavailable_to_current_GitHub_connection"
+    },
+    {
+      "id": "gmgn_signal_logic",
+      "source": "GMGNAI/gmgn-skills",
+      "status": "blocked_repository_returned_404; no code imported"
+    },
+    {
+      "id": "kronos_small",
+      "source": "shiyu-coder/Kronos + NeoQuasar/Kronos-small",
+      "status": "research_required_before_inference_run"
+    },
+    {
+      "id": "freqtrade_strategies",
+      "source": "freqtrade/freqtrade-strategies",
+      "status": "source_available; strategy inventory required before selection"
+    }
+  ],
+  "no_post_lock_additions": true,
+  "no_parameter_tuning": true
+}
