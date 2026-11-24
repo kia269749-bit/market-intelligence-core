@@ -120,7 +120,7 @@
         "any MCP write/order tools",
         "unrestricted tool exposure"
       ],
-      "notes": "No official xAI trading-agent repository identified; Grok is a model/tool provider, not a trading strategy."
+      "notes": "No official xAI trading-agent repository identified; Grok is a model/tool provider, not a trading strategy. Official docs list X Search usage pricing of $5 per 1,000 posts and $10 per 1,000 user profiles; limit handles/date windows/max turns to control spend. Remote MCP must use an explicit read-only allowed_tools list."
     },
     {
       "id": "openbb",
@@ -264,6 +264,41 @@
         "evolution mode"
       ],
       "notes": "Not suitable for direct integration as a live agent."
+    },
+    {
+      "id": "agentic_trading_lab",
+      "repo": "https://github.com/Open-Finance-Lab/AgenticTrading",
+      "license": "Verify upstream license before reuse",
+      "role": "Cloud-hosted educational/research environment for LLM trading agents, explicit market rules, evaluation and orchestration",
+      "evidence": "Repository documentation describes backtests, agent customization and observation of agent behavior under market constraints; not evidence of live profitability.",
+      "access": "Hosted web app and source repository; credentials may be needed for external agent providers.",
+      "project_action": "WATCH_FOR_REUSABLE_AGENT_ORCHESTRATION_PATTERNS",
+      "allowed": [
+        "research agent interface",
+        "market-rule abstractions",
+        "agent behavior logging"
+      ],
+      "blocked": [
+        "broker execution",
+        "copying code before license review"
+      ],
+      "notes": "Research lab, not a signal provider."
+    },
+    {
+      "id": "awesome_open_source_trading_index",
+      "repo": "https://github.com/WallStreetPete/awesome-open-source-trading",
+      "license": "Check individual upstream licenses; index itself is a discovery list",
+      "role": "Curated discovery index of 450+ trading repositories and quant papers",
+      "evidence": "Repository organizes backtesting, execution, data, AI-agent and strategy research projects with status and limitations.",
+      "access": "Public GitHub repository",
+      "project_action": "CONTINUOUS_DISCOVERY_INDEX",
+      "allowed": [
+        "discover new candidate repositories and papers"
+      ],
+      "blocked": [
+        "treating inclusion as validation"
+      ],
+      "notes": "Use as a search map; every candidate still requires official-source and license verification."
     }
   ]
 }
