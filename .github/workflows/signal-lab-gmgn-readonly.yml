@@ -1,0 +1,29 @@
+name: Signal Lab read-only GMGN snapshot
+on:
+  push:
+    branches: [research/signal-lab-v1-20261124]
+    paths: [signal_lab/LIVE_TRIGGER/**]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  gmgn-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: research/signal-lab-v1-20261124
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install upstream GMGN CLI
+        run: npm install --global gmgn-cli
+      - name: Fetch public read-only market snapshot
+        run: python3 tools/gmgn_readonly_snapshot.py
+      - name: Preserve raw source evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: project60-gmgn-readonly-snapshot
+          path: signal_lab/live/*.json
+          if-no-files-found: error
