@@ -1,27 +1,35 @@
 {
-  "schema_version": 1,
-  "status": "PENDING_DOWNLOAD",
+  "status": "DOWNLOADED",
+  "source": "https://data-api.binance.vision/api/v3/klines",
   "symbol": "BTCUSDT",
-  "timeframes": [
-    "1h",
-    "4h",
-    "1d"
-  ],
-  "source": "Binance public spot market-data REST: https://data-api.binance.vision/api/v3/klines",
-  "downloadable_source": "https://github.com/binance/binance-public-data",
-  "expected_columns": [
-    "open_time",
-    "open",
-    "high",
-    "low",
-    "close",
-    "volume",
-    "close_time"
-  ],
-  "open_high_low_close_confirmed": false,
-  "candle_count_by_timeframe": {},
-  "downloaded_at_utc": null,
+  "timeframes": {
+    "1h": {
+      "source": "https://data-api.binance.vision/api/v3/klines",
+      "candle_count": 60427,
+      "file": "signal_lab/data/BTCUSDT_1h.csv",
+      "open_high_low_close_confirmed": true,
+      "first_open_time": 1577836800000,
+      "last_close_time": 1795489199999
+    },
+    "4h": {
+      "source": "https://data-api.binance.vision/api/v3/klines",
+      "candle_count": 15113,
+      "file": "signal_lab/data/BTCUSDT_4h.csv",
+      "open_high_low_close_confirmed": true,
+      "first_open_time": 1577836800000,
+      "last_close_time": 1795478399999
+    },
+    "1d": {
+      "source": "https://data-api.binance.vision/api/v3/klines",
+      "candle_count": 2519,
+      "file": "signal_lab/data/BTCUSDT_1d.csv",
+      "open_high_low_close_confirmed": true,
+      "first_open_time": 1577836800000,
+      "last_close_time": 1795478399999
+    }
+  },
   "round_trip_cost_pct": 0.12,
   "research_only": true,
-  "live_orders": false
+  "live_orders": false,
+  "downloaded_at_utc": "2026-11-24T03:04:34.915283+00:00"
 }
