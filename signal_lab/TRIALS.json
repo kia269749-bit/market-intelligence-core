@@ -1,49 +1,154 @@
 {
-  "schema_version": 1,
-  "lock_status": "FROZEN_BEFORE_RUN",
+  "schema_version": 2,
+  "lock_status": "FROZEN_BEFORE_MULTI_ASSET_RUN",
+  "lock_revision": "multi_asset_2026-11-24",
   "created_utc": "2026-11-24",
-  "symbol": "BTCUSDT",
+  "asset_universe": [
+    {
+      "symbol": "BTCUSDT",
+      "role": "primary_long_history"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "role": "primary_long_history"
+    },
+    {
+      "symbol": "ADAUSDT",
+      "role": "primary_long_history"
+    },
+    {
+      "symbol": "SOLUSDT",
+      "role": "primary_long_history"
+    },
+    {
+      "symbol": "XRPUSDT",
+      "role": "primary_long_history"
+    },
+    {
+      "symbol": "PENGUUSDT",
+      "role": "auxiliary_short_history",
+      "qualification": "supporting_evidence_only_not_eligible_for_candidate_acceptance"
+    },
+    {
+      "symbol": "TRUMPUSDT",
+      "role": "auxiliary_short_history",
+      "qualification": "supporting_evidence_only_not_eligible_for_candidate_acceptance"
+    }
+  ],
+  "acceptance_assets": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "ADAUSDT",
+    "SOLUSDT",
+    "XRPUSDT"
+  ],
+  "auxiliary_assets": [
+    "PENGUUSDT",
+    "TRUMPUSDT"
+  ],
   "timeframes": [
     "1h",
     "4h",
     "1d"
   ],
   "round_trip_cost_pct": 0.12,
-  "research_only": true,
-  "live_orders": false,
-  "holdout_policy": "chronological final 40 percent; one use only",
+  "execution_model": {
+    "entry": "next_candle_open",
+    "tie_break": "stop_loss_first",
+    "holdout": "chronological sealed holdout; report separately per asset/timeframe",
+    "top_three_trade_removal": true,
+    "multiple_testing_correction": "Holm",
+    "minimum_independent_trades": 200,
+    "benchmark": "Buy & Hold after identical round-trip cost"
+  },
   "candidates": [
     {
-      "id": "core_path_forecast",
-      "source": "market-intelligence-core:mi_core.path_forecast",
-      "status": "included"
-    },
-    {
-      "id": "indicator_fixed_set",
-      "source": "EMA20/EMA50 + RSI14 + 20-bar breakout, fixed parameters",
-      "status": "included"
-    },
-    {
-      "id": "bot_own_rules",
-      "source": "kia269749-bit/telegram-bot",
-      "status": "blocked_source_unavailable_to_current_GitHub_connection"
-    },
-    {
-      "id": "gmgn_signal_logic",
-      "source": "GMGNAI/gmgn-skills",
-      "status": "blocked_repository_returned_404; no code imported"
-    },
-    {
-      "id": "kronos_small",
+      "id": "kronos_inference",
       "source": "shiyu-coder/Kronos + NeoQuasar/Kronos-small",
-      "status": "research_required_before_inference_run"
+      "role": "pretrained_inference_only",
+      "status": "pending_adapter_and_inference_compatibility"
     },
     {
-      "id": "freqtrade_strategies",
-      "source": "freqtrade/freqtrade-strategies",
-      "status": "source_available; strategy inventory required before selection"
+      "id": "gmgn_readonly",
+      "source": "GMGNAI/gmgn-skills",
+      "role": "read_only_meme_coin_context",
+      "eligible_assets": [
+        "PENGUUSDT",
+        "TRUMPUSDT"
+      ],
+      "status": "workflow_result_must_be_verified"
+    },
+    {
+      "id": "fixed_baseline",
+      "source": "fixed EMA20/EMA50 + RSI14 + 20-bar breakout",
+      "role": "baseline",
+      "status": "included_fixed_parameters"
     }
   ],
-  "no_post_lock_additions": true,
-  "no_parameter_tuning": true
+  "stopping_rule": {
+    "basis": "trade_count_not_elapsed_weeks",
+    "after_minimum_independent_trades": true,
+    "eliminate_if_net_after_cost_not_better_than_buy_hold": true,
+    "no_extensions": true,
+    "no_metric_or_parameter_changes": true
+  },
+  "online_logger": {
+    "enabled": true,
+    "parallel": true,
+    "research_only": true,
+    "live_orders": false,
+    "record": [
+      "signal",
+      "hypothetical_entry",
+      "stop_loss",
+      "take_profit",
+      "net_result_after_cost",
+      "buy_and_hold_comparison"
+    ],
+    "read_telegram_signals_only": true,
+    "telegram_bot_modification": false,
+    "forward_test_v2_modification": false
+  },
+  "research_only": true,
+  "live_orders": false,
+  "no_asset_changes_after_lock": true,
+  "no_parameter_tuning": true,
+  "prior_btc_phase0_lock_preserved": {
+    "schema_version": 1,
+    "lock_status": "FROZEN_BEFORE_RUN",
+    "symbol": "BTCUSDT",
+    "candidates": [
+      {
+        "id": "core_path_forecast",
+        "source": "market-intelligence-core:mi_core.path_forecast",
+        "status": "included"
+      },
+      {
+        "id": "indicator_fixed_set",
+        "source": "EMA20/EMA50 + RSI14 + 20-bar breakout, fixed parameters",
+        "status": "included"
+      },
+      {
+        "id": "bot_own_rules",
+        "source": "kia269749-bit/telegram-bot",
+        "status": "blocked_source_unavailable_to_current_GitHub_connection"
+      },
+      {
+        "id": "gmgn_signal_logic",
+        "source": "GMGNAI/gmgn-skills",
+        "status": "blocked_repository_returned_404; no code imported"
+      },
+      {
+        "id": "kronos_small",
+        "source": "shiyu-coder/Kronos + NeoQuasar/Kronos-small",
+        "status": "research_required_before_inference_run"
+      },
+      {
+        "id": "freqtrade_strategies",
+        "source": "freqtrade/freqtrade-strategies",
+        "status": "source_available; strategy inventory required before selection"
+      }
+    ],
+    "note": "Historical BTC-only Phase 0 remains a separate completed historical record; this multi-asset lock does not rewrite its results."
+  }
 }
