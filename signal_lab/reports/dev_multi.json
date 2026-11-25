@@ -1,0 +1,380 @@
+{
+  "lock_revision": "multi_asset_2026-11-24_amend1",
+  "cost_pct": 0.12,
+  "segment": "development_only_holdout_untouched",
+  "candidate": "fixed_baseline",
+  "per_tf": {
+    "15m": {
+      "assets": {
+        "BTCUSDT": {
+          "candles_dev": 145054,
+          "trades": 5819,
+          "win_rate_pct": 36.295,
+          "net_return_pct": -73.3426,
+          "max_dd_pct": 74.1941,
+          "top3_removed_usd": -389.454,
+          "buy_hold_return_pct": 610.5038,
+          "beats_bh": false
+        },
+        "ETHUSDT": {
+          "candles_dev": 145054,
+          "trades": 5999,
+          "win_rate_pct": 38.473,
+          "net_return_pct": -57.213,
+          "max_dd_pct": 59.2179,
+          "top3_removed_usd": -313.3325,
+          "buy_hold_return_pct": 2148.8038,
+          "beats_bh": false
+        },
+        "ADAUSDT": {
+          "candles_dev": 145054,
+          "trades": 6270,
+          "win_rate_pct": 38.373,
+          "net_return_pct": -74.0697,
+          "max_dd_pct": 74.4388,
+          "top3_removed_usd": -396.9907,
+          "buy_hold_return_pct": 1695.6182,
+          "beats_bh": false
+        },
+        "SOLUSDT": {
+          "candles_dev": 132231,
+          "trades": 5968,
+          "win_rate_pct": 39.159,
+          "net_return_pct": -72.5552,
+          "max_dd_pct": 73.3232,
+          "top3_removed_usd": -388.0501,
+          "buy_hold_return_pct": 6104.4414,
+          "beats_bh": false
+        },
+        "XRPUSDT": {
+          "candles_dev": 145065,
+          "trades": 6045,
+          "win_rate_pct": 36.956,
+          "net_return_pct": -76.4524,
+          "max_dd_pct": 78.3312,
+          "top3_removed_usd": -410.3995,
+          "buy_hold_return_pct": 179.8385,
+          "beats_bh": false
+        },
+        "PENGUUSDT": {
+          "candles_dev": 40753,
+          "trades": 1953,
+          "win_rate_pct": 39.478,
+          "net_return_pct": -21.3983,
+          "max_dd_pct": 26.5565,
+          "top3_removed_usd": -134.8926,
+          "buy_hold_return_pct": 129.7763,
+          "beats_bh": false
+        },
+        "TRUMPUSDT": {
+          "candles_dev": 38865,
+          "trades": 1651,
+          "win_rate_pct": 40.036,
+          "net_return_pct": -30.4478,
+          "max_dd_pct": 31.0334,
+          "top3_removed_usd": -181.9494,
+          "buy_hold_return_pct": -87.7457,
+          "beats_bh": true
+        }
+      },
+      "portfolio": {
+        "status": "COMPUTED",
+        "days": 1289,
+        "independent_trade_days": 1602,
+        "mean_daily_diff_pct": -0.33277,
+        "p_one_sided": 0.9985
+      }
+    },
+    "1h": {
+      "assets": {
+        "BTCUSDT": {
+          "candles_dev": 36267,
+          "trades": 1604,
+          "win_rate_pct": 39.214,
+          "net_return_pct": -0.5193,
+          "max_dd_pct": 18.5086,
+          "top3_removed_usd": -39.2014,
+          "buy_hold_return_pct": 612.4497,
+          "beats_bh": false
+        },
+        "ETHUSDT": {
+          "candles_dev": 36267,
+          "trades": 1664,
+          "win_rate_pct": 39.603,
+          "net_return_pct": -3.5401,
+          "max_dd_pct": 14.7751,
+          "top3_removed_usd": -52.9719,
+          "buy_hold_return_pct": 2157.6765,
+          "beats_bh": false
+        },
+        "ADAUSDT": {
+          "candles_dev": 36267,
+          "trades": 1688,
+          "win_rate_pct": 39.455,
+          "net_return_pct": 9.5155,
+          "max_dd_pct": 24.5192,
+          "top3_removed_usd": 4.69,
+          "buy_hold_return_pct": 1695.3138,
+          "beats_bh": false
+        },
+        "SOLUSDT": {
+          "candles_dev": 33060,
+          "trades": 1594,
+          "win_rate_pct": 39.774,
+          "net_return_pct": -22.4001,
+          "max_dd_pct": 25.6442,
+          "top3_removed_usd": -141.058,
+          "buy_hold_return_pct": 6116.0204,
+          "beats_bh": false
+        },
+        "XRPUSDT": {
+          "candles_dev": 36270,
+          "trades": 1644,
+          "win_rate_pct": 37.774,
+          "net_return_pct": 6.1175,
+          "max_dd_pct": 32.3943,
+          "top3_removed_usd": -16.5049,
+          "buy_hold_return_pct": 180.72,
+          "beats_bh": false
+        },
+        "PENGUUSDT": {
+          "candles_dev": 10188,
+          "trades": 497,
+          "win_rate_pct": 41.247,
+          "net_return_pct": 21.6613,
+          "max_dd_pct": 13.8818,
+          "top3_removed_usd": 67.7938,
+          "buy_hold_return_pct": 130.9022,
+          "beats_bh": false
+        },
+        "TRUMPUSDT": {
+          "candles_dev": 9716,
+          "trades": 439,
+          "win_rate_pct": 43.052,
+          "net_return_pct": 15.9721,
+          "max_dd_pct": 6.1367,
+          "top3_removed_usd": 43.8661,
+          "buy_hold_return_pct": -87.7347,
+          "beats_bh": true
+        }
+      },
+      "portfolio": {
+        "status": "COMPUTED",
+        "days": 1289,
+        "independent_trade_days": 1565,
+        "mean_daily_diff_pct": -0.28916,
+        "p_one_sided": 0.9955
+      }
+    },
+    "4h": {
+      "assets": {
+        "BTCUSDT": {
+          "candles_dev": 9070,
+          "trades": 455,
+          "win_rate_pct": 40.659,
+          "net_return_pct": -4.6221,
+          "max_dd_pct": 19.065,
+          "top3_removed_usd": -55.6596,
+          "buy_hold_return_pct": 623.9852,
+          "beats_bh": false
+        },
+        "ETHUSDT": {
+          "candles_dev": 9070,
+          "trades": 442,
+          "win_rate_pct": 42.081,
+          "net_return_pct": 7.9218,
+          "max_dd_pct": 12.6901,
+          "top3_removed_usd": 3.4758,
+          "buy_hold_return_pct": 2211.7258,
+          "beats_bh": false
+        },
+        "ADAUSDT": {
+          "candles_dev": 9070,
+          "trades": 428,
+          "win_rate_pct": 44.86,
+          "net_return_pct": 59.6581,
+          "max_dd_pct": 6.9489,
+          "top3_removed_usd": 249.0982,
+          "buy_hold_return_pct": 1780.8541,
+          "beats_bh": false
+        },
+        "SOLUSDT": {
+          "candles_dev": 8268,
+          "trades": 415,
+          "win_rate_pct": 43.614,
+          "net_return_pct": 60.8126,
+          "max_dd_pct": 10.2002,
+          "top3_removed_usd": 252.3895,
+          "buy_hold_return_pct": 5940.2309,
+          "beats_bh": false
+        },
+        "XRPUSDT": {
+          "candles_dev": 9071,
+          "trades": 422,
+          "win_rate_pct": 39.81,
+          "net_return_pct": 7.7975,
+          "max_dd_pct": 9.248,
+          "top3_removed_usd": 4.1117,
+          "buy_hold_return_pct": 191.4019,
+          "beats_bh": false
+        },
+        "PENGUUSDT": {
+          "candles_dev": 2547,
+          "trades": 124,
+          "win_rate_pct": 49.194,
+          "net_return_pct": 25.5682,
+          "max_dd_pct": 6.8769,
+          "top3_removed_usd": 88.0492,
+          "buy_hold_return_pct": 132.9763,
+          "beats_bh": false
+        },
+        "TRUMPUSDT": {
+          "candles_dev": 2428,
+          "trades": 113,
+          "win_rate_pct": 47.788,
+          "net_return_pct": 8.5386,
+          "max_dd_pct": 6.9568,
+          "top3_removed_usd": 9.824,
+          "buy_hold_return_pct": -87.6393,
+          "beats_bh": true
+        }
+      },
+      "portfolio": {
+        "status": "COMPUTED",
+        "days": 1288,
+        "independent_trade_days": 1005,
+        "mean_daily_diff_pct": -0.26892,
+        "p_one_sided": 0.9904
+      }
+    },
+    "1d": {
+      "assets": {
+        "BTCUSDT": {
+          "candles_dev": 1511,
+          "trades": 74,
+          "win_rate_pct": 43.243,
+          "net_return_pct": 19.0943,
+          "max_dd_pct": 8.7283,
+          "top3_removed_usd": 55.8602,
+          "buy_hold_return_pct": 619.4492,
+          "beats_bh": false
+        },
+        "ETHUSDT": {
+          "candles_dev": 1511,
+          "trades": 69,
+          "win_rate_pct": 56.522,
+          "net_return_pct": 29.3342,
+          "max_dd_pct": 6.7952,
+          "top3_removed_usd": 103.8159,
+          "buy_hold_return_pct": 2179.8428,
+          "beats_bh": false
+        },
+        "ADAUSDT": {
+          "candles_dev": 1511,
+          "trades": 79,
+          "win_rate_pct": 53.165,
+          "net_return_pct": 36.2494,
+          "max_dd_pct": 5.8582,
+          "top3_removed_usd": 137.6946,
+          "buy_hold_return_pct": 1820.1235,
+          "beats_bh": false
+        },
+        "SOLUSDT": {
+          "candles_dev": 1377,
+          "trades": 73,
+          "win_rate_pct": 45.205,
+          "net_return_pct": 23.6465,
+          "max_dd_pct": 5.2613,
+          "top3_removed_usd": 77.9403,
+          "buy_hold_return_pct": 5949.0028,
+          "beats_bh": false
+        },
+        "XRPUSDT": {
+          "candles_dev": 1512,
+          "trades": 68,
+          "win_rate_pct": 38.235,
+          "net_return_pct": 5.9036,
+          "max_dd_pct": 8.8709,
+          "top3_removed_usd": -7.3009,
+          "buy_hold_return_pct": 191.4019,
+          "beats_bh": false
+        },
+        "PENGUUSDT": {
+          "candles_dev": 424,
+          "trades": 17,
+          "win_rate_pct": 64.706,
+          "net_return_pct": 8.4769,
+          "max_dd_pct": 2.9988,
+          "top3_removed_usd": 7.9676,
+          "buy_hold_return_pct": 96.5615,
+          "beats_bh": false
+        },
+        "TRUMPUSDT": {
+          "candles_dev": 405,
+          "trades": 16,
+          "win_rate_pct": 50.0,
+          "net_return_pct": 3.4443,
+          "max_dd_pct": 3.1497,
+          "top3_removed_usd": -10.7698,
+          "buy_hold_return_pct": -87.6393,
+          "beats_bh": true
+        }
+      },
+      "portfolio": {
+        "status": "COMPUTED",
+        "days": 1287,
+        "independent_trade_days": 293,
+        "mean_daily_diff_pct": -0.27266,
+        "p_one_sided": 0.994
+      }
+    }
+  },
+  "holm_provisional": {
+    "alpha": 0.05,
+    "note": "family grows when Kronos/Freqtrade are registered",
+    "tests": [
+      {
+        "name": "fixed_baseline_15m",
+        "p": 0.9985,
+        "holm_adj": 1,
+        "reject": false
+      },
+      {
+        "name": "fixed_baseline_1h",
+        "p": 0.9955,
+        "holm_adj": 1,
+        "reject": false
+      },
+      {
+        "name": "fixed_baseline_4h",
+        "p": 0.9904,
+        "holm_adj": 1,
+        "reject": false
+      },
+      {
+        "name": "fixed_baseline_1d",
+        "p": 0.994,
+        "holm_adj": 1,
+        "reject": false
+      },
+      {
+        "name": "legacy_btc_1h",
+        "p": 1.0,
+        "holm_adj": 1,
+        "reject": false
+      },
+      {
+        "name": "legacy_btc_4h",
+        "p": 1.0,
+        "holm_adj": 1,
+        "reject": false
+      },
+      {
+        "name": "legacy_btc_1d",
+        "p": 1.0,
+        "holm_adj": 1,
+        "reject": false
+      }
+    ]
+  }
+}
