@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "lock_status": "FROZEN_BEFORE_MULTI_ASSET_RUN",
-  "lock_revision": "multi_asset_2026-11-24_amend1",
+  "lock_revision": "multi_asset_2026-11-25_amend2",
   "created_utc": "2026-11-24",
   "asset_universe": [
     {
@@ -64,26 +64,30 @@
   },
   "candidates": [
     {
+      "id": "fixed_baseline",
+      "source": "fixed EMA20/EMA50 + RSI14 + 20-bar breakout",
+      "role": "historical_baseline",
+      "status": "rejected_all_four_timeframes_commit_75dddad_no_rerun_no_holdout"
+    },
+    {
       "id": "kronos_inference",
       "source": "shiyu-coder/Kronos + NeoQuasar/Kronos-small",
       "role": "pretrained_inference_only",
-      "status": "pending_adapter_and_inference_compatibility"
+      "status": "pre_registered_pending_model_version_hash_and_ci_compatibility",
+      "data_after": "2025-09-01",
+      "execution_environment": "GitHub Actions CI",
+      "parameter_tuning": false,
+      "holdout_tuning": false,
+      "unavailable_action": "BLOCKED_NO_REPLACEMENT"
     },
     {
-      "id": "gmgn_readonly",
-      "source": "GMGNAI/gmgn-skills",
-      "role": "read_only_meme_coin_context",
-      "eligible_assets": [
-        "PENGUUSDT",
-        "TRUMPUSDT"
-      ],
-      "status": "workflow_result_must_be_verified"
-    },
-    {
-      "id": "fixed_baseline",
-      "source": "fixed EMA20/EMA50 + RSI14 + 20-bar breakout",
-      "role": "baseline",
-      "status": "included_fixed_parameters"
+      "id": "freqtrade_strategy",
+      "source": "freqtrade/freqtrade-strategies",
+      "role": "single_strategy_default_parameters",
+      "status": "BLOCKED_UNTIL_STRATEGY_NAME_AND_FILE_SHA_ARE_RECORDED",
+      "hyperopt": false,
+      "strategy_name": null,
+      "strategy_file_sha256": null
     }
   ],
   "stopping_rule": {
@@ -201,6 +205,114 @@
         "stage3_paper_logger": "2026-11-27",
         "final": "2026-12-01"
       }
+    },
+    {
+      "id": "amend2_2026-11-25",
+      "recorded_before_new_candidate_execution": true,
+      "status": "LOCKED_BEFORE_NEW_RUNS",
+      "full_text": "AMENDMENT 2 (قبل از هر اجرای جدید، ثبت در signal_lab/TRIALS.json)\n\n1) نتیجه ثبت‌شده: fixed_baseline روی هر ۴ تایم‌فریم رد شد (Holm=1، کامیت 75dddad). پارامترهایش تغییر نمی‌کند، بازآزمایی یا بازنویسی نمی‌شود و هولدوت ETH/ADA/SOL/XRP برای آن باز نمی‌شود.\n\n2) کاندیدها: حداکثر ۲ تا. kronos_inference و یک استراتژی Freqtrade که نام و هش فایلش قبل از اجرا در TRIALS.json ثبت شود. کاندید دیگری اضافه نمی‌شود.\n\n3) Kronos: فقط روی داده بعد از 2025-09-01 و روی CI گیت‌هاب. نسخه و هش مدل ثبت شود. پارامترها قبل از اجرا ثابت شوند و روی هولدوت تنظیم نشوند. اگر داده یا مدل در دسترس نبود، وضعیت BLOCKED و بدون جایگزینی.\n\n4) Freqtrade: یک استراتژی با پارامترهای پیش‌فرض خودش، بدون hyperopt.\n\n5) خانواده Holm: ۴ آزمون fixed_baseline، ۳ آزمون legacy BTC (p=1)، و ۴ تایم‌فریم برای هر کاندید جدید. alpha=0.05. هر آزمونی که اجرا نشود p=1 می‌گیرد.\n\n6) معیار قبولی: سود خالص مثبت بعد از هزینه 0.12٪ و بهتر از Buy&Hold پرتفوی هم‌وزن BTC/ETH/ADA/SOL/XRP، Holm زیر 0.05، مثبت‌ماندن بعد از حذف ۳ معامله برتر، حداقل ۲۵۰ روز و ۲۰۰ معامله مستقل. حساسیت 0.24٪ فقط گزارش شود.\n\n6ب) معیار هم‌اکسپوژر، قبل از اجرای هر کاندید جدید:\n- اکسپوژر هر دارایی ē = میانگین روزانهٔ (مجموع نوشنل موقعیت‌های باز آن روز تقسیم بر سرمایهٔ ابتدای همان روز، به‌صورت قدر مطلق) روی بازهٔ ارزیابی، محاسبه‌شده از لاگ معاملات خود کاندید.\n- مقایسه‌گر: خرید و نگهداری long-only با اکسپوژر ثابت ē، بازده روزانه = ē × بازده روزانهٔ دارایی، با یک‌بار هزینهٔ ورود/خروج ē×0.12٪.\n- آماره: همان میانگین اختلاف بازده روزانه روی پرتفوی هم‌وزن ۵ دارایی، با همان بوت‌استرپ بلوکی (۵ روز، ۱۰٬۰۰۰ تکرار، seed 20261109) و p تک‌طرفه.\n- کاندید فقط وقتی قبول است که بند ۶ و بند 6ب هر دو جداگانه برقرار باشند (p زیر 0.05 در هر دو). چون هر دو همزمان لازم‌اند، برای 6ب Holm جداگانه لازم نیست.\n- سود خالص مثبت پس از 0.12٪ و مثبت‌ماندن پس از حذف ۳ معامله برتر بدون تغییر.\n- این بند فقط برای کاندیدهای جدید است و fixed_baseline را بازنویسی نمی‌کند.\n\n7) هولدوت: فقط برای حداکثر ۳ فینالیست و فقط یک‌بار.\n\n8) لاگر کاغذی (مرحله ۳): فقط append-only. هر سیگنال قبل از وقوع ثبت شود: زمان، دارایی، جهت، ناحیه ورود (از A تا B)، حد ضرر، هدف، افق، احتمال، برچسب «تأییدنشده». احتمال تا زمان کالیبراسیون با داده کافی NOT_COMPUTED است. بعد از پایان افق، نتیجه ثبت شود. دقت جهت با فاصله اطمینان، پوشش محدوده و درصد سیگنال‌های صادرشده فقط معیار تشخیصی‌اند، نه معیار قبولی.\n\n9) مهلت‌ها: 2026-11-27 لاگر و هش کامیت‌ها، 2026-12-01 گزارش نهایی. بدون کامیت قابل‌بررسی یعنی انجام‌نشده؛ نتیجه NO VERIFIED EDGE FOUND.\n\n10) ممنوع: Brain Mesh، اخبار، منابع داده جدید، هر تغییر در telegram-bot یا forward test v2، و هر تغییر معیار بعد از دیدن نتیجه.",
+      "candidates": [
+        "kronos_inference",
+        "freqtrade_strategy"
+      ],
+      "candidate_limit": 2,
+      "kronos": {
+        "data_after": "2025-09-01",
+        "environment": "GitHub Actions CI",
+        "require_model_version_and_hash": true,
+        "parameters_frozen_before_run": true,
+        "holdout_tuning": false,
+        "unavailable_status": "BLOCKED",
+        "replacement_allowed": false
+      },
+      "freqtrade": {
+        "strategy_count": 1,
+        "parameters": "strategy_defaults",
+        "hyperopt": false,
+        "require_strategy_name_and_file_sha_before_execution": true
+      },
+      "holm": {
+        "alpha": 0.05,
+        "family": [
+          "4 fixed_baseline timeframe tests",
+          "3 legacy BTC tests with p=1",
+          "4 timeframes for each of 2 new candidates"
+        ],
+        "unrun_test_p_value": 1,
+        "exposure_matched_test_in_holm_family": false
+      },
+      "acceptance": {
+        "net_profit_after_round_trip_cost_pct": 0.12,
+        "must_beat_equal_weight_buy_hold_assets": [
+          "BTCUSDT",
+          "ETHUSDT",
+          "ADAUSDT",
+          "SOLUSDT",
+          "XRPUSDT"
+        ],
+        "holm_p_value_less_than": 0.05,
+        "remain_positive_after_removing_top_3_trades": true,
+        "minimum_calendar_days": 250,
+        "minimum_independent_trades": 200,
+        "sensitivity_cost_pct": 0.24
+      },
+      "exposure_matched_comparator": {
+        "exposure_per_asset": "mean_daily_absolute_open_position_notional_divided_by_beginning_of_day_capital_over_evaluation_period_from_candidate_trade_logs",
+        "comparator": "long_only_buy_and_hold_at_constant_asset_exposure",
+        "daily_return": "exposure_e * asset_daily_return",
+        "one_time_entry_exit_cost_pct": "exposure_e * 0.12",
+        "statistic": "same mean daily return difference on equal_weight_5_asset_portfolio",
+        "bootstrap": {
+          "type": "moving_block",
+          "block_calendar_days": 5,
+          "repetitions": 10000,
+          "seed": 20261109,
+          "tail": "one_sided"
+        },
+        "acceptance": "both_section_6_and_section_6b_must_pass_separately",
+        "separate_holm_correction": false,
+        "fixed_baseline_unchanged": true
+      },
+      "holdout": {
+        "max_finalists": 3,
+        "uses_per_finalist": 1
+      },
+      "paper_logger": {
+        "append_only": true,
+        "signal_recorded_before_event": true,
+        "fields": [
+          "time",
+          "asset",
+          "direction",
+          "entry_zone_A_to_B",
+          "stop_loss",
+          "target",
+          "horizon",
+          "probability",
+          "unconfirmed_label"
+        ],
+        "probability_before_sufficient_calibration": "NOT_COMPUTED",
+        "outcome_recorded_after_horizon": true,
+        "diagnostics_only": [
+          "directional_accuracy_with_confidence_interval",
+          "range_coverage",
+          "signal_issuance_percentage"
+        ]
+      },
+      "deadlines": {
+        "paper_logger_and_commit_hashes": "2026-11-27",
+        "final_report": "2026-12-01"
+      },
+      "forbidden": [
+        "Brain Mesh",
+        "news",
+        "new_data_sources",
+        "telegram-bot_changes",
+        "forward_test_v2_changes",
+        "post_result_criteria_changes"
+      ],
+      "failure_result": "NO VERIFIED EDGE FOUND",
+      "exact_deadline_requires_reviewable_commit": true
     }
   ]
 }
