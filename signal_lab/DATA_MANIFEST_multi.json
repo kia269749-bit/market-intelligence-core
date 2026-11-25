@@ -1,0 +1,205 @@
+{
+  "source": "https://data-api.binance.vision/api/v3/klines",
+  "round_trip_cost_pct": 0.12,
+  "research_only": true,
+  "live_orders": false,
+  "files": {
+    "BTCUSDT_15m": {
+      "candles": 241757,
+      "first_open": 1577836800000,
+      "last_close": 1795555799999,
+      "ohlc_confirmed": true,
+      "sha256": "3df88b6d6fa658567583d949578383a2dceac63c75b9c3084736ae0c0d2f3a92"
+    },
+    "BTCUSDT_1h": {
+      "candles": 60445,
+      "first_open": 1577836800000,
+      "last_close": 1795553999999,
+      "ohlc_confirmed": true,
+      "sha256": "f73df410396d53e9616e9c8585b595b6b7581293548be975a98884f325a6a532"
+    },
+    "BTCUSDT_4h": {
+      "candles": 15118,
+      "first_open": 1577836800000,
+      "last_close": 1795550399999,
+      "ohlc_confirmed": true,
+      "sha256": "7f9c90b15c9e0ed108d0388cee11c28d2618b91728401cc827f190d99543fd38"
+    },
+    "BTCUSDT_1d": {
+      "candles": 2519,
+      "first_open": 1577836800000,
+      "last_close": 1795478399999,
+      "ohlc_confirmed": true,
+      "sha256": "bbb6df5436f1793ead17a65c749ec74e991fa59d3dcd4bbb4ba6fa42ea29ce40"
+    },
+    "ETHUSDT_15m": {
+      "candles": 241757,
+      "first_open": 1577836800000,
+      "last_close": 1795555799999,
+      "ohlc_confirmed": true,
+      "sha256": "4c0cb75322123938cacf0068a09a9a3eabbe85da82075712e21160a0235f99dd"
+    },
+    "ETHUSDT_1h": {
+      "candles": 60445,
+      "first_open": 1577836800000,
+      "last_close": 1795553999999,
+      "ohlc_confirmed": true,
+      "sha256": "8bd2a33663c658379ea22838640058cd7f0b8d11626606b33e00e20a6e3b7bfb"
+    },
+    "ETHUSDT_4h": {
+      "candles": 15118,
+      "first_open": 1577836800000,
+      "last_close": 1795550399999,
+      "ohlc_confirmed": true,
+      "sha256": "22950a0b63f7f0ba5698d27cf025042f55896aa2573f191809b0dd654a5a8f59"
+    },
+    "ETHUSDT_1d": {
+      "candles": 2519,
+      "first_open": 1577836800000,
+      "last_close": 1795478399999,
+      "ohlc_confirmed": true,
+      "sha256": "19bb8c7caba7c45ed8eafd7683eadbc0e2d859d077db088861b8d1070749a036"
+    },
+    "ADAUSDT_15m": {
+      "candles": 241758,
+      "first_open": 1577836800000,
+      "last_close": 1795556699999,
+      "ohlc_confirmed": true,
+      "sha256": "436d9bbeb0a7a72eb7e83a8aab165ddbc758d6b1a7f95b0c08fad4ddec8d1956"
+    },
+    "ADAUSDT_1h": {
+      "candles": 60446,
+      "first_open": 1577836800000,
+      "last_close": 1795557599999,
+      "ohlc_confirmed": true,
+      "sha256": "7e080e6ee4260f8c1e4fd47ddb8d5bb831440561fc3aa9c46cf631f50f9b898f"
+    },
+    "ADAUSDT_4h": {
+      "candles": 15118,
+      "first_open": 1577836800000,
+      "last_close": 1795550399999,
+      "ohlc_confirmed": true,
+      "sha256": "86cb587ed3854b4864c83712fc2decd5b5c8c9691133b5aa90abc4fe75e7a886"
+    },
+    "ADAUSDT_1d": {
+      "candles": 2519,
+      "first_open": 1577836800000,
+      "last_close": 1795478399999,
+      "ohlc_confirmed": true,
+      "sha256": "4637acc2455fc2602a9542f4dc620670d19aaeb6d6e5b1f63a434b00dd51f81e"
+    },
+    "SOLUSDT_15m": {
+      "candles": 220386,
+      "first_open": 1597125600000,
+      "last_close": 1795557599999,
+      "ohlc_confirmed": true,
+      "sha256": "62dab36834af03691a8c8b573acf2dc4001b7c4a0afb1564150a4afcbfffe83b"
+    },
+    "SOLUSDT_1h": {
+      "candles": 55100,
+      "first_open": 1597125600000,
+      "last_close": 1795557599999,
+      "ohlc_confirmed": true,
+      "sha256": "ec09b33ff345452f6a91386b7217984b223cc67f06ed25eb2c1975d2627e9c97"
+    },
+    "SOLUSDT_4h": {
+      "candles": 13780,
+      "first_open": 1597118400000,
+      "last_close": 1795550399999,
+      "ohlc_confirmed": true,
+      "sha256": "be8ab57796a03f2dbf9e2c4f35a77ed291a625b880b2903b6d1381ee43d91306"
+    },
+    "SOLUSDT_1d": {
+      "candles": 2296,
+      "first_open": 1597104000000,
+      "last_close": 1795478399999,
+      "ohlc_confirmed": true,
+      "sha256": "0c5749e3beedcf6fda0529b2152671f9c06c52c1366d83f3173340cab0cdad26"
+    },
+    "XRPUSDT_15m": {
+      "candles": 241775,
+      "first_open": 1577836800000,
+      "last_close": 1795571999999,
+      "ohlc_confirmed": true,
+      "sha256": "ae9310fd9a748fa3bc3bce1b56c9fce1865ae3e6146ce123f51357baa636b3a1"
+    },
+    "XRPUSDT_1h": {
+      "candles": 60450,
+      "first_open": 1577836800000,
+      "last_close": 1795571999999,
+      "ohlc_confirmed": true,
+      "sha256": "ce8fe7e81677c5ce17196e0ff0e458b09c8d8db84916bc1fdf948b59804a33c6"
+    },
+    "XRPUSDT_4h": {
+      "candles": 15119,
+      "first_open": 1577836800000,
+      "last_close": 1795564799999,
+      "ohlc_confirmed": true,
+      "sha256": "776ce054ac9a0ed7a59d9781be4924c5d759ed1f5c7ba8fdcd556c054db81f27"
+    },
+    "XRPUSDT_1d": {
+      "candles": 2520,
+      "first_open": 1577836800000,
+      "last_close": 1795564799999,
+      "ohlc_confirmed": true,
+      "sha256": "7f11e8234ac62c9528b78518bc60768811de3debc7f39fe072ab619d72e36c1e"
+    },
+    "PENGUUSDT_15m": {
+      "candles": 67922,
+      "first_open": 1734444000000,
+      "last_close": 1795573799999,
+      "ohlc_confirmed": true,
+      "sha256": "c5a3bacc739278960990566665e98f7196cff0cd470b51299a93c81ec25ea2c3"
+    },
+    "PENGUUSDT_1h": {
+      "candles": 16980,
+      "first_open": 1734444000000,
+      "last_close": 1795571999999,
+      "ohlc_confirmed": true,
+      "sha256": "f6a607164b92d086631db50d14145221211662875a511364bdc194cee1864e7c"
+    },
+    "PENGUUSDT_4h": {
+      "candles": 4245,
+      "first_open": 1734436800000,
+      "last_close": 1795564799999,
+      "ohlc_confirmed": true,
+      "sha256": "276e0fbd8177093d2e71dcadb66e2e26c2c2aff5db10a855b869db4d37aec82d"
+    },
+    "PENGUUSDT_1d": {
+      "candles": 708,
+      "first_open": 1734393600000,
+      "last_close": 1795564799999,
+      "ohlc_confirmed": true,
+      "sha256": "0ba6b73c810e3b36960cc33a0d3ee4c99c95fd74ecee090549c4b8422ddc831c"
+    },
+    "TRUMPUSDT_15m": {
+      "candles": 64776,
+      "first_open": 1737275400000,
+      "last_close": 1795573799999,
+      "ohlc_confirmed": true,
+      "sha256": "3c2ad137febeacbf695845b9718799f2780f61e5d3f7e5051c83986ada915556"
+    },
+    "TRUMPUSDT_1h": {
+      "candles": 16194,
+      "first_open": 1737273600000,
+      "last_close": 1795571999999,
+      "ohlc_confirmed": true,
+      "sha256": "45dd6f906178437caa5666e006c8bc41d9e78f49041a01609d7befa6bf15a0f7"
+    },
+    "TRUMPUSDT_4h": {
+      "candles": 4048,
+      "first_open": 1737273600000,
+      "last_close": 1795564799999,
+      "ohlc_confirmed": true,
+      "sha256": "3a63cd19b98cf40a7519fbb578f354cbf9c68847dbb814c08a5f98408014947d"
+    },
+    "TRUMPUSDT_1d": {
+      "candles": 675,
+      "first_open": 1737244800000,
+      "last_close": 1795564799999,
+      "ohlc_confirmed": true,
+      "sha256": "aab15403c49ebdb63f1f4644a903a2b9bc8995e653b45a5685285ed34935c187"
+    }
+  },
+  "downloaded_at_utc": "2026-11-25T02:39:44.540225+00:00"
+}

@@ -3,3 +3,4 @@ __pycache__/
 .venv/
 data/
 reports/
+signal_lab/data/
