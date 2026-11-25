@@ -73,21 +73,40 @@
       "id": "kronos_inference",
       "source": "shiyu-coder/Kronos + NeoQuasar/Kronos-small",
       "role": "pretrained_inference_only",
-      "status": "pre_registered_pending_model_version_hash_and_ci_compatibility",
+      "status": "BLOCKED_MODEL_WEIGHTS_AND_REVISION_UNAVAILABLE",
       "data_after": "2025-09-01",
       "execution_environment": "GitHub Actions CI",
       "parameter_tuning": false,
       "holdout_tuning": false,
-      "unavailable_action": "BLOCKED_NO_REPLACEMENT"
+      "unavailable_action": "BLOCKED_NO_REPLACEMENT",
+      "model_repo": "NeoQuasar/Kronos-small",
+      "tokenizer_repo": "NeoQuasar/Kronos-Tokenizer-base",
+      "model_revision": null,
+      "tokenizer_revision": null,
+      "model_weights_sha256": null,
+      "tokenizer_weights_sha256": null,
+      "code_repo": "shiyu-coder/Kronos",
+      "code_revision": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+      "inference_parameters": null,
+      "parameter_lock_status": "BLOCKED_UNTIL_EXACT_MODEL_AND_TOKENIZER_REVISIONS_AND_WEIGHT_HASHES_ARE_ACCESSIBLE",
+      "replacement_allowed": false,
+      "execution_started": false,
+      "blocked_reason": "GitHub-connected access did not provide the Hugging Face model and tokenizer weight files or immutable revisions needed to compute and verify their SHA-256 hashes. No substitute model or revision selected."
     },
     {
       "id": "freqtrade_strategy",
       "source": "freqtrade/freqtrade-strategies",
       "role": "single_strategy_default_parameters",
-      "status": "BLOCKED_UNTIL_STRATEGY_NAME_AND_FILE_SHA_ARE_RECORDED",
+      "status": "PRE_REGISTERED_LOCKED_NO_RUN",
       "hyperopt": false,
-      "strategy_name": null,
-      "strategy_file_sha256": null
+      "strategy_name": "TechnicalExampleStrategy",
+      "strategy_file_sha256": "0a3d94c8ef857284c9bc37d592af329b1a831f9c504fb2d73b63db00d303db50",
+      "strategy_file_path": "user_data/strategies/berlinguyinca/TechnicalExampleStrategy.py",
+      "strategy_source_repo": "freqtrade/freqtrade-strategies",
+      "strategy_source_revision": "f3340ce11f5bdf62f598522e64d1f5638eaa13f5",
+      "freqtrade_version": "2026.10",
+      "parameters": "Exact class-level defaults in the pinned source file; no config overrides",
+      "execution_started": false
     }
   ],
   "stopping_rule": {
@@ -314,5 +333,36 @@
       "failure_result": "NO VERIFIED EDGE FOUND",
       "exact_deadline_requires_reviewable_commit": true
     }
-  ]
+  ],
+  "candidate_registration": {
+    "recorded_date_utc": "2026-11-25",
+    "execution_started": false,
+    "freqtrade_strategy": {
+      "name": "TechnicalExampleStrategy",
+      "source_repo": "freqtrade/freqtrade-strategies",
+      "source_revision": "f3340ce11f5bdf62f598522e64d1f5638eaa13f5",
+      "file_path": "user_data/strategies/berlinguyinca/TechnicalExampleStrategy.py",
+      "file_sha256": "0a3d94c8ef857284c9bc37d592af329b1a831f9c504fb2d73b63db00d303db50",
+      "freqtrade_version": "2026.10",
+      "parameters": "Exact class-level defaults in the pinned source file; no config overrides",
+      "hyperopt": false,
+      "status": "PRE_REGISTERED_LOCKED_NO_RUN"
+    },
+    "kronos_inference": {
+      "model_repo": "NeoQuasar/Kronos-small",
+      "tokenizer_repo": "NeoQuasar/Kronos-Tokenizer-base",
+      "model_revision": null,
+      "tokenizer_revision": null,
+      "model_weights_sha256": null,
+      "tokenizer_weights_sha256": null,
+      "code_repo": "shiyu-coder/Kronos",
+      "code_revision": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
+      "data_after": "2025-09-01",
+      "environment": "GitHub Actions CI",
+      "status": "BLOCKED",
+      "reason": "Exact Hugging Face model/tokenizer revisions and weight files were not accessible through the connected GitHub app; hashes cannot be truthfully computed. No replacement permitted."
+    },
+    "amendment_1_and_2_modified": false,
+    "criteria_modified": false
+  }
 }
