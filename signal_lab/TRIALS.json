@@ -73,7 +73,7 @@
       "id": "kronos_inference",
       "source": "shiyu-coder/Kronos + NeoQuasar/Kronos-small",
       "role": "pretrained_inference_only",
-      "status": "BLOCKED_MODEL_WEIGHTS_AND_REVISION_UNAVAILABLE",
+      "status": "PRE_REGISTERED_LOCKED_NO_RUN",
       "data_after": "2025-09-01",
       "execution_environment": "GitHub Actions CI",
       "parameter_tuning": false,
@@ -81,17 +81,65 @@
       "unavailable_action": "BLOCKED_NO_REPLACEMENT",
       "model_repo": "NeoQuasar/Kronos-small",
       "tokenizer_repo": "NeoQuasar/Kronos-Tokenizer-base",
-      "model_revision": null,
-      "tokenizer_revision": null,
-      "model_weights_sha256": null,
-      "tokenizer_weights_sha256": null,
+      "model_revision": "901c26c1332695a2a8f243eb2f37243a37bea320",
+      "tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
+      "model_weights_sha256": "b082dfcbd8e8c142a725c8bbb99781802f38fec81210e13479effb32b3c3e020",
+      "tokenizer_weights_sha256": "59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee",
       "code_repo": "shiyu-coder/Kronos",
       "code_revision": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
-      "inference_parameters": null,
-      "parameter_lock_status": "BLOCKED_UNTIL_EXACT_MODEL_AND_TOKENIZER_REVISIONS_AND_WEIGHT_HASHES_ARE_ACCESSIBLE",
+      "inference_parameters": {
+        "context_candles": 512,
+        "prediction_horizon_candles": 1,
+        "samples": 10,
+        "aggregation": "arithmetic_mean_of_all_10_numeric_predicted_next_close_values; best_sample_selection_forbidden",
+        "temperature": 1,
+        "top_p": 0.9,
+        "seed": 20261109,
+        "signal_rule": "(arithmetic_mean_predicted_next_close - current_close) / current_close > 0.0012 => LONG; otherwise NO_TRADE",
+        "direction": "long_only",
+        "assets": [
+          "BTCUSDT",
+          "ETHUSDT",
+          "ADAUSDT",
+          "SOLUSDT",
+          "XRPUSDT"
+        ],
+        "timeframes": [
+          "15m",
+          "1h",
+          "4h",
+          "1d"
+        ],
+        "holdout_tuning": false
+      },
+      "parameter_lock_status": "LOCKED_BEFORE_ANY_RUN",
       "replacement_allowed": false,
       "execution_started": false,
-      "blocked_reason": "GitHub-connected access did not provide the Hugging Face model and tokenizer weight files or immutable revisions needed to compute and verify their SHA-256 hashes. No substitute model or revision selected."
+      "model_weights_size_bytes": 98980656,
+      "tokenizer_weights_size_bytes": 15842368,
+      "execution_rules": {
+        "historical_context_before_data_after_allowed": true,
+        "historical_context_rule": "Up to 512 prior candles may precede 2025-09-01; no future data may enter any input.",
+        "compatibility_check": "Model loading and one smoke prediction must use only data dated before 2025-09-01; any failure leaves candidate BLOCKED, with no substitution.",
+        "ci_timeout_rule": "Any CI time-limit failure leaves candidate BLOCKED; reducing samples is forbidden.",
+        "runtime_logging": [
+          "python",
+          "torch",
+          "numpy",
+          "pandas",
+          "device_cpu_or_cuda"
+        ],
+        "runtime_versions_recorded_after_execution": true,
+        "forbidden": [
+          "model_or_tokenizer_replacement",
+          "holdout_tuning",
+          "live_orders"
+        ]
+      },
+      "previous_status": {
+        "status": "BLOCKED_MODEL_WEIGHTS_AND_REVISION_UNAVAILABLE",
+        "blocked_reason": "GitHub-connected access did not provide the Hugging Face model and tokenizer weight files or immutable revisions needed to compute and verify their SHA-256 hashes. No substitute model or revision selected."
+      }
     },
     {
       "id": "freqtrade_strategy",
@@ -351,16 +399,69 @@
     "kronos_inference": {
       "model_repo": "NeoQuasar/Kronos-small",
       "tokenizer_repo": "NeoQuasar/Kronos-Tokenizer-base",
-      "model_revision": null,
-      "tokenizer_revision": null,
-      "model_weights_sha256": null,
-      "tokenizer_weights_sha256": null,
+      "model_revision": "901c26c1332695a2a8f243eb2f37243a37bea320",
+      "tokenizer_revision": "0e0117387f39004a9016484a186a908917e22426",
+      "model_weights_sha256": "b082dfcbd8e8c142a725c8bbb99781802f38fec81210e13479effb32b3c3e020",
+      "tokenizer_weights_sha256": "59d85f6af76a2c3b8240ea06cb21db4213b4eeca053f246b23e29cf832fc6bee",
       "code_repo": "shiyu-coder/Kronos",
       "code_revision": "67b630e67f6a18c9e9be918d9b4337c960db1e9a",
       "data_after": "2025-09-01",
       "environment": "GitHub Actions CI",
-      "status": "BLOCKED",
-      "reason": "Exact Hugging Face model/tokenizer revisions and weight files were not accessible through the connected GitHub app; hashes cannot be truthfully computed. No replacement permitted."
+      "status": "PRE_REGISTERED_LOCKED_NO_RUN",
+      "model_weights_size_bytes": 98980656,
+      "tokenizer_weights_size_bytes": 15842368,
+      "execution_environment": "GitHub Actions CI",
+      "inference_parameters": {
+        "context_candles": 512,
+        "prediction_horizon_candles": 1,
+        "samples": 10,
+        "aggregation": "arithmetic_mean_of_all_10_numeric_predicted_next_close_values; best_sample_selection_forbidden",
+        "temperature": 1,
+        "top_p": 0.9,
+        "seed": 20261109,
+        "signal_rule": "(arithmetic_mean_predicted_next_close - current_close) / current_close > 0.0012 => LONG; otherwise NO_TRADE",
+        "direction": "long_only",
+        "assets": [
+          "BTCUSDT",
+          "ETHUSDT",
+          "ADAUSDT",
+          "SOLUSDT",
+          "XRPUSDT"
+        ],
+        "timeframes": [
+          "15m",
+          "1h",
+          "4h",
+          "1d"
+        ],
+        "holdout_tuning": false
+      },
+      "parameter_lock_status": "LOCKED_BEFORE_ANY_RUN",
+      "execution_rules": {
+        "historical_context_before_data_after_allowed": true,
+        "historical_context_rule": "Up to 512 prior candles may precede 2025-09-01; no future data may enter any input.",
+        "compatibility_check": "Model loading and one smoke prediction must use only data dated before 2025-09-01; any failure leaves candidate BLOCKED, with no substitution.",
+        "ci_timeout_rule": "Any CI time-limit failure leaves candidate BLOCKED; reducing samples is forbidden.",
+        "runtime_logging": [
+          "python",
+          "torch",
+          "numpy",
+          "pandas",
+          "device_cpu_or_cuda"
+        ],
+        "runtime_versions_recorded_after_execution": true,
+        "forbidden": [
+          "model_or_tokenizer_replacement",
+          "holdout_tuning",
+          "live_orders"
+        ]
+      },
+      "replacement_allowed": false,
+      "execution_started": false,
+      "previous_status": {
+        "status": "BLOCKED",
+        "reason": "Exact Hugging Face model/tokenizer revisions and weight files were not accessible through the connected GitHub app; hashes cannot be truthfully computed. No replacement permitted."
+      }
     },
     "amendment_1_and_2_modified": false,
     "criteria_modified": false
