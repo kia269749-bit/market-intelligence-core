@@ -1,0 +1,65 @@
+name: Signal Lab environment check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  environment-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install exact pinned packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "freqtrade==2026.10" "technical==1.7.0"
+          python -m pip show freqtrade
+          python -m pip show technical
+
+      - name: Download and verify preregistered strategy source
+        shell: bash
+        run: |
+          set -euo pipefail
+          STRATEGY_DIR="$RUNNER_TEMP/signal-lab-strategy"
+          mkdir -p "$STRATEGY_DIR"
+          STRATEGY_FILE="$STRATEGY_DIR/TechnicalExampleStrategy.py"
+          SOURCE_URL="https://raw.githubusercontent.com/freqtrade/freqtrade-strategies/f3340ce11f5bdf62f598522e64d1f5638eaa13f5/user_data/strategies/berlinguyinca/TechnicalExampleStrategy.py"
+          curl --fail --silent --show-error --location "$SOURCE_URL" --output "$STRATEGY_FILE"
+          ACTUAL_SHA256="$(sha256sum "$STRATEGY_FILE" | awk '{print $1}')"
+          echo "Strategy SHA-256: $ACTUAL_SHA256"
+          EXPECTED_SHA256="0a3d94c8ef857284c9bc37d592af329b1a831f9c504fb2d73b63db00d303db50"
+          if [[ "$ACTUAL_SHA256" != "$EXPECTED_SHA256" ]]; then
+            echo "::error::Strategy SHA-256 does not match preregistered hash"
+            exit 1
+          fi
+          echo "Strategy source hash: MATCH"
+
+      - name: Import strategy and inspect timeframe
+        env:
+          STRATEGY_DIR: ${{ runner.temp }}/signal-lab-strategy
+        run: |
+          PYTHONPATH="$STRATEGY_DIR" python - <<'PY'
+          from TechnicalExampleStrategy import TechnicalExampleStrategy
+          print(f"Imported strategy: {TechnicalExampleStrategy.__name__}")
+          print(f"Strategy class timeframe: {TechnicalExampleStrategy.timeframe}")
+          PY
+
+      - name: Verify backtesting timeframe CLI option only
+        shell: bash
+        run: |
+          set -euo pipefail
+          HELP_OUTPUT="$(freqtrade backtesting --help)"
+          if ! grep -q -- '--timeframe' <<< "$HELP_OUTPUT"; then
+            echo "::error::freqtrade backtesting --help does not expose --timeframe"
+            exit 1
+          fi
+          grep -F -- '--timeframe' <<< "$HELP_OUTPUT"
+          echo "CLI option check: PASS (help only; no backtest invoked)"
